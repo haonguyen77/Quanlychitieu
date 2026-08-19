@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: #ffffff;
+    --color-surface: #f8fafc;
+    --color-text: #1e293b;
+    --color-text-secondary: #64748b;
+    --color-border: #e2e8f0;
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+  }
+
+  .dark {
+    --color-bg: #1e1e2e;
+    --color-surface: #181825;
+    --color-text: #cdd6f4;
+    --color-text-secondary: #a6adc8;
+    --color-border: #313244;
+    --color-primary: #89b4fa;
+    --color-primary-hover: #74c7ec;
+  }
+
+  body {
+    @apply bg-[var(--color-bg)] text-[var(--color-text)] font-sans;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-[var(--color-primary)] text-white rounded-md
+           hover:bg-[var(--color-primary-hover)] transition-colors
+           text-sm font-medium;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 border border-[var(--color-border)] rounded-md
+           hover:bg-[var(--color-surface)] transition-colors
+           text-sm font-medium text-[var(--color-text)];
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 rounded-md border border-[var(--color-border)]
+           bg-[var(--color-bg)] text-[var(--color-text)] text-sm
+           focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]
+           placeholder:text-[var(--color-text-secondary)];
+  }
+
+  .card {
+    @apply bg-[var(--color-bg)] border border-[var(--color-border)]
+           rounded-lg p-4 shadow-sm;
+  }
+
+  .animate-in {
+    animation: slideIn 0.2s ease-out;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

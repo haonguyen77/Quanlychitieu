@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Quản lý chi tiêu",
+  "version": "1.0.0",
+  "description": "Nền tảng quản lý dữ liệu cá nhân - Metadata Driven. Desktop client đồng bộ với Android App qua Google Drive.",
+  "permissions": [
+    "identity",
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "oauth2": {
+    "client_id": "360333034797-8koa97a3sbban4g0uaf33a1tk0ivieav.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/userinfo.email"
+    ]
+  },
+  "action": {
+    "default_title": "Quản lý chi tiêu",
+    "default_icon": {
+      "16": "icons/app_icon.png",
+      "48": "icons/app_icon.png",
+      "128": "icons/app_icon.png"
+    }
+  },
+  "icons": {
+    "16": "icons/app_icon.png",
+    "48": "icons/app_icon.png",
+    "128": "icons/app_icon.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "host_permissions": [
+    "https://www.googleapis.com/*"
+  ]
+}

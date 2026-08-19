@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer coin circle -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M54,54m-30,0a30,30 0,1 1,60 0a30,30 0,1 1,-60 0"/>
+    <!-- Inner circle -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,54m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0"/>
+    <!-- Dong sign -->
+    <path
+        android:strokeWidth="3"
+        android:strokeColor="#F57F17"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M48,42L48,66 M52,42L52,66 M44,50C44,46 48,44 50,44C54,44 58,46 58,50C58,54 54,55 50,55C46,55 44,57 44,60C44,63 48,65 50,65C54,65 58,63 58,60"/>
+</vector>

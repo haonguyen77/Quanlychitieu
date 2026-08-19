@@ -1,0 +1,143 @@
+import {
+  Wallet,
+  ShoppingCart,
+  Gem,
+  Home,
+  Wine,
+  Settings,
+  LayoutDashboard,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Trash2,
+  Edit,
+  Search,
+  Filter,
+  X,
+  Check,
+  Moon,
+  Sun,
+  Download,
+  Upload,
+  RefreshCw,
+  MoreHorizontal,
+  Star,
+  Heart,
+  MapPin,
+  Phone,
+  Mail,
+  Link,
+  FileText,
+  Image,
+  Calendar,
+  CreditCard,
+  Users,
+  Building,
+  Smartphone,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Copy,
+  Save,
+  TrendingUp,
+  TrendingDown,
+  Utensils,
+  Car,
+  ShoppingBag,
+  Film,
+  Book,
+  PanelLeftOpen,
+  PanelLeftClose,
+  AlertTriangle,
+  Database,
+  FileJson,
+  FileSpreadsheet,
+  type LucideIcon,
+} from 'lucide-react';
+
+const iconMap: Record<string, LucideIcon> = {
+  wallet: Wallet,
+  'shopping-cart': ShoppingCart,
+  gem: Gem,
+  home: Home,
+  wine: Wine,
+  settings: Settings,
+  'layout-dashboard': LayoutDashboard,
+  'chevron-left': ChevronLeft,
+  'chevron-right': ChevronRight,
+  plus: Plus,
+  trash: Trash2,
+  edit: Edit,
+  search: Search,
+  filter: Filter,
+  x: X,
+  check: Check,
+  moon: Moon,
+  sun: Sun,
+  download: Download,
+  upload: Upload,
+  refresh: RefreshCw,
+  'more-horizontal': MoreHorizontal,
+  star: Star,
+  heart: Heart,
+  map: MapPin,
+  phone: Phone,
+  mail: Mail,
+  link: Link,
+  'file-text': FileText,
+  image: Image,
+  calendar: Calendar,
+  card: CreditCard,
+  'credit-card': CreditCard,
+  users: Users,
+  building: Building,
+  smartphone: Smartphone,
+  'arrow-up-down': ArrowUpDown,
+  'chevron-down': ChevronDown,
+  'chevron-up': ChevronUp,
+  eye: Eye,
+  'eye-off': EyeOff,
+  copy: Copy,
+  save: Save,
+  'trending-up': TrendingUp,
+  'trending-down': TrendingDown,
+  utensils: Utensils,
+  car: Car,
+  'shopping-bag': ShoppingBag,
+  film: Film,
+  book: Book,
+  'panel-left-open': PanelLeftOpen,
+  'panel-left-close': PanelLeftClose,
+  'alert-triangle': AlertTriangle,
+  database: Database,
+  'file-json': FileJson,
+  'file-spreadsheet': FileSpreadsheet,
+  'trash-2': Trash2,
+};
+
+interface IconProps {
+  name: string;
+  size?: number;
+  className?: string;
+  color?: string;
+}
+
+export function Icon({ name, size = 20, className = '', color }: IconProps) {
+  const LucideComponent = iconMap[name];
+
+  if (!LucideComponent) {
+    // Fallback for unknown icons
+    return (
+      <span
+        className={`inline-block ${className}`}
+        style={{ width: size, height: size, fontSize: size * 0.7, lineHeight: `${size}px`, textAlign: 'center' }}
+      >
+        ●
+      </span>
+    );
+  }
+
+  return <LucideComponent size={size} className={className} color={color} />;
+}
