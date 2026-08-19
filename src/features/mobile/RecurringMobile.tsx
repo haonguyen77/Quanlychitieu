@@ -13,18 +13,19 @@ export function RecurringMobile() {
   const [editId, setEditId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [type, setType] = useState<0 | 1>(0);
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
   const [nextRunDate, setNextRunDate] = useState(new Date().toISOString().slice(0, 10));
 
   const recurring = data?.recurringTransactions || [];
 
-  const resetForm = () => { setShowForm(false); setEditId(null); setTitle(''); setAmount(''); setFrequency('monthly'); setNextRunDate(new Date().toISOString().slice(0, 10)); };
+  const resetForm = () => { setShowForm(false); setEditId(null); setTitle(''); setAmount(''); setType(0); setFrequency('monthly'); setNextRunDate(new Date().toISOString().slice(0, 10)); };
 
   const handleSave = () => {
     if (!data || !title.trim()) return;
     const amt = Number(amount.replace(/\D/g, '')) || 0;
     const now = new Date().toISOString();
-    const values: RecordValues = { mod_chitieu_title: title.trim(), mod_chitieu_amount: amt, mod_chitieu_type: '0', mod_chitieu_date: nextRunDate };
+    const values: RecordValues = { mod_chitieu_title: title.trim(), mod_chitieu_amount: amt, mod_chitieu_type: String(type), mod_chitieu_date: nextRunDate };
 
     let updated: RecurringTransaction[];
     if (editId) {
@@ -50,8 +51,10 @@ export function RecurringMobile() {
     setEditId(r.id);
     const t = Object.entries(r.values).find(([k]) => k.endsWith('_title'));
     const a = Object.entries(r.values).find(([k]) => k.endsWith('_amount'));
+    const tp = Object.entries(r.values).find(([k]) => k.endsWith('_type'));
     setTitle(t ? String(t[1] ?? '') : '');
     setAmount(a ? String(Math.abs(Number(a[1]) || 0)) : '');
+    setType(tp && String(tp[1]) === '1' ? 1 : 0);
     setFrequency(r.frequency);
     setNextRunDate(r.nextRunDate);
     setShowForm(true);
@@ -71,6 +74,11 @@ export function RecurringMobile() {
         {showForm && (
           <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/30 space-y-3">
             <div className="flex justify-between"><h4 className="text-sm font-semibold">{editId ? 'Sửa' : 'Thêm'}</h4><button onClick={resetForm}><X size={18} color="#666" /></button></div>
+            {/* Chi/Thu toggle (Android: SegmentedButton) */}
+            <div className="flex gap-2">
+              <button onClick={() => setType(0)} className={`flex-1 py-2 rounded-lg text-sm font-medium border ${type === 0 ? 'border-red-400 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500'}`}>Chi</button>
+              <button onClick={() => setType(1)} className={`flex-1 py-2 rounded-lg text-sm font-medium border ${type === 1 ? 'border-green-400 bg-green-50 text-green-600' : 'border-gray-200 text-gray-500'}`}>Thu</button>
+            </div>
             <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Tên giao dịch" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
             <input type="text" inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="Số tiền" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
             <div>

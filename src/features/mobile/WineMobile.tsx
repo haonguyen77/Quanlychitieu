@@ -18,7 +18,12 @@ export function WineMobile() {
   const [activeTab, setActiveTab] = useState<WineTab>('orders');
   const [showAddOrder, setShowAddOrder] = useState(false);
   const [orderCustomer, setOrderCustomer] = useState('');
-  const [orderAmount, setOrderAmount] = useState('');
+  const [orderPhone, setOrderPhone] = useState('');
+  const [orderAddress, setOrderAddress] = useState('');
+  const [orderProduct, setOrderProduct] = useState('');
+  const [orderQty, setOrderQty] = useState('1');
+  const [orderPrice, setOrderPrice] = useState('');
+  const [orderShipFee, setOrderShipFee] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
 
   const orders = useMemo(() => {
@@ -69,20 +74,55 @@ export function WineMobile() {
         {activeTab === 'inventory' && <WineInventory items={inventory} />}
       </div>
 
-      {/* Add Order Modal */}
+      {/* Add Order Modal — matches Android WineOrderFormScreen fields */}
       {showAddOrder && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30" onClick={() => setShowAddOrder(false)}>
-          <div className="relative bg-white rounded-t-2xl w-full max-h-[70vh] p-4 space-y-3" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center"><h3 className="text-sm font-semibold">Thêm đơn hàng</h3><button onClick={() => setShowAddOrder(false)}><X size={18} color="#666" /></button></div>
-            <input type="text" value={orderCustomer} onChange={e => setOrderCustomer(e.target.value)} placeholder="Tên khách hàng" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-            <input type="text" inputMode="numeric" value={orderAmount} onChange={e => setOrderAmount(e.target.value.replace(/\D/g, ''))} placeholder="Tổng tiền" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-            <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+          <div className="relative bg-white rounded-t-2xl w-full max-h-[80vh] overflow-auto p-4 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center"><h3 className="text-sm font-semibold" style={{ color: '#101B4D' }}>Tạo đơn hàng mới</h3><button onClick={() => setShowAddOrder(false)}><X size={18} color="#666" /></button></div>
+            {/* Date with navigation */}
+            <div className="flex items-center gap-2">
+              <button onClick={() => { const d = new Date(orderDate); d.setDate(d.getDate() - 1); setOrderDate(d.toISOString().slice(0, 10)); }} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center">‹</button>
+              <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-center" />
+              <button onClick={() => { const d = new Date(orderDate); d.setDate(d.getDate() + 1); setOrderDate(d.toISOString().slice(0, 10)); }} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center">›</button>
+            </div>
+            {/* Customer info */}
+            <input type="text" value={orderCustomer} onChange={e => setOrderCustomer(e.target.value)} placeholder="Tên khách hàng..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+            <input type="text" value={orderPhone} onChange={e => setOrderPhone(e.target.value)} placeholder="Số điện thoại..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+            <input type="text" value={orderAddress} onChange={e => setOrderAddress(e.target.value)} placeholder="Địa chỉ..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+            {/* Product */}
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs font-medium text-gray-600 mb-2">Sản phẩm</p>
+              <input type="text" value={orderProduct} onChange={e => setOrderProduct(e.target.value)} placeholder="Tên sản phẩm..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+              <div className="flex gap-2 mt-2">
+                <input type="text" inputMode="numeric" value={orderQty} onChange={e => setOrderQty(e.target.value.replace(/\D/g, ''))} placeholder="SL" className="w-20 px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                <input type="text" inputMode="numeric" value={orderPrice} onChange={e => setOrderPrice(e.target.value.replace(/\D/g, ''))} placeholder="Đơn giá" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+              </div>
+            </div>
+            {/* Ship + Total */}
+            <input type="text" inputMode="numeric" value={orderShipFee} onChange={e => setOrderShipFee(e.target.value.replace(/\D/g, ''))} placeholder="Phí ship (0)" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+            <div className="flex justify-between items-center px-1">
+              <span className="text-xs text-gray-500">Tổng cộng:</span>
+              <span className="text-sm font-bold" style={{ color: '#6C2BD9' }}>{((Number(orderQty) || 1) * (Number(orderPrice) || 0) + (Number(orderShipFee) || 0)).toLocaleString('vi-VN')}₫</span>
+            </div>
             <button onClick={() => {
               if (!orderCustomer.trim()) return;
-              const amt = Number(orderAmount.replace(/\D/g, '')) || 0;
-              addRecord('mod_ruou', { mod_ruou_customer_name: orderCustomer.trim(), mod_ruou_total_amount: amt, mod_ruou_order_date: orderDate });
-              setShowAddOrder(false); setOrderCustomer(''); setOrderAmount(''); setOrderDate(new Date().toISOString().slice(0, 10));
-            }} className="w-full py-3 rounded-lg bg-purple-600 text-white text-sm font-semibold">Lưu đơn hàng</button>
+              const qty = Number(orderQty) || 1;
+              const price = Number(orderPrice) || 0;
+              const shipFee = Number(orderShipFee) || 0;
+              const total = qty * price + shipFee;
+              addRecord('mod_ruou', {
+                mod_ruou_customer_name: orderCustomer.trim(),
+                mod_ruou_customer_phone: orderPhone.trim() || null,
+                mod_ruou_customer_address: orderAddress.trim() || null,
+                mod_ruou_product_name: orderProduct.trim() || null,
+                mod_ruou_quantity: qty,
+                mod_ruou_price: price,
+                mod_ruou_ship_fee: shipFee,
+                mod_ruou_total_amount: total,
+                mod_ruou_order_date: orderDate,
+              });
+              setShowAddOrder(false); setOrderCustomer(''); setOrderPhone(''); setOrderAddress(''); setOrderProduct(''); setOrderQty('1'); setOrderPrice(''); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10));
+            }} className="w-full py-3 rounded-lg text-white text-sm font-semibold" style={{ backgroundColor: '#6C2BD9' }}>Lưu đơn hàng</button>
           </div>
         </div>
       )}
