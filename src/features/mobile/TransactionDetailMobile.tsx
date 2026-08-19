@@ -31,13 +31,14 @@ export function TransactionDetailMobile({ record }: Props) {
   const event = getVal('event');
   const store = getVal('store');
   const warrantyMonths = getVal('warranty_months');
+  const warrantyEndDate = getVal('warranty_end_date');
   const isIncome = type === '1';
 
   const fmtMoney = (n: number) => n.toLocaleString('vi-VN') + '₫';
   const fmtDate = (d: string) => { if (!d) return '—'; const parts = d.split('-'); return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d; };
 
   const getCatName = () => { if (!record.categoryId || !data) return ''; for (const mod of data.modules) { const cat = mod.categories?.find(c => c.id === record.categoryId); if (cat) return cat.name; } return ''; };
-  const getAccLabel = () => { const mod = data?.modules.find(m => m.id === 'mod_chitieu'); const f = mod?.fields.find(f => f.fieldName === 'account'); return f?.options?.find(o => o.value === account)?.label || account || '—'; };
+  const getAccLabel = () => { const acc = data?.accounts?.find(a => a.id === account); return acc?.name || account || '—'; };
   const getModName = () => { const mod = data?.modules.find(m => m.id === (record.linkedModuleId || record.moduleId)); return mod?.name || record.moduleId || '—'; };
 
   const handleEdit = () => {
@@ -82,6 +83,7 @@ export function TransactionDetailMobile({ record }: Props) {
           {event && <><Divider /><InfoRow icon={<Calendar size={15} />} label="Sự kiện" value={event} /></>}
           {store && <><Divider /><InfoRow icon={<ShoppingBag size={15} />} label="Cửa hàng" value={store} /></>}
           {warrantyMonths && <><Divider /><InfoRow icon={<Shield size={15} />} label="Bảo hành" value={`${warrantyMonths} tháng`} /></>}
+          {warrantyEndDate && <><Divider /><InfoRow icon={<Shield size={15} />} label="Hết BH" value={fmtDate(warrantyEndDate)} /></>}
         </div>
 
         {/* Note */}
