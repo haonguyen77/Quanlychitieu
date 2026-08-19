@@ -1,91 +1,164 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
+import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { TransactionDetailMobile } from './TransactionDetailMobile';
-import { ArrowLeft, TrendingDown, TrendingUp } from 'lucide-react';
-import type { ModuleDefinition } from '@/types';
+import { ArrowLeft, Search, TrendingDown, TrendingUp, Calendar, Wallet, ChevronLeft, ChevronRight, ShoppingCart, Gem, Home, CreditCard, Wine, Package } from 'lucide-react';
+import type { ModuleDefinition, DataRecord } from '@/types';
 
-interface Props {
-  module: ModuleDefinition;
-}
+interface Props { module: ModuleDefinition; }
+
+type FilterPeriod = 'week' | 'month' | 'year' | 'all';
 
 /**
- * Mobile Module View — shows transactions for a specific module.
- * Reuses same data from shared store.
+ * ModuleViewMobile — Generic module transaction view for Shopee, Gold, Rental, Credit Card.
+ * Based on Android module home screens (shopee_home_screen, gold_home_screen, etc.)
+ * Header with back + module info + search → stats → period filter → transaction list grouped by day.
  */
 export function ModuleViewMobile({ module }: Props) {
   const { pop, push } = useMobileNav();
   const { data } = useAppStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [period, setPeriod] = useState<FilterPeriod>('month');
+  const [refDate, setRefDate] = useState(new Date());
+
+  // Date range
+  const { startDate, endDate } = useMemo(() => {
+    const ref = refDate;
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    switch (period) {
+      case 'week': { const day = ref.getDay(); const diff = day === 0 ? -6 : 1 - day; const s = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + diff); return { startDate: fmt(s), endDate: fmt(new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)) }; }
+      case 'month': return { startDate: fmt(new Date(ref.getFullYear(), ref.getMonth(), 1)), endDate: fmt(new Date(ref.getFullYear(), ref.getMonth() + 1, 0)) };
+      case 'year': return { startDate: `${ref.getFullYear()}-01-01`, endDate: `${ref.getFullYear()}-12-31` };
+      default: return { startDate: '2020-01-01', endDate: '2099-12-31' };
+    }
+  }, [period, refDate]);
 
   const transactions = useMemo(() => {
     if (!data) return [];
     return data.records
-      .filter(r => !r.isDeleted && (r.moduleId === module.id || r.linkedModuleId === module.id))
-      .map(r => {
-        const titleKey = Object.keys(r.values).find(k => k.endsWith('_title') || k.endsWith('_order_name'));
-        const amtKey = Object.keys(r.values).find(k => k.endsWith('_amount') && !k.endsWith('_total_amount'));
-        const typeKey = Object.keys(r.values).find(k => k.endsWith('_type'));
-        const dateKey = Object.keys(r.values).find(k => k.endsWith('_date'));
-        return {
-          record: r,
-          title: titleKey ? String(r.values[titleKey] ?? '') : '—',
-          amount: amtKey ? Math.abs(Number(r.values[amtKey] ?? 0)) : 0,
-          type: typeKey ? String(r.values[typeKey] ?? '0') : '0',
-          date: dateKey ? String(r.values[dateKey] ?? '') : r.createdAt?.slice(0, 10) || '',
-        };
+      .filter(r => {
+        if (r.isDeleted) return false;
+        if (r.moduleId !== module.id && r.linkedModuleId !== module.id) return false;
+        const dk = Object.keys(r.values).find(k => k.endsWith('_date'));
+        const d = dk ? String(r.values[dk] ?? '') : '';
+        if (d < startDate || d > endDate) return false;
+        const tk = Object.keys(r.values).find(k => k.endsWith('_type'));
+        if (tk && String(r.values[tk]) === '2') return false;
+        return true;
       })
-      .filter(t => t.type !== '2')
+      .map(r => {
+        const get = (s: string) => { const k = Object.keys(r.values).find(k => k.endsWith(`_${s}`)); return k ? String(r.values[k] ?? '') : ''; };
+        const amtKey = Object.keys(r.values).find(k => k.endsWith('_amount') && !k.endsWith('_total_amount'));
+        return { record: r, title: get('title') || get('order_name') || get('room_name') || '—', amount: amtKey ? Math.abs(Number(r.values[amtKey] ?? 0)) : 0, type: get('type'), date: get('date') || get('order_date') || r.createdAt?.slice(0, 10) || '' };
+      })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [data, module.id]);
+  }, [data, module.id, startDate, endDate]);
 
-  const fmtMoney = (n: number) => {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M₫`;
-    if (n >= 1000) return `${Math.round(n / 1000)}K₫`;
-    return `${n.toLocaleString('vi-VN')}₫`;
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return transactions;
+    const q = searchQuery.toLowerCase();
+    return transactions.filter(t => t.title.toLowerCase().includes(q));
+  }, [transactions, searchQuery]);
+
+  // Group by day
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const t of filtered) { const day = t.date.slice(0, 10); if (!map.has(day)) map.set(day, []); map.get(day)!.push(t); }
+    return Array.from(map.entries());
+  }, [filtered]);
+
+  const totalExpense = filtered.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0);
+  const totalIncome = filtered.filter(t => t.type === '1').reduce((s, t) => s + t.amount, 0);
+
+  const fmtCompact = (n: number) => { if (n >= 1000000) { const m = Math.floor(n / 1000000); const h = Math.floor((n - m * 1000000) / 100000); return h > 0 ? `${m}M${h}` : `${m}M`; } if (n >= 1000) return `${Math.round(n / 1000)}K`; return String(n); };
+  const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
+  const navigate = (dir: number) => { const d = new Date(refDate); if (period === 'week') d.setDate(d.getDate() + 7 * dir); else if (period === 'month') d.setMonth(d.getMonth() + dir); else if (period === 'year') d.setFullYear(d.getFullYear() + dir); setRefDate(d); };
+
+  const getModuleIcon = () => {
+    switch (module.id) {
+      case 'mod_shopee': return <ShoppingCart size={20} className="text-orange-500" />;
+      case 'mod_vang': return <Gem size={20} className="text-amber-500" />;
+      case 'mod_nhatro': return <Home size={20} className="text-green-500" />;
+      case 'mod_creditcard': return <CreditCard size={20} className="text-indigo-600" />;
+      case 'mod_ruou': return <Wine size={20} className="text-purple-600" />;
+      default: return <Package size={20} className="text-gray-500" />;
+    }
   };
 
-  const openDetail = (record: typeof transactions[0]['record']) => {
-    push({ id: `detail-${record.id}`, component: <TransactionDetailMobile record={record} /> });
-  };
+  const openDetail = (record: DataRecord) => { push({ id: `detail-${record.id}`, component: <TransactionDetailMobile record={record} /> }); };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--color-bg)]">
-      {/* Header */}
-      <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
-        <button onClick={pop} className="w-10 h-10 rounded-xl flex items-center justify-center active:bg-gray-100">
-          <ArrowLeft size={22} className="text-gray-700" />
-        </button>
-        <h2 className="text-base font-semibold text-gray-900">{module.name}</h2>
-        <span className="text-xs text-gray-400 ml-auto">{transactions.length} bản ghi</span>
+    <div className="h-full flex flex-col bg-white">
+      {/* Header — Android style: back + icon + title + subtitle */}
+      <header className="flex items-center gap-2 px-2 py-2 border-b border-gray-100">
+        <button onClick={pop} className="w-10 h-10 flex items-center justify-center"><ArrowLeft size={22} className="text-gray-700" /></button>
+        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center">{getModuleIcon()}</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-bold" style={{ color: '#0F1F4D' }}>{module.name}</p>
+          {module.description && <p className="text-[11px] text-gray-500 truncate">{module.description}</p>}
+        </div>
+        <button onClick={() => setShowSearch(!showSearch)} className="w-9 h-9 flex items-center justify-center"><Search size={18} color="#0F1F4D" /></button>
       </header>
 
-      {/* List */}
-      <div className="flex-1 overflow-auto px-4 py-3 pb-20">
-        {transactions.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-sm text-gray-400">Chưa có giao dịch</p>
+      {/* Search */}
+      {showSearch && (
+        <div className="px-4 py-2"><input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." autoFocus className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-blue-500" /></div>
+      )}
+
+      {/* Period filter */}
+      <div className="px-4 py-2 flex items-center gap-1.5">
+        <button onClick={() => navigate(-1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={16} /></button>
+        {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
+          <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2 rounded-full text-[11px] font-semibold text-center"
+            style={{ backgroundColor: period === p ? '#1264F5' : '#fff', color: period === p ? '#fff' : '#1A1A1A', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
+            {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
+          </button>
+        ))}
+        <button onClick={() => navigate(1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronRight size={16} /></button>
+      </div>
+
+      {/* Summary */}
+      <div className="px-4 py-2 flex gap-3">
+        <div className="flex-1 border border-gray-200 rounded-xl p-2.5 flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center"><TrendingDown size={14} className="text-red-500" /></div>
+          <div><p className="text-[10px] text-gray-500">Chi</p><p className="text-xs font-bold text-red-600">{fmtCompact(totalExpense)}₫</p></div>
+        </div>
+        <div className="flex-1 border border-gray-200 rounded-xl p-2.5 flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center"><TrendingUp size={14} className="text-green-500" /></div>
+          <div><p className="text-[10px] text-gray-500">Thu</p><p className="text-xs font-bold text-green-600">{fmtCompact(totalIncome)}₫</p></div>
+        </div>
+      </div>
+
+      {/* Transaction list */}
+      <div className="flex-1 overflow-auto pb-4">
+        {grouped.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+            <Package size={32} className="text-gray-200 mb-2" />
+            <p className="text-sm">Chưa có giao dịch</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-            {transactions.map(t => (
-              <button
-                key={t.record.id}
-                onClick={() => openDetail(t.record)}
-                className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 text-left"
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === '1' ? 'bg-green-50' : 'bg-red-50'}`}>
-                  {t.type === '1' ? <TrendingUp size={18} className="text-green-500" /> : <TrendingDown size={18} className="text-red-500" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{t.title}</p>
-                  <p className="text-[10px] text-gray-400">{t.date}</p>
-                </div>
-                <span className={`text-sm font-semibold ${t.type === '1' ? 'text-green-600' : 'text-red-600'}`}>
-                  {fmtMoney(t.amount)}
-                </span>
-              </button>
-            ))}
-          </div>
+          grouped.map(([day, txns]) => (
+            <div key={day}>
+              <div className="flex items-center gap-2 px-4 py-2" style={{ backgroundColor: '#F5F7FA' }}>
+                <Calendar size={13} className="text-gray-500" />
+                <span className="flex-1 text-[11px] font-semibold text-gray-700">{day.split('-').reverse().join('/')}</span>
+                <span className="text-[11px] font-semibold text-red-600">{fmtCompact(txns.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0))}₫</span>
+              </div>
+              {txns.map(t => (
+                <button key={t.record.id} onClick={() => openDetail(t.record)} className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 active:bg-gray-50 text-left">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${t.type === '1' ? 'bg-green-50' : 'bg-red-50'}`}>
+                    {t.type === '1' ? <TrendingUp size={16} className="text-green-500" /> : <TrendingDown size={16} className="text-red-500" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{t.title}</p>
+                  </div>
+                  <span className="text-sm font-bold" style={{ color: t.type === '1' ? '#20A84A' : '#1A1A1A' }}>{fmtMoney(t.amount)}₫</span>
+                </button>
+              ))}
+            </div>
+          ))
         )}
       </div>
     </div>

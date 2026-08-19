@@ -1,6 +1,7 @@
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { ModuleViewMobile } from './ModuleViewMobile';
+import { WineMobile } from './WineMobile';
 import { Wallet, ShoppingCart, Gem, Home, CreditCard, Wine, Package, ChevronRight } from 'lucide-react';
 import type { ModuleDefinition } from '@/types';
 
@@ -16,7 +17,11 @@ export function ModulesMobile() {
   const modules = data?.modules.filter(m => m.isActive && m.isVisible !== false) || [];
 
   const handleModuleTap = (mod: ModuleDefinition) => {
-    push({ id: `module-${mod.id}`, component: <ModuleViewMobile module={mod} /> });
+    if (mod.id === 'mod_ruou') {
+      push({ id: 'wine-home', component: <WineMobile /> });
+    } else {
+      push({ id: `module-${mod.id}`, component: <ModuleViewMobile module={mod} /> });
+    }
   };
 
   const getIcon = (mod: ModuleDefinition) => {
