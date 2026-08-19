@@ -75,9 +75,9 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col">
+    <div className="fixed inset-0 z-50 bg-white flex flex-col" style={{ height: '100dvh' }}>
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center active:bg-gray-100"><X size={22} className="text-gray-600" /></button>
         <h2 className="text-base font-semibold text-gray-900">{isEditing ? 'Sửa giao dịch' : 'Thêm chi tiêu'}</h2>
         <button onClick={handleSave} disabled={!title.trim() || !amount}

@@ -140,7 +140,7 @@ export function DashboardMobile() {
   return (
     <div className="h-full overflow-auto bg-white">
       {/* Header */}
-      <div className="px-4 pt-3 pb-0 flex items-center gap-3">
+      <div className="px-4 pb-0 flex items-center gap-3" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <div className="flex-1">
           <h1 className="text-xl font-bold" style={{ color: colors.navy }}>Dashboard</h1>
           <p className="text-xs text-gray-500">Tổng quan tài chính cá nhân</p>

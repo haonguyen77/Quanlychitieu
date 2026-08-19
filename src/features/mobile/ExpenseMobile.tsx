@@ -97,7 +97,7 @@ export function ExpenseMobile() {
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
       {/* Header — matches Android: title + search + filter */}
-      <div className="px-4 pt-3 pb-1 flex items-center gap-2">
+      <div className="px-4 pb-1 flex items-center gap-2" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <h1 className="flex-1 text-2xl font-bold" style={{ color: '#1A1A1A' }}>Chi tiêu</h1>
         <button onClick={() => { setIsSearching(!isSearching); if (isSearching) setSearchQuery(''); }} className="w-9 h-9 flex items-center justify-center">
           {isSearching ? <X size={20} color="#1A1A1A" /> : <Search size={20} color="#1A1A1A" />}

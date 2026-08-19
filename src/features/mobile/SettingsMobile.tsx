@@ -20,7 +20,7 @@ export function SettingsMobile() {
   return (
     <div className="h-full overflow-auto bg-[#F8F9FA]">
       {/* Header */}
-      <div className="bg-white px-4 pt-3 pb-4">
+      <div className="bg-white px-4 pb-4" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <h1 className="text-xl font-bold text-center" style={{ color: '#1A1A1A' }}>Cài đặt</h1>
       </div>
 

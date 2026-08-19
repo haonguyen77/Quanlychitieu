@@ -50,8 +50,8 @@ export function MobileShell() {
         </main>
 
         {/* Bottom Navigation — matches Android: 64px, white, shadow */}
-        <nav className="relative flex-shrink-0 bg-white" style={{ boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
-          <div className="flex items-center justify-around h-16 px-1" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <nav className="relative flex-shrink-0 bg-white" style={{ boxShadow: '0 -2px 10px rgba(0,0,0,0.08)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <div className="flex items-center justify-around h-16 px-1">
             <NavItem icon={<BarChart3 size={24} />} label="Dashboard" active={activeTab === 'dashboard'} onPress={() => handleTabPress('dashboard')} />
             <NavItem icon={<Receipt size={24} />} label="Chi tiêu" active={activeTab === 'expense'} onPress={() => handleTabPress('expense')} />
 

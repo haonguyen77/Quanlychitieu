@@ -57,7 +57,7 @@ export function ModulesMobile() {
   return (
     <div className="h-full overflow-auto bg-white">
       {/* Header */}
-      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+      <div className="px-4 pb-2 flex items-center justify-between" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <div>
           <h1 className="text-xl font-bold" style={{ color: '#0F1F4D' }}>Danh mục</h1>
           <p className="text-xs text-gray-500">{modules.length} module đang hoạt động</p>
