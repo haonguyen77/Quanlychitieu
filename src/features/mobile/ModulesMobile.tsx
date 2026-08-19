@@ -2,7 +2,9 @@ import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { ModuleViewMobile } from './ModuleViewMobile';
 import { WineMobile } from './WineMobile';
-import { Wallet, ShoppingCart, Gem, Home, CreditCard, Wine, Package, ChevronRight } from 'lucide-react';
+import { MobileIcon } from './MobileIcon';
+import { getModuleIconInfo, getModuleColor, MODULE_ICONS } from './mobileIconMap';
+import { ChevronRight } from 'lucide-react';
 import type { ModuleDefinition } from '@/types';
 
 /**
@@ -25,27 +27,15 @@ export function ModulesMobile() {
   };
 
   const getIcon = (mod: ModuleDefinition) => {
-    switch (mod.id) {
-      case 'mod_chitieu': return <Wallet size={22} className="text-red-500" />;
-      case 'mod_shopee': return <ShoppingCart size={22} className="text-orange-500" />;
-      case 'mod_vang': return <Gem size={22} className="text-amber-500" />;
-      case 'mod_nhatro': return <Home size={22} className="text-green-500" />;
-      case 'mod_creditcard': return <CreditCard size={22} className="text-indigo-600" />;
-      case 'mod_ruou': return <Wine size={22} className="text-purple-600" />;
-      default: return <Package size={22} className="text-gray-500" />;
-    }
+    const iconInfo = getModuleIconInfo(mod.icon);
+    const color = getModuleColor(mod.id);
+    return <MobileIcon name={iconInfo.icon} size={22} color={color} />;
   };
 
   const getColor = (mod: ModuleDefinition) => {
-    switch (mod.id) {
-      case 'mod_chitieu': return { bg: '#FFEBEE', border: '#FFCDD2' };
-      case 'mod_shopee': return { bg: '#FFF3E0', border: '#FFE0B2' };
-      case 'mod_vang': return { bg: '#FFF8E1', border: '#FFECB3' };
-      case 'mod_nhatro': return { bg: '#E8F5E9', border: '#C8E6C9' };
-      case 'mod_creditcard': return { bg: '#E8EAF6', border: '#C5CAE9' };
-      case 'mod_ruou': return { bg: '#F3E5F5', border: '#E1BEE7' };
-      default: return { bg: '#F5F5F5', border: '#E0E0E0' };
-    }
+    const iconInfo = getModuleIconInfo(mod.icon);
+    const color = getModuleColor(mod.id);
+    return { bg: iconInfo.bgColor, border: `${color}33` };
   };
 
   // Count records per module
@@ -91,7 +81,7 @@ export function ModulesMobile() {
 
         {modules.length === 0 && (
           <div className="text-center py-12">
-            <Package size={40} className="text-gray-200 mx-auto mb-3" />
+            <MobileIcon name="layout-grid" size={40} color="#E0E0E0" className="mx-auto mb-3" />
             <p className="text-sm text-gray-400">Không có module nào hoạt động</p>
           </div>
         )}
