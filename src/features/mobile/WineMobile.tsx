@@ -14,9 +14,10 @@ type WineTab = 'reports' | 'orders' | 'customers' | 'inventory';
 export function WineMobile() {
   const { pop } = useMobileNav();
   const { data } = useAppStore();
-  const { addRecord, deleteRecord } = useRecordStore();
+  const { addRecord, deleteRecord, updateRecord } = useRecordStore();
   const [activeTab, setActiveTab] = useState<WineTab>('orders');
   const [showAddOrder, setShowAddOrder] = useState(false);
+  const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [orderCustomer, setOrderCustomer] = useState('');
   const [orderPhone, setOrderPhone] = useState('');
   const [orderAddress, setOrderAddress] = useState('');
@@ -69,9 +70,34 @@ export function WineMobile() {
       {/* Content */}
       <div className="flex-1 overflow-auto pb-16">
         {activeTab === 'reports' && <WineReports totalOrders={orders.length} totalRevenue={totalRevenue} totalStock={inventory.reduce((s, i) => s + i.stock, 0)} />}
-        {activeTab === 'orders' && <WineOrders orders={orders} onDelete={(id) => { deleteRecord(id); }} />}
-        {activeTab === 'customers' && <WineCustomers customers={customers} />}
-        {activeTab === 'inventory' && <WineInventory items={inventory} />}
+        {activeTab === 'orders' && <WineOrders orders={orders} onDelete={(id) => { deleteRecord(id); }} onEdit={(id) => {
+          const order = data?.records.find(r => r.id === id);
+          if (!order) return;
+          const get = (s: string) => { const k = Object.keys(order.values).find(k => k.endsWith(`_${s}`)); return k ? String(order.values[k] ?? '') : ''; };
+          setEditOrderId(id);
+          setOrderCustomer(get('customer_name'));
+          setOrderPhone(get('customer_phone'));
+          setOrderAddress(get('customer_address'));
+          setOrderProduct(get('product_name'));
+          setOrderQty(get('quantity') || '1');
+          setOrderPrice(get('price'));
+          setOrderShipFee(get('ship_fee'));
+          setOrderDate(get('order_date') || new Date().toISOString().slice(0, 10));
+          setShowAddOrder(true);
+        }} />}
+        {activeTab === 'customers' && <WineCustomers customers={customers} onAdd={() => {
+          const name = prompt('Tên khách hàng:');
+          if (!name?.trim()) return;
+          const phone = prompt('SĐT:') || '';
+          addRecord('mod_ruou_customers', { mod_ruou_customers_full_name: name.trim(), mod_ruou_customers_phone: phone, mod_ruou_customers_total_orders: 0, mod_ruou_customers_note: '' });
+        }} onDelete={(id) => deleteRecord(id)} />}
+        {activeTab === 'inventory' && <WineInventory items={inventory} onAdd={() => {
+          const sku = prompt('SKU:');
+          if (!sku?.trim()) return;
+          const name = prompt('Tên sản phẩm:') || '';
+          const stock = Number(prompt('Số lượng tồn:') || '0');
+          addRecord('mod_ruou_inventory', { mod_ruou_inventory_sku: sku.trim(), mod_ruou_inventory_product_name: name, mod_ruou_inventory_stock: stock, mod_ruou_inventory_color: '' });
+        }} onDelete={(id) => deleteRecord(id)} />}
       </div>
 
       {/* Add Order Modal — matches Android WineOrderFormScreen fields */}
@@ -110,7 +136,7 @@ export function WineMobile() {
               const price = Number(orderPrice) || 0;
               const shipFee = Number(orderShipFee) || 0;
               const total = qty * price + shipFee;
-              addRecord('mod_ruou', {
+              const values = {
                 mod_ruou_customer_name: orderCustomer.trim(),
                 mod_ruou_customer_phone: orderPhone.trim() || null,
                 mod_ruou_customer_address: orderAddress.trim() || null,
@@ -120,9 +146,11 @@ export function WineMobile() {
                 mod_ruou_ship_fee: shipFee,
                 mod_ruou_total_amount: total,
                 mod_ruou_order_date: orderDate,
-              });
-              setShowAddOrder(false); setOrderCustomer(''); setOrderPhone(''); setOrderAddress(''); setOrderProduct(''); setOrderQty('1'); setOrderPrice(''); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10));
-            }} className="w-full py-3 rounded-lg text-white text-sm font-semibold" style={{ backgroundColor: '#6C2BD9' }}>Lưu đơn hàng</button>
+              };
+              if (editOrderId) { updateRecord(editOrderId, values); }
+              else { addRecord('mod_ruou', values); }
+              setShowAddOrder(false); setEditOrderId(null); setOrderCustomer(''); setOrderPhone(''); setOrderAddress(''); setOrderProduct(''); setOrderQty('1'); setOrderPrice(''); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10));
+            }} className="w-full py-3 rounded-lg text-white text-sm font-semibold" style={{ backgroundColor: '#6C2BD9' }}>{editOrderId ? 'Cập nhật' : 'Lưu đơn hàng'}</button>
           </div>
         </div>
       )}
@@ -164,7 +192,7 @@ function WineReports({ totalOrders, totalRevenue, totalStock }: { totalOrders: n
   );
 }
 
-function WineOrders({ orders, onDelete }: { orders: { id: string; customer: string; date: string; amount: number }[]; onDelete: (id: string) => void }) {
+function WineOrders({ orders, onDelete, onEdit }: { orders: { id: string; customer: string; date: string; amount: number }[]; onDelete: (id: string) => void; onEdit: (id: string) => void }) {
   const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
   return (
     <div className="p-4 space-y-2">
@@ -177,6 +205,7 @@ function WineOrders({ orders, onDelete }: { orders: { id: string; customer: stri
             <p className="text-[10px] text-gray-400">{o.date}</p>
           </div>
           <span className="text-xs font-bold text-purple-600">{fmtMoney(o.amount)}₫</span>
+          <button onClick={() => onEdit(o.id)} className="w-7 h-7 rounded flex items-center justify-center active:bg-purple-50"><FileText size={13} className="text-purple-400" /></button>
           <button onClick={() => { if (confirm('Xóa đơn hàng?')) onDelete(o.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
@@ -185,10 +214,13 @@ function WineOrders({ orders, onDelete }: { orders: { id: string; customer: stri
   );
 }
 
-function WineCustomers({ customers }: { customers: { id: string; name: string; phone: string; totalOrders: number }[] }) {
+function WineCustomers({ customers, onAdd, onDelete }: { customers: { id: string; name: string; phone: string; totalOrders: number }[]; onAdd: () => void; onDelete: (id: string) => void }) {
   return (
     <div className="p-4 space-y-2">
-      <h2 className="text-sm font-semibold text-gray-900">{customers.length} khách hàng</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900">{customers.length} khách hàng</h2>
+        <button onClick={onAdd} className="text-xs text-purple-600 font-medium">+ Thêm</button>
+      </div>
       {customers.map(c => (
         <div key={c.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl">
           <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center"><Users size={16} className="text-blue-500" /></div>
@@ -197,6 +229,7 @@ function WineCustomers({ customers }: { customers: { id: string; name: string; p
             {c.phone && <p className="text-[10px] text-gray-400">{c.phone}</p>}
           </div>
           <span className="text-[10px] text-gray-500">{c.totalOrders} đơn</span>
+          <button onClick={() => { if (confirm(`Xóa ${c.name}?`)) onDelete(c.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
       {customers.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Chưa có khách hàng</p>}
@@ -204,10 +237,13 @@ function WineCustomers({ customers }: { customers: { id: string; name: string; p
   );
 }
 
-function WineInventory({ items }: { items: { id: string; sku: string; name: string; stock: number; color: string }[] }) {
+function WineInventory({ items, onAdd, onDelete }: { items: { id: string; sku: string; name: string; stock: number; color: string }[]; onAdd: () => void; onDelete: (id: string) => void }) {
   return (
     <div className="p-4 space-y-2">
-      <h2 className="text-sm font-semibold text-gray-900">{items.length} sản phẩm</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900">{items.length} sản phẩm</h2>
+        <button onClick={onAdd} className="text-xs text-purple-600 font-medium">+ Thêm</button>
+      </div>
       {items.map(i => (
         <div key={i.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl">
           <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center"><Package size={16} className="text-orange-500" /></div>
@@ -219,6 +255,7 @@ function WineInventory({ items }: { items: { id: string; sku: string; name: stri
             <p className="text-sm font-bold text-orange-600">{i.stock}</p>
             <p className="text-[9px] text-gray-400">chai</p>
           </div>
+          <button onClick={() => { if (confirm(`Xóa ${i.name}?`)) onDelete(i.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
       {items.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Chưa có sản phẩm</p>}

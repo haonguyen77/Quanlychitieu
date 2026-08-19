@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
@@ -22,6 +22,12 @@ export function ModuleViewMobile({ module }: Props) {
   const [showSearch, setShowSearch] = useState(false);
   const [period, setPeriod] = useState<FilterPeriod>('month');
   const [refDate, setRefDate] = useState(new Date());
+
+  // Rental due date config (stored in localStorage like Android SharedPreferences)
+  const [dueDay, setDueDay] = useState(() => Number(localStorage.getItem('rental_due_day')) || 29);
+  const [alertDays] = useState(() => Number(localStorage.getItem('rental_alert_days')) || 5);
+  const isRental = module.id === 'mod_nhatro';
+  useEffect(() => { if (isRental) localStorage.setItem('rental_due_day', String(dueDay)); }, [dueDay, isRental]);
 
   // Date range
   const { startDate, endDate } = useMemo(() => {
@@ -130,6 +136,20 @@ export function ModuleViewMobile({ module }: Props) {
           <div><p className="text-[10px] text-gray-500">Thu</p><p className="text-xs font-bold text-green-600">{fmtCompact(totalIncome)}₫</p></div>
         </div>
       </div>
+
+      {/* Rental due date config (only for mod_nhatro) */}
+      {isRental && (
+        <div className="px-4 py-2">
+          <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+            <Calendar size={16} className="text-green-600" />
+            <div className="flex-1">
+              <p className="text-xs text-green-800">Ngày đóng tiền: <strong>{dueDay}</strong> hàng tháng</p>
+              {(() => { const now = new Date(); let due = new Date(now.getFullYear(), now.getMonth(), dueDay); if (due <= now) due = new Date(now.getFullYear(), now.getMonth() + 1, dueDay); const daysLeft = Math.ceil((due.getTime() - now.getTime()) / 86400000); return daysLeft <= alertDays ? <p className="text-[10px] text-orange-600 mt-0.5">⚠️ Còn {daysLeft} ngày đến hạn!</p> : <p className="text-[10px] text-green-600 mt-0.5">Còn {daysLeft} ngày</p>; })()}
+            </div>
+            <button onClick={() => { const val = prompt('Ngày đóng tiền (1-31):', String(dueDay)); const n = Number(val); if (n >= 1 && n <= 31) setDueDay(n); }} className="text-xs text-green-700 font-medium px-2 py-1 rounded bg-green-100">Sửa</button>
+          </div>
+        </div>
+      )}
 
       {/* Transaction list */}
       <div className="flex-1 overflow-auto pb-4">
