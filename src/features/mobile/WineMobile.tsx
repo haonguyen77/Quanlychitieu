@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/core/store/appStore';
+import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
-import { ArrowLeft, BarChart3, FileText, Plus, Users, Package, TrendingDown, Calendar } from 'lucide-react';
+import { ArrowLeft, BarChart3, FileText, Plus, Users, Package, Trash2, X } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 type WineTab = 'reports' | 'orders' | 'customers' | 'inventory';
 
@@ -12,7 +14,12 @@ type WineTab = 'reports' | 'orders' | 'customers' | 'inventory';
 export function WineMobile() {
   const { pop } = useMobileNav();
   const { data } = useAppStore();
+  const { addRecord, deleteRecord } = useRecordStore();
   const [activeTab, setActiveTab] = useState<WineTab>('orders');
+  const [showAddOrder, setShowAddOrder] = useState(false);
+  const [orderCustomer, setOrderCustomer] = useState('');
+  const [orderAmount, setOrderAmount] = useState('');
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
 
   const orders = useMemo(() => {
     if (!data) return [];
@@ -57,16 +64,34 @@ export function WineMobile() {
       {/* Content */}
       <div className="flex-1 overflow-auto pb-16">
         {activeTab === 'reports' && <WineReports totalOrders={orders.length} totalRevenue={totalRevenue} totalStock={inventory.reduce((s, i) => s + i.stock, 0)} />}
-        {activeTab === 'orders' && <WineOrders orders={orders} />}
+        {activeTab === 'orders' && <WineOrders orders={orders} onDelete={(id) => { deleteRecord(id); }} />}
         {activeTab === 'customers' && <WineCustomers customers={customers} />}
         {activeTab === 'inventory' && <WineInventory items={inventory} />}
       </div>
+
+      {/* Add Order Modal */}
+      {showAddOrder && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30" onClick={() => setShowAddOrder(false)}>
+          <div className="relative bg-white rounded-t-2xl w-full max-h-[70vh] p-4 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center"><h3 className="text-sm font-semibold">Thêm đơn hàng</h3><button onClick={() => setShowAddOrder(false)}><X size={18} color="#666" /></button></div>
+            <input type="text" value={orderCustomer} onChange={e => setOrderCustomer(e.target.value)} placeholder="Tên khách hàng" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+            <input type="text" inputMode="numeric" value={orderAmount} onChange={e => setOrderAmount(e.target.value.replace(/\D/g, ''))} placeholder="Tổng tiền" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+            <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+            <button onClick={() => {
+              if (!orderCustomer.trim()) return;
+              const amt = Number(orderAmount.replace(/\D/g, '')) || 0;
+              addRecord('mod_ruou', { mod_ruou_customer_name: orderCustomer.trim(), mod_ruou_total_amount: amt, mod_ruou_order_date: orderDate });
+              setShowAddOrder(false); setOrderCustomer(''); setOrderAmount(''); setOrderDate(new Date().toISOString().slice(0, 10));
+            }} className="w-full py-3 rounded-lg bg-purple-600 text-white text-sm font-semibold">Lưu đơn hàng</button>
+          </div>
+        </div>
+      )}
 
       {/* Wine Bottom Tabs */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 flex items-center justify-around h-14" style={{ boxShadow: '0 -1px 4px rgba(0,0,0,0.05)' }}>
         <TabBtn icon={<BarChart3 size={20} />} label="Báo cáo" active={activeTab === 'reports'} onTap={() => setActiveTab('reports')} />
         <TabBtn icon={<FileText size={20} />} label="Đơn hàng" active={activeTab === 'orders'} onTap={() => setActiveTab('orders')} />
-        <button className="w-12 h-12 rounded-full flex items-center justify-center -mt-3" style={{ backgroundColor: '#6C2BD9', boxShadow: '0 4px 8px rgba(108,43,217,0.3)', minWidth: '48px', minHeight: '48px' }}>
+        <button onClick={() => setShowAddOrder(true)} className="w-12 h-12 rounded-full flex items-center justify-center -mt-3" style={{ backgroundColor: '#6C2BD9', boxShadow: '0 4px 8px rgba(108,43,217,0.3)', minWidth: '48px', minHeight: '48px' }}>
           <Plus size={24} color="white" />
         </button>
         <TabBtn icon={<Users size={20} />} label="Khách hàng" active={activeTab === 'customers'} onTap={() => setActiveTab('customers')} />
@@ -99,7 +124,7 @@ function WineReports({ totalOrders, totalRevenue, totalStock }: { totalOrders: n
   );
 }
 
-function WineOrders({ orders }: { orders: { id: string; customer: string; date: string; amount: number }[] }) {
+function WineOrders({ orders, onDelete }: { orders: { id: string; customer: string; date: string; amount: number }[]; onDelete: (id: string) => void }) {
   const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
   return (
     <div className="p-4 space-y-2">
@@ -112,6 +137,7 @@ function WineOrders({ orders }: { orders: { id: string; customer: string; date: 
             <p className="text-[10px] text-gray-400">{o.date}</p>
           </div>
           <span className="text-xs font-bold text-purple-600">{fmtMoney(o.amount)}₫</span>
+          <button onClick={() => { if (confirm('Xóa đơn hàng?')) onDelete(o.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
       {orders.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Chưa có đơn hàng</p>}

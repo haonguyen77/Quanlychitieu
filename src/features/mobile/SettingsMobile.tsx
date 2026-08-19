@@ -8,9 +8,11 @@ import { TrashMobile } from './TrashMobile';
 import { ReportsMobile } from './ReportsMobile';
 import { BudgetMobile } from './BudgetMobile';
 import { BackupRestoreMobile } from './BackupRestoreMobile';
+import { ModuleManagementMobile } from './ModuleManagementMobile';
+import { RecurringMobile } from './RecurringMobile';
 import { MobileIcon } from './MobileIcon';
 import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
-import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette, BarChart3, PieChart } from 'lucide-react';
+import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette, BarChart3, PieChart, Repeat, Layers } from 'lucide-react';
 
 /**
  * SettingsMobile — Full reproduction of Android settings_screen.dart.
@@ -42,11 +44,15 @@ export function SettingsMobile() {
           <Divider />
           <SettingsNav icon={<PieChart size={18} />} iconBg="#FFF3E0" iconColor="#E65100" label="Ngân sách" subtitle="Quản lý hạn mức chi tiêu" onTap={() => push({ id: 'budget', component: <BudgetMobile /> })} />
           <Divider />
+          <SettingsNav icon={<Repeat size={18} />} iconBg="#E8EAF6" iconColor="#3F51B5" label="Giao dịch định kỳ" subtitle="Tự động tạo giao dịch" onTap={() => push({ id: 'recurring', component: <RecurringMobile /> })} />
+          <Divider />
           <SettingsNav icon={<Trash2 size={18} />} iconBg="#FFEBEE" iconColor="#D32F2F" label="Thùng rác" subtitle="Xem và khôi phục giao dịch đã xóa" onTap={() => push({ id: 'trash', component: <TrashMobile /> })} />
         </SettingsSection>
 
         {/* 2. QUẢN LÝ MODULE */}
         <SettingsSection title="2. QUẢN LÝ MODULE">
+          <SettingsNav icon={<Layers size={18} />} iconBg="#E3F2FD" iconColor="#1565C0" label="Quản lý Module" subtitle="Thêm, sửa, xóa module" onTap={() => push({ id: 'module-mgmt', component: <ModuleManagementMobile /> })} />
+          <Divider />
           {modules.filter(m => m.isVisible !== false).map(mod => {
             const iconInfo = getModuleIconInfo(mod.icon);
             const color = getModuleColor(mod.id);

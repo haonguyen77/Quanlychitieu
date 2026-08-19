@@ -2,6 +2,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { ModuleViewMobile } from './ModuleViewMobile';
 import { WineMobile } from './WineMobile';
+import { CreditCardMobile } from './CreditCardMobile';
 import { MobileIcon } from './MobileIcon';
 import { getModuleIconInfo, getModuleColor, MODULE_ICONS } from './mobileIconMap';
 import { ChevronRight } from 'lucide-react';
@@ -21,6 +22,8 @@ export function ModulesMobile() {
   const handleModuleTap = (mod: ModuleDefinition) => {
     if (mod.id === 'mod_ruou') {
       push({ id: 'wine-home', component: <WineMobile /> });
+    } else if (mod.id === 'mod_creditcard') {
+      push({ id: 'creditcard', component: <CreditCardMobile /> });
     } else {
       push({ id: `module-${mod.id}`, component: <ModuleViewMobile module={mod} /> });
     }
