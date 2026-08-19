@@ -1,204 +1,201 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
+import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { TransactionDetailMobile } from './TransactionDetailMobile';
-import { Search, X, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
+import { Search, X, SlidersHorizontal, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Calendar, Wallet } from 'lucide-react';
 import type { DataRecord } from '@/types';
 
+type FilterPeriod = 'week' | 'month' | 'year' | 'all';
+
 /**
- * Mobile Expense List — Card-based, grouped by date, with search + filter.
- * Design reference: Android App "Chi tiêu" screen.
+ * ExpenseMobile — Full reproduction of Android expense_screen.dart.
+ * Header + Search + Period Filter + Date Range + Summary (Tổng chi/thu) + Grouped transaction list.
  */
 export function ExpenseMobile() {
   const { data } = useAppStore();
+  const { deleteRecord } = useRecordStore();
   const { push } = useMobileNav();
 
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-  const [filterModule, setFilterModule] = useState<string | null>(null);
   const [showFilter, setShowFilter] = useState(false);
+  const [period, setPeriod] = useState<FilterPeriod>('month');
+  const [refDate, setRefDate] = useState(new Date());
 
-  const allTransactions = useMemo(() => {
+  // Date range
+  const { startDate, endDate, dateLabel } = useMemo(() => {
+    const ref = refDate;
+    let start: string, end: string, label: string;
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const fmtDisplay = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    switch (period) {
+      case 'week': { const day = ref.getDay(); const diff = day === 0 ? -6 : 1 - day; const s = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + diff); const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6); start = fmt(s); end = fmt(e); label = `${fmtDisplay(s)} → ${fmtDisplay(e)}`; break; }
+      case 'month': { const s = new Date(ref.getFullYear(), ref.getMonth(), 1); const e = new Date(ref.getFullYear(), ref.getMonth() + 1, 0); start = fmt(s); end = fmt(e); label = `${fmtDisplay(s)} → ${fmtDisplay(e)}`; break; }
+      case 'year': { start = `${ref.getFullYear()}-01-01`; end = `${ref.getFullYear()}-12-31`; label = `${ref.getFullYear()}`; break; }
+      default: start = '2020-01-01'; end = '2099-12-31'; label = 'Tất cả';
+    }
+    return { startDate: start, endDate: end, dateLabel: label };
+  }, [period, refDate]);
+
+  // Transactions
+  const allTxns = useMemo(() => {
     if (!data) return [];
     return data.records
-      .filter(r => !r.isDeleted && r.moduleId === 'mod_chitieu')
-      .map(r => {
-        const titleKey = Object.keys(r.values).find(k => k.endsWith('_title'));
-        const amtKey = Object.keys(r.values).find(k => k.endsWith('_amount'));
-        const typeKey = Object.keys(r.values).find(k => k.endsWith('_type'));
-        const dateKey = Object.keys(r.values).find(k => k.endsWith('_date'));
-        return {
-          record: r,
-          title: titleKey ? String(r.values[titleKey] ?? '') : '—',
-          amount: amtKey ? Math.abs(Number(r.values[amtKey] ?? 0)) : 0,
-          type: typeKey ? String(r.values[typeKey] ?? '0') : '0',
-          date: dateKey ? String(r.values[dateKey] ?? '') : r.createdAt?.slice(0, 10) || '',
-          linkedModule: r.linkedModuleId || '',
-        };
+      .filter(r => {
+        if (r.isDeleted || r.moduleId !== 'mod_chitieu') return false;
+        const dk = Object.keys(r.values).find(k => k.endsWith('_date'));
+        const d = dk ? String(r.values[dk] ?? '') : '';
+        if (d < startDate || d > endDate) return false;
+        const tk = Object.keys(r.values).find(k => k.endsWith('_type'));
+        return tk ? String(r.values[tk]) !== '2' : true;
       })
-      .filter(t => t.type !== '2')
+      .map(r => {
+        const get = (s: string) => { const k = Object.keys(r.values).find(k => k.endsWith(`_${s}`)); return k ? String(r.values[k] ?? '') : ''; };
+        const amtKey = Object.keys(r.values).find(k => k.endsWith('_amount'));
+        return { record: r, title: get('title') || '—', amount: amtKey ? Math.abs(Number(r.values[amtKey] ?? 0)) : 0, type: get('type'), date: get('date') || r.createdAt?.slice(0, 10) || '', account: get('account'), categoryId: r.categoryId || '' };
+      })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [data]);
+  }, [data, startDate, endDate]);
 
-  // Apply search + filter
+  // Search filter
   const filtered = useMemo(() => {
-    let result = allTransactions;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(t => t.title.toLowerCase().includes(q));
-    }
-    if (filterModule) {
-      result = result.filter(t => t.linkedModule === filterModule || (!t.linkedModule && filterModule === 'mod_chitieu'));
-    }
-    return result;
-  }, [allTransactions, searchQuery, filterModule]);
+    if (!searchQuery.trim()) return allTxns;
+    const q = searchQuery.toLowerCase();
+    return allTxns.filter(t => t.title.toLowerCase().includes(q));
+  }, [allTxns, searchQuery]);
 
-  // Group by date
+  // Group by day
   const grouped = useMemo(() => {
-    const groups = new Map<string, typeof filtered>();
-    for (const t of filtered) {
-      const day = t.date.slice(0, 10);
-      if (!groups.has(day)) groups.set(day, []);
-      groups.get(day)!.push(t);
-    }
-    return Array.from(groups.entries()).map(([date, txns]) => ({ date, txns }));
+    const map = new Map<string, typeof filtered>();
+    for (const t of filtered) { const day = t.date.slice(0, 10); if (!map.has(day)) map.set(day, []); map.get(day)!.push(t); }
+    return Array.from(map.entries());
   }, [filtered]);
 
   const totalExpense = filtered.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0);
   const totalIncome = filtered.filter(t => t.type === '1').reduce((s, t) => s + t.amount, 0);
 
-  const fmtMoney = (n: number) => {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
-    if (n >= 1000) return `${Math.round(n / 1000).toLocaleString('vi-VN')}K`;
-    return n.toLocaleString('vi-VN');
+  const fmtCompact = (n: number) => { if (n >= 1000000) { const m = Math.floor(n / 1000000); const h = Math.floor((n - m * 1000000) / 100000); return h > 0 ? `${m}M${h}` : `${m}M`; } if (n >= 1000) return `${Math.round(n / 1000).toLocaleString('vi-VN')}K`; return n.toLocaleString('vi-VN'); };
+  const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
+  const navigate = (dir: number) => { const d = new Date(refDate); if (period === 'week') d.setDate(d.getDate() + 7 * dir); else if (period === 'month') d.setMonth(d.getMonth() + dir); else if (period === 'year') d.setFullYear(d.getFullYear() + dir); setRefDate(d); };
+
+  const fmtDayLabel = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
+    const formatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    if (diff === 0) return `Hôm nay, ${formatted}`;
+    if (diff === 1) return `Hôm qua, ${formatted}`;
+    return formatted;
   };
 
-  const fmtDate = (d: string) => {
-    try {
-      const date = new Date(d);
-      const day = date.getDate();
-      const month = date.getMonth() + 1;
-      const weekday = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
-      return `${weekday}, ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
-    } catch { return d; }
-  };
+  const openDetail = (record: DataRecord) => { push({ id: `detail-${record.id}`, component: <TransactionDetailMobile record={record} /> }); };
 
-  const openDetail = (record: DataRecord) => {
-    push({ id: `detail-${record.id}`, component: <TransactionDetailMobile record={record} /> });
-  };
-
-  const activeModules = data?.modules.filter(m => m.isActive && m.isVisible !== false) || [];
+  const getCatName = (catId: string) => { const mod = data?.modules.find(m => m.id === 'mod_chitieu'); return mod?.categories?.find(c => c.id === catId)?.name || ''; };
+  const getAccLabel = (val: string) => { const mod = data?.modules.find(m => m.id === 'mod_chitieu'); const f = mod?.fields.find(f => f.fieldName === 'account'); return f?.options?.find(o => o.value === val)?.label || val; };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="bg-white px-5 pt-14 pb-3 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Chi tiêu</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setShowSearch(!showSearch)} className={`w-9 h-9 rounded-xl flex items-center justify-center ${showSearch ? 'bg-primary-50' : 'bg-gray-50'}`}>
-            <Search size={18} className={showSearch ? 'text-primary-500' : 'text-gray-500'} />
-          </button>
-          <button onClick={() => setShowFilter(!showFilter)} className={`w-9 h-9 rounded-xl flex items-center justify-center ${filterModule ? 'bg-primary-50' : 'bg-gray-50'}`}>
-            <SlidersHorizontal size={18} className={filterModule ? 'text-primary-500' : 'text-gray-500'} />
-          </button>
-        </div>
+    <div className="h-full flex flex-col bg-white overflow-hidden">
+      {/* Header — matches Android: title + search + filter */}
+      <div className="px-4 pt-3 pb-1 flex items-center gap-2">
+        <h1 className="flex-1 text-2xl font-bold" style={{ color: '#1A1A1A' }}>Chi tiêu</h1>
+        <button onClick={() => { setIsSearching(!isSearching); if (isSearching) setSearchQuery(''); }} className="w-9 h-9 flex items-center justify-center">
+          {isSearching ? <X size={20} color="#1A1A1A" /> : <Search size={20} color="#1A1A1A" />}
+        </button>
+        <button onClick={() => setShowFilter(!showFilter)} className="w-9 h-9 flex items-center justify-center">
+          <SlidersHorizontal size={20} color={showFilter ? '#1264F5' : '#1A1A1A'} />
+        </button>
       </div>
 
-      {/* Search bar */}
-      {showSearch && (
+      {/* Search */}
+      {isSearching && (
         <div className="px-4 pb-2">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Tìm giao dịch..."
-              autoFocus
-              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary-500 outline-none"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X size={16} className="text-gray-400" />
-              </button>
-            )}
-          </div>
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Tìm theo tên hoặc ghi chú..." autoFocus
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:border-[#1264F5] outline-none" />
         </div>
       )}
 
-      {/* Filter chips */}
+      {/* Period Filter */}
       {showFilter && (
-        <div className="px-4 pb-2 flex gap-2 overflow-x-auto">
-          <button
-            onClick={() => setFilterModule(null)}
-            className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap ${!filterModule ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'}`}
-          >Tất cả</button>
-          {activeModules.map(m => (
-            <button
-              key={m.id}
-              onClick={() => setFilterModule(m.id === filterModule ? null : m.id)}
-              className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap ${filterModule === m.id ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'}`}
-            >{m.name}</button>
-          ))}
+        <div className="px-4 pb-2 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => navigate(-1)} className="w-9 h-9 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={18} /></button>
+            {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
+              <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2.5 rounded-full text-xs font-semibold text-center"
+                style={{ backgroundColor: period === p ? '#1264F5' : '#fff', color: period === p ? '#fff' : '#1A1A1A', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
+                {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
+              </button>
+            ))}
+            <button onClick={() => navigate(1)} className="w-9 h-9 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronRight size={18} /></button>
+          </div>
+          {/* Date range display */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-9 px-3 border border-gray-200 rounded-lg flex items-center gap-2">
+              <Calendar size={13} className="text-gray-400" />
+              <span className="text-xs text-gray-700">{startDate.split('-').reverse().join('/')}</span>
+            </div>
+            <span className="text-gray-300">→</span>
+            <div className="flex-1 h-9 px-3 border border-gray-200 rounded-lg flex items-center gap-2">
+              <Calendar size={13} className="text-gray-400" />
+              <span className="text-xs text-gray-700">{endDate.split('-').reverse().join('/')}</span>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Summary */}
-      <div className="px-4 py-2">
-        <div className="flex gap-3">
-          <div className="flex-1 bg-red-50 rounded-2xl p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrendingDown size={14} className="text-red-500" />
-              <span className="text-[10px] text-gray-500">Tổng chi</span>
-            </div>
-            <p className="text-base font-bold text-red-600">{fmtMoney(totalExpense)}₫</p>
-          </div>
-          <div className="flex-1 bg-green-50 rounded-2xl p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrendingUp size={14} className="text-green-500" />
-              <span className="text-[10px] text-gray-500">Tổng thu</span>
-            </div>
-            <p className="text-base font-bold text-green-600">{fmtMoney(totalIncome)}₫</p>
-          </div>
+      {/* Summary — matches Android: 2 cards side by side */}
+      <div className="px-4 py-2 flex gap-3">
+        <div className="flex-1 border border-gray-200 rounded-xl p-3 flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center"><Wallet size={16} className="text-red-500" /></div>
+          <div><p className="text-[11px] text-gray-500">Tổng chi</p><p className="text-sm font-bold text-red-600">{fmtCompact(totalExpense)}</p></div>
+        </div>
+        <div className="flex-1 border border-gray-200 rounded-xl p-3 flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><TrendingDown size={16} className="text-green-500" /></div>
+          <div><p className="text-[11px] text-gray-500">Tổng thu</p><p className="text-sm font-bold text-green-600">{fmtCompact(totalIncome)}</p></div>
         </div>
       </div>
 
       {/* Transaction List */}
-      <div className="flex-1 overflow-auto px-4 pb-24 space-y-4">
+      <div className="flex-1 overflow-auto pb-4">
         {grouped.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-400 text-sm">{searchQuery || filterModule ? 'Không tìm thấy' : 'Chưa có giao dịch'}</p>
+          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+            <TrendingDown size={40} className="text-gray-200 mb-2" />
+            <p className="text-sm">Chưa có giao dịch</p>
           </div>
         ) : (
-          grouped.map(({ date, txns }) => {
-            const dayTotal = txns.reduce((s, t) => s + (t.type === '1' ? t.amount : -t.amount), 0);
+          grouped.map(([day, txns]) => {
+            const dayTotal = txns.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0);
             return (
-              <div key={date}>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-medium text-gray-500">{fmtDate(date)}</span>
-                  <span className={`text-xs font-semibold ${dayTotal >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {dayTotal >= 0 ? '+' : ''}{fmtMoney(Math.abs(dayTotal))}₫
-                  </span>
+              <div key={day}>
+                {/* Day header — matches Android: calendar icon + date + total */}
+                <div className="flex items-center gap-2 px-4 py-2.5" style={{ backgroundColor: '#F5F7FA' }}>
+                  <Calendar size={14} className="text-gray-500" />
+                  <span className="flex-1 text-xs font-semibold" style={{ color: '#1A1A1A' }}>{fmtDayLabel(day)}</span>
+                  <span className="text-xs font-semibold text-red-600">Tổng: {fmtCompact(dayTotal)}</span>
                 </div>
-                <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-                  {txns.map(t => (
-                    <button
-                      key={t.record.id}
-                      onClick={() => openDetail(t.record)}
-                      className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 text-left"
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === '1' ? 'bg-green-50' : 'bg-red-50'}`}>
-                        {t.type === '1' ? <TrendingUp size={18} className="text-green-500" /> : <TrendingDown size={18} className="text-red-500" />}
+                {/* Transactions */}
+                {txns.map(t => (
+                  <button key={t.record.id} onClick={() => openDetail(t.record)} className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 active:bg-gray-50 text-left">
+                    {/* Category icon */}
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.type === '1' ? '#E8F5E9' : '#FFEBEE' }}>
+                      {t.type === '1' ? <TrendingUp size={18} className="text-green-600" /> : <TrendingDown size={18} className="text-red-500" />}
+                    </div>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: '#1A1A1A' }}>{t.title}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Wallet size={12} className="text-gray-400" />
+                        <span className="text-[11px] text-gray-500 truncate">{getAccLabel(t.account)}</span>
+                        {t.categoryId && <span className="text-[11px] text-gray-300 mx-1">|</span>}
+                        {t.categoryId && <span className="text-[11px] text-gray-500">{getCatName(t.categoryId)}</span>}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{t.title}</p>
-                      </div>
-                      <span className={`text-sm font-semibold tabular-nums ${t.type === '1' ? 'text-green-600' : 'text-red-600'}`}>
-                        {fmtMoney(t.amount)}₫
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                    </div>
+                    {/* Amount */}
+                    <span className={`text-sm font-bold ${t.type === '1' ? 'text-green-600' : ''}`} style={{ color: t.type !== '1' ? '#1A1A1A' : undefined }}>
+                      {fmtMoney(t.amount)}₫
+                    </span>
+                  </button>
+                ))}
               </div>
             );
           })
