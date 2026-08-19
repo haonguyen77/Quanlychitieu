@@ -1,23 +1,31 @@
 import { useAppStore } from '@/core/store/appStore';
+import { useMobileNav } from './MobileNavigation';
+import { GoogleDriveMobile } from './GoogleDriveMobile';
 import { Cloud, Bell, Shield, Palette, Database, Trash2, ChevronRight } from 'lucide-react';
 
 /**
  * Mobile Settings — Clean list with icons.
  * Design reference: Android App "Cài đặt" screen.
+ * Google Drive button navigates to GoogleDriveMobile.
  */
 export function SettingsMobile() {
   const { theme, setTheme } = useAppStore();
+  const { push } = useMobileNav();
+
+  const openGoogleDrive = () => {
+    push({ id: 'google-drive', component: <GoogleDriveMobile /> });
+  };
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="bg-white px-5 pt-14 pb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Cài đặt</h1>
+    <div className="h-full overflow-auto bg-white">
+      <div className="px-5 pt-3 pb-4">
+        <h1 className="text-xl font-bold" style={{ color: '#0F1F4D' }}>Cài đặt</h1>
       </div>
 
       <div className="px-4 pb-24 space-y-4">
         {/* Sync */}
         <SettingsSection title="Đồng bộ">
-          <SettingsItem icon={<Cloud size={18} />} iconBg="bg-blue-50" iconColor="text-blue-500" label="Google Drive" subtitle="Đồng bộ dữ liệu" />
+          <SettingsItem icon={<Cloud size={18} />} iconBg="bg-blue-50" iconColor="text-blue-500" label="Google Drive" subtitle="Đồng bộ dữ liệu" onPress={openGoogleDrive} />
         </SettingsSection>
 
         {/* Notifications */}
@@ -27,7 +35,7 @@ export function SettingsMobile() {
 
         {/* Security */}
         <SettingsSection title="Bảo mật">
-          <SettingsItem icon={<Shield size={18} />} iconBg="bg-purple-50" iconColor="text-purple-500" label="Bảo mật" subtitle="PIN, vân tay, chế độ riêng tư" />
+          <SettingsItem icon={<Shield size={18} />} iconBg="bg-purple-50" iconColor="text-purple-500" label="Bảo mật" subtitle="Chưa hỗ trợ trên Web" />
         </SettingsSection>
 
         {/* Appearance */}
@@ -50,7 +58,7 @@ export function SettingsMobile() {
 
         {/* Data */}
         <SettingsSection title="Dữ liệu">
-          <SettingsItem icon={<Database size={18} />} iconBg="bg-green-50" iconColor="text-green-500" label="Import / Export" subtitle="Nhập, xuất dữ liệu" />
+          <SettingsItem icon={<Database size={18} />} iconBg="bg-green-50" iconColor="text-green-500" label="Import / Export" subtitle="Chưa hỗ trợ trên Web" />
           <div className="border-t border-gray-50" />
           <SettingsItem icon={<Trash2 size={18} />} iconBg="bg-red-50" iconColor="text-red-500" label="Thùng rác" subtitle="Giao dịch đã xóa" />
         </SettingsSection>
@@ -70,11 +78,11 @@ function SettingsSection({ title, children }: { title: string; children: React.R
   );
 }
 
-function SettingsItem({ icon, iconBg, iconColor, label, subtitle }: {
-  icon: React.ReactNode; iconBg: string; iconColor: string; label: string; subtitle: string;
+function SettingsItem({ icon, iconBg, iconColor, label, subtitle, onPress }: {
+  icon: React.ReactNode; iconBg: string; iconColor: string; label: string; subtitle: string; onPress?: () => void;
 }) {
   return (
-    <button className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 transition-colors text-left">
+    <button onClick={onPress} className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 transition-colors text-left">
       <div className={`w-9 h-9 rounded-xl ${iconBg} flex items-center justify-center ${iconColor}`}>{icon}</div>
       <div className="flex-1">
         <p className="text-sm font-medium text-gray-900">{label}</p>
