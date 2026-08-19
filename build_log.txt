@@ -55,8 +55,8 @@ chunk.
 rendering chunks...
 computing gzip size...
 [2mdist/[22m[32mindex.html                 [39m[1m[2m    0.77 kB[22m[1m[22m[2m │ gzip:   0.43 kB[22m
-[2mdist/[22m[35massets/index-BQCq1pEP.css  [39m[1m[2m   52.39 kB[22m[1m[22m[2m │ gzip:   9.16 kB[22m
-[2mdist/[22m[36massets/index-DvfrozSX.js   [39m[1m[33m1,071.59 kB[39m[22m[2m │ gzip: 306.47 kB[22m
+[2mdist/[22m[35massets/index-BdhfxMOm.css  [39m[1m[2m   53.48 kB[22m[1m[22m[2m │ gzip:   9.24 kB[22m
+[2mdist/[22m[36massets/index-C5yKcJ85.js   [39m[1m[33m1,075.50 kB[39m[22m[2m │ gzip: 307.95 kB[22m
 [33m
 (!) Some chunks are larger than 500 kB 
 after minification. Consider:
@@ -69,4 +69,4 @@ configuration-options/#output-manualchunks
 - Adjust chunk size limit for this 
 warning via 
 build.chunkSizeWarningLimit.[39m
-[32m✓ built in 9.16s[39m
+[32m✓ built in 12.39s[39m

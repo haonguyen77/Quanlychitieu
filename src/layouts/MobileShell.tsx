@@ -6,29 +6,25 @@ import { ExpenseMobile } from '@/features/mobile/ExpenseMobile';
 import { ModulesMobile } from '@/features/mobile/ModulesMobile';
 import { SettingsMobile } from '@/features/mobile/SettingsMobile';
 import { AddExpenseMobile } from '@/features/mobile/AddExpenseMobile';
-import { BarChart3, Receipt, PlusCircle, FolderOpen, Settings } from 'lucide-react';
+import { BarChart3, Receipt, Plus, FolderOpen, Settings } from 'lucide-react';
 
 type MobileTab = 'dashboard' | 'expense' | 'add' | 'modules' | 'settings';
 
 /**
- * MobileShell — Bottom Navigation + Content.
- * Matches Android App layout: Dashboard, Chi tiêu, +, Danh mục, Cài đặt.
- * Shown when viewport < 1024px.
+ * MobileShell — Exact reproduction of Android App HomeScreen.
+ * Bottom nav: 64px height, FAB 56x56 circle, navy blue (#1264F5).
+ * No extra top padding. No tablet layout.
  */
 export function MobileShell() {
   const [activeTab, setActiveTab] = useState<MobileTab>('expense');
   const [showAddForm, setShowAddForm] = useState(false);
   const { data } = useAppStore();
 
-  // Show loading if no data
   if (!data) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[var(--color-bg)]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-primary-500 flex items-center justify-center animate-pulse">
-            <span className="text-white text-xl font-bold">₫</span>
-          </div>
-          <p className="text-sm text-gray-500">Đang tải...</p>
+      <div className="h-screen flex items-center justify-center bg-white">
+        <div className="w-10 h-10 rounded-full bg-[#1264F5] flex items-center justify-center animate-pulse">
+          <span className="text-white text-lg font-bold">₫</span>
         </div>
       </div>
     );
@@ -44,78 +40,59 @@ export function MobileShell() {
 
   return (
     <MobileNavProvider>
-    <div className="h-screen flex flex-col bg-[var(--color-bg)] overflow-hidden">
-      {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
-        {activeTab === 'dashboard' && <DashboardMobile />}
-        {activeTab === 'expense' && <ExpenseMobile />}
-        {activeTab === 'modules' && <ModulesMobile />}
-        {activeTab === 'settings' && <SettingsMobile />}
-      </main>
+      <div className="h-screen flex flex-col bg-white overflow-hidden">
+        {/* Content */}
+        <main className="flex-1 overflow-hidden">
+          {activeTab === 'dashboard' && <DashboardMobile />}
+          {activeTab === 'expense' && <ExpenseMobile />}
+          {activeTab === 'modules' && <ModulesMobile />}
+          {activeTab === 'settings' && <SettingsMobile />}
+        </main>
 
-      {/* Bottom Navigation */}
-      <nav className="flex-shrink-0 bg-white border-t border-gray-200 safe-area-bottom">
-        <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
-          <NavItem
-            icon={<BarChart3 size={22} />}
-            label="Dashboard"
-            active={activeTab === 'dashboard'}
-            onPress={() => handleTabPress('dashboard')}
-          />
-          <NavItem
-            icon={<Receipt size={22} />}
-            label="Chi tiêu"
-            active={activeTab === 'expense'}
-            onPress={() => handleTabPress('expense')}
-          />
+        {/* Bottom Navigation — matches Android: 64px, white, shadow */}
+        <nav className="relative flex-shrink-0 bg-white" style={{ boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
+          <div className="flex items-center justify-around h-16 px-1" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <NavItem icon={<BarChart3 size={24} />} label="Dashboard" active={activeTab === 'dashboard'} onPress={() => handleTabPress('dashboard')} />
+            <NavItem icon={<Receipt size={24} />} label="Chi tiêu" active={activeTab === 'expense'} onPress={() => handleTabPress('expense')} />
 
-          {/* Center FAB */}
-          <button
-            onClick={() => handleTabPress('add')}
-            className="w-14 h-14 -mt-4 rounded-full bg-primary-500 shadow-lg shadow-primary-500/30 flex items-center justify-center active:scale-95 transition-transform"
-          >
-            <PlusCircle size={28} color="white" />
-          </button>
+            {/* FAB — 56x56 circle, navy blue, centered */}
+            <button
+              onClick={() => handleTabPress('add')}
+              className="flex items-center justify-center active:scale-90 transition-transform"
+              style={{
+                width: '56px',
+                height: '56px',
+                minWidth: '56px',
+                minHeight: '56px',
+                borderRadius: '50%',
+                backgroundColor: '#1264F5',
+                boxShadow: '0 4px 8px rgba(18,100,245,0.3)',
+                marginTop: '-12px',
+              }}
+            >
+              <Plus size={28} color="white" strokeWidth={2.5} />
+            </button>
 
-          <NavItem
-            icon={<FolderOpen size={22} />}
-            label="Danh mục"
-            active={activeTab === 'modules'}
-            onPress={() => handleTabPress('modules')}
-          />
-          <NavItem
-            icon={<Settings size={22} />}
-            label="Cài đặt"
-            active={activeTab === 'settings'}
-            onPress={() => handleTabPress('settings')}
-          />
-        </div>
-      </nav>
+            <NavItem icon={<FolderOpen size={24} />} label="Danh mục" active={activeTab === 'modules'} onPress={() => handleTabPress('modules')} />
+            <NavItem icon={<Settings size={24} />} label="Cài đặt" active={activeTab === 'settings'} onPress={() => handleTabPress('settings')} />
+          </div>
+        </nav>
 
-      {/* Add Expense Fullscreen */}
-      {showAddForm && (
-        <AddExpenseMobile onClose={() => setShowAddForm(false)} />
-      )}
-    </div>
+        {/* Add Expense Fullscreen Overlay */}
+        {showAddForm && <AddExpenseMobile onClose={() => setShowAddForm(false)} />}
+      </div>
     </MobileNavProvider>
   );
 }
 
 function NavItem({ icon, label, active, onPress }: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onPress: () => void;
+  icon: React.ReactNode; label: string; active: boolean; onPress: () => void;
 }) {
+  const color = active ? '#1264F5' : '#9CA3AF';
   return (
-    <button
-      onClick={onPress}
-      className={`flex flex-col items-center justify-center w-16 h-full gap-0.5 transition-colors ${
-        active ? 'text-primary-500' : 'text-gray-400'
-      }`}
-    >
-      {icon}
-      <span className={`text-[10px] ${active ? 'font-semibold' : 'font-normal'}`}>{label}</span>
+    <button onClick={onPress} className="flex flex-col items-center justify-center" style={{ width: '64px' }}>
+      <div style={{ color }}>{icon}</div>
+      <span style={{ fontSize: '11px', color, fontWeight: active ? 600 : 400, marginTop: '4px' }}>{label}</span>
     </button>
   );
 }
