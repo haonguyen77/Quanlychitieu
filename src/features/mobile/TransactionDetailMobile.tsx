@@ -40,7 +40,7 @@ export function TransactionDetailMobile({ record }: Props) {
   const getModName = () => { const mod = data?.modules.find(m => m.id === (record.linkedModuleId || record.moduleId)); return mod?.name || record.moduleId || '—'; };
 
   const handleEdit = () => {
-    push({ id: `edit-${record.id}`, component: <AddExpenseMobile editRecord={{ id: record.id, values: record.values as Record<string, unknown>, categoryId: record.categoryId || undefined, linkedModuleId: record.linkedModuleId || undefined, moduleId: record.moduleId }} onClose={() => { pop(); pop(); }} /> });
+    push({ id: `edit-${record.id}`, component: <AddExpenseMobile editRecord={{ id: record.id, values: record.values, categoryId: record.categoryId || undefined, linkedModuleId: record.linkedModuleId || undefined, moduleId: record.moduleId }} onClose={() => { pop(); pop(); }} /> });
   };
 
   const handleDelete = () => {

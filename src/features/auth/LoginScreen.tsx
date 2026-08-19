@@ -19,7 +19,7 @@ export function LoginScreen() {
 
       const profile = await driveService.getUserProfile();
       if (profile) {
-        setAuth(profile.email, profile.avatar);
+        setAuth(profile.email, profile.avatar || undefined);
       }
 
       // Try to pull from Drive

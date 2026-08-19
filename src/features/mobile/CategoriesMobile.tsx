@@ -26,7 +26,7 @@ export function CategoriesMobile() {
       if (editId) {
         return { ...m, categories: existingCats.map(c => c.id === editId ? { ...c, name: newName.trim(), updatedAt: now } : c) };
       } else {
-        return { ...m, categories: [...existingCats, { id, name: newName.trim(), icon: 'other', color: '#607D8B', sortOrder: existingCats.length, isActive: true, createdAt: now, updatedAt: now }] };
+        return { ...m, categories: [...existingCats, { id, moduleId: 'mod_chitieu', name: newName.trim(), icon: 'other', color: '#607D8B', sortOrder: existingCats.length, isActive: true, createdAt: now, updatedAt: now }] };
       }
     });
     setData({ ...data, modules: updatedModules, lastModified: now });

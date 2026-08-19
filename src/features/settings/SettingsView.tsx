@@ -20,9 +20,9 @@ export function SettingsView() {
       let token = driveService.token;
       if (!token) {
         token = await driveService.login();
-        if (!token) { setSyncStatus(`Lỗi: ${driveService.getLastError()}`); setSyncing(false); return; }
+        if (!token) { setSyncStatus(`Lỗi: ${driveService.getLastError() || 'Unknown'}`); setSyncing(false); return; }
         const profile = await driveService.getUserProfile();
-        if (profile) setAuth(profile.email, profile.avatar);
+        if (profile) setAuth(profile.email, profile.avatar || undefined);
       }
       const result = await syncService.fullSync();
       if (result.status === 'error') {
@@ -31,12 +31,12 @@ export function SettingsView() {
         const freshToken = await driveService.login();
         if (freshToken) {
           const profile = await driveService.getUserProfile();
-          if (profile) setAuth(profile.email, profile.avatar);
+          if (profile) setAuth(profile.email, profile.avatar || undefined);
           const retry = await syncService.fullSync();
           if (retry.data) setData({ ...retry.data, metadata: { ...retry.data.metadata, lastSyncAt: new Date().toISOString() } });
           else if (retry.status === 'success') { const s = useAppStore.getState(); if (s.data) setData({ ...s.data, metadata: { ...s.data.metadata, lastSyncAt: new Date().toISOString() } }); }
           setSyncStatus(`✓ ${retry.message}`);
-        } else { setSyncStatus(`Lỗi: ${driveService.getLastError()}`); }
+        } else { setSyncStatus(`Lỗi: ${driveService.getLastError() || 'Unknown'}`); }
       } else {
         if (result.data) {
           const recordCount = result.data.records?.length ?? 0;

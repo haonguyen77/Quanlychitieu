@@ -1,191 +1,263 @@
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
-import { X, Calendar, Clock, Tag, Wallet, Layers, FileText, User, MapPin, ShoppingBag, Shield, ChevronDown } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
+import { X, ChevronLeft, ChevronRight, Calendar, ArrowDown, ArrowUp, Minus, Plus } from 'lucide-react';
+import type { RecordValues } from '@/types';
 
 interface Props {
   onClose: () => void;
-  editRecord?: { id: string; values: Record<string, unknown>; categoryId?: string; linkedModuleId?: string; moduleId?: string };
+  editRecord?: { id: string; values: RecordValues; categoryId?: string; linkedModuleId?: string; moduleId?: string };
 }
 
 /**
- * AddExpenseMobile — Full reproduction of Android add_transaction_screen.dart.
- * Fullscreen form with all fields: type, title, amount, category, account, module, date, time, note, beneficiary, event, store, warranty.
+ * AddExpenseMobile — REBUILD based on Android add_transaction_screen.dart.
+ * Exact reproduction: Date row (< date >) + Chi/Thu + Title (with suggestions) + Amount (with suggestions) + Quantity
+ * + Payment grid chips + Category grid chips + Module pills + Beneficiary + Note + Expanded (Event/Store/Warranty)
  */
 export function AddExpenseMobile({ onClose, editRecord }: Props) {
   const { data } = useAppStore();
   const { addRecord, updateRecord } = useRecordStore();
-
   const isEditing = !!editRecord;
 
-  // Extract values from editRecord
   const getVal = (suffix: string): string => {
     if (!editRecord) return '';
     const key = Object.keys(editRecord.values).find(k => k.endsWith(`_${suffix}`));
     return key ? String(editRecord.values[key] ?? '') : '';
   };
 
-  const [type, setType] = useState<'0' | '1'>(getVal('type') === '1' ? '1' : '0');
+  const [type, setType] = useState<0 | 1>(getVal('type') === '1' ? 1 : 0);
   const [title, setTitle] = useState(getVal('title'));
   const [amount, setAmount] = useState(getVal('amount') ? String(Math.abs(Number(getVal('amount')))) : '');
+  const [quantity, setQuantity] = useState(Number(getVal('quantity')) || 1);
   const [categoryId, setCategoryId] = useState(editRecord?.categoryId || '');
-  const [account, setAccount] = useState(getVal('account') || 'cash');
+  const [accountId, setAccountId] = useState(getVal('account') || 'cash');
   const [moduleId, setModuleId] = useState(editRecord?.linkedModuleId || editRecord?.moduleId || 'mod_chitieu');
   const [date, setDate] = useState(getVal('date') || new Date().toISOString().slice(0, 10));
-  const [time, setTime] = useState(getVal('time') || new Date().toTimeString().slice(0, 5));
   const [note, setNote] = useState(getVal('note'));
   const [beneficiary, setBeneficiary] = useState(getVal('beneficiary'));
   const [event, setEvent] = useState(getVal('event'));
   const [store, setStore] = useState(getVal('store'));
-  const [showMore, setShowMore] = useState(!!(getVal('beneficiary') || getVal('event') || getVal('store')));
-  const [showCatPicker, setShowCatPicker] = useState(false);
-  const [showAccPicker, setShowAccPicker] = useState(false);
-  const [showModPicker, setShowModPicker] = useState(false);
+  const [warrantyMonths, setWarrantyMonths] = useState(getVal('warranty_months'));
+  const [showExpanded, setShowExpanded] = useState(!!(getVal('event') || getVal('store') || getVal('warranty_months')));
+  const [showCatSheet, setShowCatSheet] = useState(false);
+  const [showAccSheet, setShowAccSheet] = useState(false);
 
-  const categories = data?.modules.find(m => m.id === 'mod_chitieu')?.categories || [];
-  const accounts = data?.modules.find(m => m.id === 'mod_chitieu')?.fields.find(f => f.fieldName === 'account')?.options || [];
+  const categories = data?.modules.find(m => m.id === 'mod_chitieu')?.categories?.filter(c => c.isActive) || [];
+  const accounts = data?.accounts?.filter(a => a.isActive) || [];
   const modules = data?.modules.filter(m => m.isActive && m.isVisible !== false) || [];
+  const beneficiaries = data?.modules.find(m => m.id === 'mod_chitieu')?.fields.find(f => f.fieldName === 'beneficiary')?.options || [];
 
-  const selectedCatName = categories.find(c => c.id === categoryId)?.name || 'Chọn danh mục';
-  const selectedAccName = accounts.find(o => o.value === account)?.label || account;
-  const selectedModName = modules.find(m => m.id === moduleId)?.name || 'Chi tiêu';
+  // Amount suggestions
+  const amountSuggestions = useMemo(() => {
+    const base = Number(amount.replace(/\D/g, '')) || 0;
+    if (base <= 0) return [];
+    const sugs = new Set<number>();
+    for (const m of [1000, 10000, 100000, 1000000]) { const v = base * m; if (v > base && v >= 1000 && v <= 1000000000) sugs.add(v); }
+    return Array.from(sugs).sort().slice(0, 4);
+  }, [amount]);
+
+  const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
+
+  // Date navigation
+  const prevDay = () => { const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d.toISOString().slice(0, 10)); };
+  const nextDay = () => { const d = new Date(date); d.setDate(d.getDate() + 1); setDate(d.toISOString().slice(0, 10)); };
+  const fmtDate = (d: string) => { const parts = d.split('-'); return `${parts[2]}/${parts[1]}/${parts[0]}`; };
 
   const handleSave = () => {
-    if (!title.trim() || !amount) return;
-    const values: Record<string, unknown> = {
-      mod_chitieu_title: title.trim(),
-      mod_chitieu_amount: Number(amount.replace(/\./g, '').replace(/,/g, '')),
-      mod_chitieu_type: type,
+    const amt = Number(amount.replace(/\D/g, '')) || 0;
+    const values: RecordValues = {
+      mod_chitieu_title: title.trim() || 'Giao dịch',
+      mod_chitieu_amount: amt,
+      mod_chitieu_type: String(type),
       mod_chitieu_date: date,
-      mod_chitieu_time: time,
-      mod_chitieu_account: account,
-      mod_chitieu_note: note.trim() || undefined,
-      mod_chitieu_beneficiary: beneficiary.trim() || undefined,
-      mod_chitieu_event: event.trim() || undefined,
-      mod_chitieu_store: store.trim() || undefined,
+      mod_chitieu_account: accountId,
+      mod_chitieu_note: note.trim() || null,
+      mod_chitieu_beneficiary: beneficiary || null,
+      mod_chitieu_event: event.trim() || null,
+      mod_chitieu_store: store.trim() || null,
+      mod_chitieu_warranty_months: warrantyMonths || null,
+      mod_chitieu_quantity: quantity > 1 ? quantity : null,
     };
-
-    if (isEditing && editRecord) {
-      updateRecord(editRecord.id, values);
-    } else {
-      addRecord('mod_chitieu', values, categoryId || undefined, moduleId !== 'mod_chitieu' ? moduleId : undefined);
-    }
+    if (isEditing && editRecord) { updateRecord(editRecord.id, values); }
+    else { addRecord('mod_chitieu', values, categoryId || undefined, moduleId !== 'mod_chitieu' ? moduleId : undefined); }
     onClose();
   };
 
+  // Visible categories (max 7 + "Thêm")
+  const visibleCats = categories.length > 8 ? categories.slice(0, 7) : categories;
+  const hasMoreCats = categories.length > 8;
+  // Visible accounts (max 3 + "Thêm")
+  const visibleAccs = accounts.length > 4 ? accounts.slice(0, 3) : accounts;
+  const hasMoreAccs = accounts.length > 4;
+
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col" style={{ height: '100dvh' }}>
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
-        <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center active:bg-gray-100"><X size={22} className="text-gray-600" /></button>
-        <h2 className="text-base font-semibold text-gray-900">{isEditing ? 'Sửa giao dịch' : 'Thêm chi tiêu'}</h2>
-        <button onClick={handleSave} disabled={!title.trim() || !amount}
-          className="px-4 py-2 rounded-xl text-white text-sm font-semibold active:scale-95 transition-transform disabled:opacity-40"
-          style={{ backgroundColor: '#004DEB' }}>Lưu</button>
+      {/* Header — Android style: back + title + Lưu button */}
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-gray-100" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
+        <button onClick={onClose} className="w-10 h-10 flex items-center justify-center"><X size={22} className="text-gray-700" /></button>
+        <h2 className="flex-1 text-base font-bold text-gray-900">{isEditing ? 'Sửa chi tiêu' : 'Thêm chi tiêu'}</h2>
+        <button onClick={handleSave} className="px-4 py-2 rounded-lg text-white text-sm font-semibold active:scale-95" style={{ backgroundColor: '#004DEB' }}>Lưu</button>
       </header>
 
-      {/* Form */}
-      <div className="flex-1 overflow-auto px-4 py-4 space-y-4">
-        {/* Type toggle */}
-        <div className="flex gap-2">
-          <button onClick={() => setType('0')} className={`flex-1 py-3 rounded-xl text-sm font-semibold ${type === '0' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500'}`}>↓ Chi</button>
-          <button onClick={() => setType('1')} className={`flex-1 py-3 rounded-xl text-sm font-semibold ${type === '1' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-500'}`}>↑ Thu</button>
+      {/* Form — scrollable */}
+      <div className="flex-1 overflow-auto px-4 pb-8">
+        {/* Date + Type Row — Android style */}
+        <div className="flex items-center gap-1 py-3 px-2 mt-2 rounded-xl" style={{ backgroundColor: '#FFF0F0' }}>
+          <button onClick={prevDay} className="w-8 h-8 flex items-center justify-center"><ChevronLeft size={20} className="text-gray-600" /></button>
+          <button className="flex items-center gap-1.5 flex-1 justify-center">
+            <Calendar size={14} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-800">{fmtDate(date)}</span>
+          </button>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="absolute opacity-0 w-0 h-0" />
+          <button onClick={nextDay} className="w-8 h-8 flex items-center justify-center"><ChevronRight size={20} className="text-gray-600" /></button>
+          <div className="w-px h-6 bg-gray-200 mx-1" />
+          {/* Type pills */}
+          <button onClick={() => setType(0)} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border ${type === 0 ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
+            <ArrowDown size={14} className={type === 0 ? 'text-red-500' : 'text-gray-400'} />
+            <span className={`text-xs font-semibold ${type === 0 ? 'text-red-500' : 'text-gray-400'}`}>Chi</span>
+          </button>
+          <button onClick={() => setType(1)} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border ${type === 1 ? 'border-green-400 bg-green-50' : 'border-gray-200'}`}>
+            <ArrowUp size={14} className={type === 1 ? 'text-green-500' : 'text-gray-400'} />
+            <span className={`text-xs font-semibold ${type === 1 ? 'text-green-500' : 'text-gray-400'}`}>Thu</span>
+          </button>
         </div>
 
         {/* Title */}
-        <FormField label="Tên giao dịch *">
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Nhập tên giao dịch" className="form-input" />
-        </FormField>
-
-        {/* Amount */}
-        <FormField label="Số tiền *">
-          <input type="text" inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" className="form-input text-lg font-bold" />
-        </FormField>
-
-        {/* Date + Time */}
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Ngày" icon={<Calendar size={13} />}>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="form-input text-sm" />
-          </FormField>
-          <FormField label="Giờ" icon={<Clock size={13} />}>
-            <input type="time" value={time} onChange={e => setTime(e.target.value)} className="form-input text-sm" />
-          </FormField>
+        <div className="mt-5">
+          <label className="text-xs font-medium text-gray-700">Tên giao dịch *</label>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Nhập tên giao dịch" className="w-full mt-1.5 px-3.5 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-500" />
         </div>
 
-        {/* Category */}
-        <FormField label="Danh mục" icon={<Tag size={13} />}>
-          <button onClick={() => setShowCatPicker(true)} className="form-input flex items-center justify-between text-left">
-            <span className={categoryId ? 'text-gray-900' : 'text-gray-400'}>{selectedCatName}</span><ChevronDown size={16} className="text-gray-400" />
-          </button>
-        </FormField>
+        {/* Amount + Quantity */}
+        <div className="mt-4 flex gap-3">
+          <div className="flex-[3]">
+            <label className="text-xs font-medium text-gray-700">Số tiền *</label>
+            <input type="text" inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" className="w-full mt-1.5 px-3.5 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-500" />
+          </div>
+          <div className="flex-[2]">
+            <label className="text-xs font-medium text-gray-700">Số lượng</label>
+            <div className="flex mt-1.5 h-[46px]">
+              <button onClick={() => quantity > 1 && setQuantity(quantity - 1)} className="w-10 border border-gray-200 rounded-l-xl flex items-center justify-center"><Minus size={16} className="text-gray-600" /></button>
+              <div className="flex-1 border-y border-gray-200 flex items-center justify-center text-base font-semibold">{quantity}</div>
+              <button onClick={() => setQuantity(quantity + 1)} className="w-10 border border-gray-200 rounded-r-xl flex items-center justify-center"><Plus size={16} className="text-gray-600" /></button>
+            </div>
+          </div>
+        </div>
 
-        {/* Account */}
-        <FormField label="Tài khoản" icon={<Wallet size={13} />}>
-          <button onClick={() => setShowAccPicker(true)} className="form-input flex items-center justify-between text-left">
-            <span className="text-gray-900">{selectedAccName}</span><ChevronDown size={16} className="text-gray-400" />
-          </button>
-        </FormField>
+        {/* Amount suggestions */}
+        {amountSuggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {amountSuggestions.map(v => (
+              <button key={v} onClick={() => setAmount(String(v))} className="px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-xs text-blue-700">{fmtMoney(v)}₫</button>
+            ))}
+          </div>
+        )}
 
-        {/* Module */}
-        <FormField label="Module" icon={<Layers size={13} />}>
-          <button onClick={() => setShowModPicker(true)} className="form-input flex items-center justify-between text-left">
-            <span className="text-gray-900">{selectedModName}</span><ChevronDown size={16} className="text-gray-400" />
-          </button>
-        </FormField>
+        {/* Payment Method — Grid chips */}
+        <div className="mt-5">
+          <label className="text-xs font-medium text-gray-700">Phương thức thanh toán *</label>
+          <div className="flex gap-2 mt-2 flex-wrap">
+            {visibleAccs.map(acc => (
+              <Chip key={acc.id} label={acc.name} selected={accountId === acc.id} onTap={() => setAccountId(acc.id)} />
+            ))}
+            {hasMoreAccs && <Chip label="Thêm" selected={false} onTap={() => setShowAccSheet(true)} />}
+          </div>
+        </div>
+
+        {/* Category — Grid chips (Wrap) */}
+        <div className="mt-5">
+          <label className="text-xs font-medium text-gray-700">Danh mục *</label>
+          <div className="flex gap-2 mt-2 flex-wrap">
+            {visibleCats.map(cat => (
+              <Chip key={cat.id} label={cat.name} selected={categoryId === cat.id} onTap={() => setCategoryId(cat.id)} />
+            ))}
+            {hasMoreCats && <Chip label="Thêm" selected={false} onTap={() => setShowCatSheet(true)} />}
+          </div>
+        </div>
+
+        {/* Module — Pills */}
+        <div className="mt-5">
+          <label className="text-xs font-medium text-gray-700">Module *</label>
+          <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
+            {modules.map(m => (
+              <button key={m.id} onClick={() => setModuleId(m.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${moduleId === m.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>
+                {m.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Beneficiary */}
+        <div className="mt-5">
+          <label className="text-xs font-medium text-gray-700">Người nhận</label>
+          {beneficiaries.length > 0 ? (
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {beneficiaries.map(b => (
+                <Chip key={b.id} label={b.label} selected={beneficiary === b.value} onTap={() => setBeneficiary(beneficiary === b.value ? '' : b.value)} />
+              ))}
+            </div>
+          ) : (
+            <input type="text" value={beneficiary} onChange={e => setBeneficiary(e.target.value)} placeholder="Người nhận" className="w-full mt-1.5 px-3.5 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-500" />
+          )}
+        </div>
 
         {/* Note */}
-        <FormField label="Ghi chú" icon={<FileText size={13} />}>
-          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Ghi chú..." rows={2} className="form-input resize-none" />
-        </FormField>
+        <div className="mt-5">
+          <label className="text-xs font-medium text-gray-700">Ghi chú</label>
+          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Ghi chú..." rows={2} className="w-full mt-1.5 px-3.5 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-500 resize-none" />
+        </div>
 
-        {/* Expanded fields */}
-        {!showMore && (
-          <button onClick={() => setShowMore(true)} className="text-xs font-medium" style={{ color: '#004DEB' }}>+ Thêm thông tin (Người nhận, Sự kiện, Cửa hàng...)</button>
+        {/* Expanded toggle */}
+        {!showExpanded && (
+          <button onClick={() => setShowExpanded(true)} className="mt-4 text-xs font-medium text-blue-600">+ Thêm thông tin (Sự kiện, Cửa hàng, Bảo hành...)</button>
         )}
-        {showMore && (
-          <>
-            <FormField label="Người nhận" icon={<User size={13} />}>
-              <input type="text" value={beneficiary} onChange={e => setBeneficiary(e.target.value)} placeholder="Người nhận" className="form-input" />
-            </FormField>
-            <FormField label="Sự kiện" icon={<Calendar size={13} />}>
-              <input type="text" value={event} onChange={e => setEvent(e.target.value)} placeholder="Sự kiện" className="form-input" />
-            </FormField>
-            <FormField label="Cửa hàng" icon={<ShoppingBag size={13} />}>
-              <input type="text" value={store} onChange={e => setStore(e.target.value)} placeholder="Cửa hàng" className="form-input" />
-            </FormField>
-          </>
+        {showExpanded && (
+          <div className="mt-4 space-y-4">
+            <div><label className="text-xs font-medium text-gray-700">Sự kiện</label><input type="text" value={event} onChange={e => setEvent(e.target.value)} placeholder="Sự kiện" className="w-full mt-1.5 px-3.5 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-500" /></div>
+            <div><label className="text-xs font-medium text-gray-700">Cửa hàng</label><input type="text" value={store} onChange={e => setStore(e.target.value)} placeholder="Cửa hàng" className="w-full mt-1.5 px-3.5 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-500" /></div>
+            <div><label className="text-xs font-medium text-gray-700">Bảo hành (tháng)</label><input type="text" inputMode="numeric" value={warrantyMonths} onChange={e => setWarrantyMonths(e.target.value.replace(/\D/g, ''))} placeholder="VD: 12" className="w-full mt-1.5 px-3.5 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-500" /></div>
+          </div>
         )}
 
-        {/* Image — limitation notice */}
-        <p className="text-[10px] text-gray-400">📷 Đính kèm ảnh/hóa đơn chưa hỗ trợ trên Web</p>
+        {/* Image notice */}
+        <p className="mt-4 text-[10px] text-gray-400">📷 Đính kèm ảnh/hóa đơn chưa hỗ trợ trên Web</p>
+
+        {/* Save button — full width */}
+        <button onClick={handleSave} className="w-full mt-6 py-3.5 rounded-xl text-white text-sm font-semibold active:scale-[0.98]" style={{ backgroundColor: '#004DEB' }}>
+          {isEditing ? 'Cập nhật' : 'Lưu giao dịch'}
+        </button>
       </div>
 
-      {/* Pickers */}
-      {showCatPicker && <BottomSheet title="Chọn danh mục" onClose={() => setShowCatPicker(false)}>
-        <PickerItem label="Không chọn" selected={!categoryId} onTap={() => { setCategoryId(''); setShowCatPicker(false); }} />
-        {categories.map(c => <PickerItem key={c.id} label={c.name} selected={categoryId === c.id} onTap={() => { setCategoryId(c.id); setShowCatPicker(false); }} />)}
-      </BottomSheet>}
-      {showAccPicker && <BottomSheet title="Phương thức thanh toán" onClose={() => setShowAccPicker(false)}>
-        {accounts.map(o => <PickerItem key={o.id} label={o.label} selected={account === o.value} onTap={() => { setAccount(o.value); setShowAccPicker(false); }} />)}
-      </BottomSheet>}
-      {showModPicker && <BottomSheet title="Chọn module" onClose={() => setShowModPicker(false)}>
-        {modules.map(m => <PickerItem key={m.id} label={m.name} selected={moduleId === m.id} onTap={() => { setModuleId(m.id); setShowModPicker(false); }} />)}
-      </BottomSheet>}
+      {/* Category Bottom Sheet */}
+      {showCatSheet && (
+        <Sheet title="Chọn danh mục" onClose={() => setShowCatSheet(false)}>
+          {categories.map(c => (
+            <SheetItem key={c.id} label={c.name} selected={categoryId === c.id} onTap={() => { setCategoryId(c.id); setShowCatSheet(false); }} />
+          ))}
+        </Sheet>
+      )}
+      {/* Account Bottom Sheet */}
+      {showAccSheet && (
+        <Sheet title="Phương thức thanh toán" onClose={() => setShowAccSheet(false)}>
+          {accounts.map(a => (
+            <SheetItem key={a.id} label={a.name} selected={accountId === a.id} onTap={() => { setAccountId(a.id); setShowAccSheet(false); }} />
+          ))}
+        </Sheet>
+      )}
     </div>
   );
 }
 
-function FormField({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Chip({ label, selected, onTap }: { label: string; selected: boolean; onTap: () => void }) {
   return (
-    <div>
-      <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">{icon}{label}</label>
-      {children}
-    </div>
+    <button onClick={onTap} className={`px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${selected ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 bg-white'}`}>
+      {label}
+    </button>
   );
 }
 
-function BottomSheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
@@ -200,8 +272,8 @@ function BottomSheet({ title, onClose, children }: { title: string; onClose: () 
   );
 }
 
-function PickerItem({ label, selected, onTap }: { label: string; selected: boolean; onTap: () => void }) {
+function SheetItem({ label, selected, onTap }: { label: string; selected: boolean; onTap: () => void }) {
   return (
-    <button onClick={onTap} className={`w-full px-4 py-3 text-left text-sm border-b border-gray-50 active:bg-gray-50 ${selected ? 'text-[#004DEB] font-semibold bg-blue-50' : 'text-gray-900'}`}>{label}</button>
+    <button onClick={onTap} className={`w-full px-4 py-3.5 text-left text-sm border-b border-gray-50 active:bg-gray-50 ${selected ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-900'}`}>{label}</button>
   );
 }
