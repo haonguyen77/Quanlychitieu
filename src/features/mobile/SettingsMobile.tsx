@@ -5,9 +5,12 @@ import { CategoriesMobile } from './CategoriesMobile';
 import { AccountsMobile } from './AccountsMobile';
 import { BeneficiariesMobile } from './BeneficiariesMobile';
 import { TrashMobile } from './TrashMobile';
+import { ReportsMobile } from './ReportsMobile';
+import { BudgetMobile } from './BudgetMobile';
+import { BackupRestoreMobile } from './BackupRestoreMobile';
 import { MobileIcon } from './MobileIcon';
 import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
-import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette } from 'lucide-react';
+import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette, BarChart3, PieChart } from 'lucide-react';
 
 /**
  * SettingsMobile — Full reproduction of Android settings_screen.dart.
@@ -34,6 +37,10 @@ export function SettingsMobile() {
           <SettingsNav icon={<Wallet size={18} />} iconBg="#E3F2FD" iconColor="#1565C0" label="Phương thức thanh toán" subtitle="Quản lý tài khoản, ví, thẻ..." onTap={() => push({ id: 'accounts', component: <AccountsMobile /> })} />
           <Divider />
           <SettingsNav icon={<User size={18} />} iconBg="#F3E5F5" iconColor="#6A1B9A" label="Người nhận" subtitle="Quản lý danh sách người nhận" onTap={() => push({ id: 'beneficiaries', component: <BeneficiariesMobile /> })} />
+          <Divider />
+          <SettingsNav icon={<BarChart3 size={18} />} iconBg="#E8F5E9" iconColor="#1B5E20" label="Báo cáo" subtitle="Thống kê thu chi theo thời gian" onTap={() => push({ id: 'reports', component: <ReportsMobile /> })} />
+          <Divider />
+          <SettingsNav icon={<PieChart size={18} />} iconBg="#FFF3E0" iconColor="#E65100" label="Ngân sách" subtitle="Quản lý hạn mức chi tiêu" onTap={() => push({ id: 'budget', component: <BudgetMobile /> })} />
           <Divider />
           <SettingsNav icon={<Trash2 size={18} />} iconBg="#FFEBEE" iconColor="#D32F2F" label="Thùng rác" subtitle="Xem và khôi phục giao dịch đã xóa" onTap={() => push({ id: 'trash', component: <TrashMobile /> })} />
         </SettingsSection>
@@ -62,7 +69,7 @@ export function SettingsMobile() {
 
         {/* 5. IMPORT / EXPORT & BACKUP */}
         <SettingsSection title="5. IMPORT / EXPORT & BACKUP">
-          <SettingsNav icon={<Database size={18} />} iconBg="#E0F2F1" iconColor="#00695C" label="Import / Export & Backup" subtitle="Chưa hỗ trợ trên Web" onTap={() => {}} />
+          <SettingsNav icon={<Database size={18} />} iconBg="#E0F2F1" iconColor="#00695C" label="Sao lưu & Khôi phục" subtitle="Export / Import finance.json" onTap={() => push({ id: 'backup', component: <BackupRestoreMobile /> })} />
         </SettingsSection>
 
         {/* 6. BẢO MẬT */}
