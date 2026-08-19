@@ -60,6 +60,8 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
   const [showCatSheet, setShowCatSheet] = useState(false);
   const [showAccSheet, setShowAccSheet] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [titleSuggestions, setTitleSuggestions] = useState<Array<{ title: string; categoryId: string; cnt: number }>>([]);
+  const [showTitleSuggestions, setShowTitleSuggestions] = useState(false);
 
   // Data
   const categories = getCategories(data, type);
@@ -87,6 +89,45 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
   }, [amount]);
 
   const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
+
+  // Title suggestions (Android: getTitleSuggestions — search existing transactions)
+  const handleTitleChange = (value: string) => {
+    // Auto-capitalize first letter (Android behavior)
+    if (value.length === 1 && value[0] !== value[0].toUpperCase()) {
+      value = value[0].toUpperCase() + value.substring(1);
+    }
+    setTitle(value);
+    if (!value.trim() || !data) {
+      setTitleSuggestions([]);
+      setShowTitleSuggestions(false);
+      return;
+    }
+    const q = value.toLowerCase();
+    const titleMap = new Map<string, { categoryId: string; cnt: number }>();
+    for (const r of data.records) {
+      if (r.isDeleted || r.moduleId !== 'mod_chitieu') continue;
+      const tk = Object.keys(r.values).find(k => k.endsWith('_type'));
+      if (tk && String(r.values[tk]) !== '0') continue; // only expenses
+      const titleKey = Object.keys(r.values).find(k => k.endsWith('_title'));
+      const t = titleKey ? String(r.values[titleKey] ?? '') : '';
+      if (!t.toLowerCase().includes(q)) continue;
+      const existing = titleMap.get(t);
+      if (existing) { existing.cnt++; }
+      else { titleMap.set(t, { categoryId: r.categoryId || '', cnt: 1 }); }
+    }
+    const results = Array.from(titleMap.entries())
+      .map(([title, { categoryId, cnt }]) => ({ title, categoryId, cnt }))
+      .sort((a, b) => b.cnt - a.cnt)
+      .slice(0, 10);
+    setTitleSuggestions(results);
+    setShowTitleSuggestions(results.length > 0);
+  };
+
+  const selectTitleSuggestion = (suggestion: { title: string; categoryId: string }) => {
+    setTitle(suggestion.title);
+    if (suggestion.categoryId) setCategoryId(suggestion.categoryId);
+    setShowTitleSuggestions(false);
+  };
 
   // Date navigation (Android: _previousDay, _nextDay)
   const prevDay = () => { const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d.toISOString().slice(0, 10)); };
@@ -140,7 +181,7 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
         </button>
         <h2 className="flex-1 text-[16px] font-bold" style={{ color: '#1F2937' }}>{isEditing ? 'Sửa chi tiêu' : 'Thêm chi tiêu'}</h2>
         <button onClick={handleSave} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-semibold active:scale-95" style={{ backgroundColor: '#004DEB' }}>
-          <MobileIcon name="cloud" size={16} color="white" />
+          <MobileIcon name="save" size={16} color="white" />
           <span>Lưu</span>
         </button>
       </header>
@@ -180,8 +221,19 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
         {/* ─── 2. Title (Android: label + TextFormField + suggestions) ─── */}
         <div className="mt-5">
           <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Tên giao dịch *</label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Nhập tên giao dịch" maxLength={100}
+          <input type="text" value={title} onChange={e => handleTitleChange(e.target.value)} placeholder="Nhập tên giao dịch" maxLength={100}
             className="w-full mt-1.5 px-3.5 py-3 rounded-[10px] border border-gray-300 text-sm outline-none focus:border-blue-500" />
+          {/* Title suggestions dropdown (Android: _buildTitleSuggestions) */}
+          {showTitleSuggestions && (
+            <div className="mt-1 border border-gray-200 rounded-lg bg-white shadow-sm max-h-[150px] overflow-auto">
+              {titleSuggestions.map((s, i) => (
+                <button key={i} onClick={() => selectTitleSuggestion(s)} className="w-full px-3.5 py-2.5 text-left flex items-center justify-between border-b border-gray-50 last:border-b-0 active:bg-gray-50">
+                  <span className="text-[13px] text-gray-900">{s.title}</span>
+                  <span className="text-[11px] text-gray-400">{s.cnt}x</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ─── 3. Amount + Quantity (Android: 3:2 Expanded flex) ─── */}
@@ -345,7 +397,7 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
                   <MobileIcon name={iconInfo.icon} size={18} color={c.color || iconInfo.color} />
                 </div>
                 <span className="flex-1 text-left text-sm text-gray-900">{c.name}</span>
-                {categoryId === c.id && <MobileIcon name="shield" size={16} color="#004DEB" />}
+                {categoryId === c.id && <MobileIcon name="check" size={16} color="#004DEB" />}
               </button>
             );
           })}
@@ -362,7 +414,7 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
                   <MobileIcon name={iconInfo.icon} size={18} color={a.color || iconInfo.color} />
                 </div>
                 <span className="flex-1 text-left text-sm text-gray-900">{a.name}</span>
-                {accountId === a.id && <MobileIcon name="shield" size={16} color="#004DEB" />}
+                {accountId === a.id && <MobileIcon name="check" size={16} color="#004DEB" />}
               </button>
             );
           })}

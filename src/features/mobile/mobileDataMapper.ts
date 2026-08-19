@@ -32,12 +32,16 @@ export function getCategoryDisplay(categoryId: string | undefined | null, data: 
 
 export function getAccountDisplay(accountId: string | undefined | null, data: FinanceData | null): DisplayInfo {
   if (!accountId || !data) return { label: 'Chưa chọn', icon: 'wallet', color: '#2196F3', bgColor: '#E3F2FD' };
-  const account = data.accounts?.find(a => a.id === accountId);
+  // Try find by id first, then by icon/name for backward compat
+  let account = data.accounts?.find(a => a.id === accountId);
+  if (!account) account = data.accounts?.find(a => a.icon === accountId || a.name === accountId);
   if (account) {
     const iconInfo = getAccountIconInfo(account.icon);
     return { label: account.name, icon: iconInfo.icon, color: account.color || iconInfo.color, bgColor: iconInfo.bgColor };
   }
-  return { label: accountId, icon: 'wallet', color: '#2196F3', bgColor: '#E3F2FD' };
+  // Fallback: try to resolve icon from the accountId string itself (e.g., "cash", "card")
+  const iconInfo = getAccountIconInfo(accountId);
+  return { label: accountId, icon: iconInfo.icon, color: iconInfo.color, bgColor: iconInfo.bgColor };
 }
 
 // ─── Module Display ───────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ import {
   Landmark, ShoppingCart, Gem, Grape, BarChart3, Settings, LayoutGrid, Plus,
   Calendar, ChevronLeft, ChevronRight, ArrowDown, ArrowUp, Search, SlidersHorizontal,
   Trash2, Edit, ArrowLeft, FileText, User, MapPin, Tag, Layers, Shield,
-  Camera, Bell, Database, Cloud, Lock, Minus, type LucideIcon,
+  Camera, Bell, Database, Cloud, Lock, Minus, Check, Save, type LucideIcon,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -68,6 +68,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'cloud': Cloud,
   'lock': Lock,
   'minus': Minus,
+  'check': Check,
+  'save': Save,
 };
 
 interface Props {
