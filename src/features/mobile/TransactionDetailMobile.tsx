@@ -30,6 +30,7 @@ export function TransactionDetailMobile({ record }: Props) {
   const beneficiary = getVal('beneficiary');
   const event = getVal('event');
   const store = getVal('store');
+  const warrantyMonths = getVal('warranty_months');
   const isIncome = type === '1';
 
   const fmtMoney = (n: number) => n.toLocaleString('vi-VN') + '₫';
@@ -80,6 +81,7 @@ export function TransactionDetailMobile({ record }: Props) {
           {beneficiary && <><Divider /><InfoRow icon={<User size={15} />} label="Người nhận" value={beneficiary} /></>}
           {event && <><Divider /><InfoRow icon={<Calendar size={15} />} label="Sự kiện" value={event} /></>}
           {store && <><Divider /><InfoRow icon={<ShoppingBag size={15} />} label="Cửa hàng" value={store} /></>}
+          {warrantyMonths && <><Divider /><InfoRow icon={<Shield size={15} />} label="Bảo hành" value={`${warrantyMonths} tháng`} /></>}
         </div>
 
         {/* Note */}
