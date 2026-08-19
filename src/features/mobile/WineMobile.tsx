@@ -3,7 +3,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { ArrowLeft, BarChart3, FileText, Plus, Users, Package, Trash2, X } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
+import { deductInventoryForOrder, returnInventoryForOrder, adjustInventoryForEdit, shouldCreateCustomer, getCustomerValues } from './wineService';
 
 type WineTab = 'reports' | 'orders' | 'customers' | 'inventory';
 
@@ -70,7 +70,12 @@ export function WineMobile() {
       {/* Content */}
       <div className="flex-1 overflow-auto pb-16">
         {activeTab === 'reports' && <WineReports totalOrders={orders.length} totalRevenue={totalRevenue} totalStock={inventory.reduce((s, i) => s + i.stock, 0)} />}
-        {activeTab === 'orders' && <WineOrders orders={orders} onDelete={(id) => { deleteRecord(id); }} onEdit={(id) => {
+        {activeTab === 'orders' && <WineOrders orders={orders} onDelete={(id) => {
+          // Return inventory before delete (Android: _returnInventoryForOrder)
+          const record = data?.records.find(r => r.id === id);
+          if (record && !record.isDeleted) returnInventoryForOrder(record.values);
+          deleteRecord(id);
+        }} onEdit={(id) => {
           const order = data?.records.find(r => r.id === id);
           if (!order) return;
           const get = (s: string) => { const k = Object.keys(order.values).find(k => k.endsWith(`_${s}`)); return k ? String(order.values[k] ?? '') : ''; };
@@ -90,6 +95,15 @@ export function WineMobile() {
           if (!name?.trim()) return;
           const phone = prompt('SĐT:') || '';
           addRecord('mod_ruou_customers', { mod_ruou_customers_full_name: name.trim(), mod_ruou_customers_phone: phone, mod_ruou_customers_total_orders: 0, mod_ruou_customers_note: '' });
+        }} onEdit={(id) => {
+          const record = data?.records.find(r => r.id === id);
+          if (!record) return;
+          const oldName = String(record.values['mod_ruou_customers_full_name'] || '');
+          const oldPhone = String(record.values['mod_ruou_customers_phone'] || '');
+          const newName = prompt('Tên khách hàng:', oldName);
+          if (!newName?.trim()) return;
+          const newPhone = prompt('SĐT:', oldPhone) || '';
+          updateRecord(id, { ...record.values, mod_ruou_customers_full_name: newName.trim(), mod_ruou_customers_phone: newPhone });
         }} onDelete={(id) => deleteRecord(id)} />}
         {activeTab === 'inventory' && <WineInventory items={inventory} onAdd={() => {
           const sku = prompt('SKU:');
@@ -97,6 +111,16 @@ export function WineMobile() {
           const name = prompt('Tên sản phẩm:') || '';
           const stock = Number(prompt('Số lượng tồn:') || '0');
           addRecord('mod_ruou_inventory', { mod_ruou_inventory_sku: sku.trim(), mod_ruou_inventory_product_name: name, mod_ruou_inventory_stock: stock, mod_ruou_inventory_color: '' });
+        }} onEdit={(id) => {
+          const record = data?.records.find(r => r.id === id);
+          if (!record) return;
+          const oldName = String(record.values['mod_ruou_inventory_product_name'] || '');
+          const oldStock = String(record.values['mod_ruou_inventory_stock'] || '0');
+          const newName = prompt('Tên sản phẩm:', oldName);
+          if (newName === null) return;
+          const newStock = prompt('Số lượng tồn:', oldStock);
+          if (newStock === null) return;
+          updateRecord(id, { ...record.values, mod_ruou_inventory_product_name: newName, mod_ruou_inventory_stock: Number(newStock) || 0 });
         }} onDelete={(id) => deleteRecord(id)} />}
       </div>
 
@@ -141,14 +165,26 @@ export function WineMobile() {
                 mod_ruou_customer_phone: orderPhone.trim() || null,
                 mod_ruou_customer_address: orderAddress.trim() || null,
                 mod_ruou_product_name: orderProduct.trim() || null,
+                mod_ruou_product_sku: orderProduct.trim() || null,
                 mod_ruou_quantity: qty,
                 mod_ruou_price: price,
                 mod_ruou_ship_fee: shipFee,
                 mod_ruou_total_amount: total,
                 mod_ruou_order_date: orderDate,
               };
-              if (editOrderId) { updateRecord(editOrderId, values); }
-              else { addRecord('mod_ruou', values); }
+              if (editOrderId) {
+                // Edit: get old values for inventory rollback
+                const oldRecord = data?.records.find(r => r.id === editOrderId);
+                if (oldRecord) adjustInventoryForEdit(oldRecord.values, values);
+                updateRecord(editOrderId, values);
+              } else {
+                // Create: deduct inventory + ensure customer
+                addRecord('mod_ruou', values);
+                deductInventoryForOrder(values);
+                if (shouldCreateCustomer(values)) {
+                  addRecord('mod_ruou_customers', getCustomerValues(values));
+                }
+              }
               setShowAddOrder(false); setEditOrderId(null); setOrderCustomer(''); setOrderPhone(''); setOrderAddress(''); setOrderProduct(''); setOrderQty('1'); setOrderPrice(''); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10));
             }} className="w-full py-3 rounded-lg text-white text-sm font-semibold" style={{ backgroundColor: '#6C2BD9' }}>{editOrderId ? 'Cập nhật' : 'Lưu đơn hàng'}</button>
           </div>
@@ -214,7 +250,7 @@ function WineOrders({ orders, onDelete, onEdit }: { orders: { id: string; custom
   );
 }
 
-function WineCustomers({ customers, onAdd, onDelete }: { customers: { id: string; name: string; phone: string; totalOrders: number }[]; onAdd: () => void; onDelete: (id: string) => void }) {
+function WineCustomers({ customers, onAdd, onEdit, onDelete }: { customers: { id: string; name: string; phone: string; totalOrders: number }[]; onAdd: () => void; onEdit: (id: string) => void; onDelete: (id: string) => void }) {
   return (
     <div className="p-4 space-y-2">
       <div className="flex items-center justify-between">
@@ -229,6 +265,7 @@ function WineCustomers({ customers, onAdd, onDelete }: { customers: { id: string
             {c.phone && <p className="text-[10px] text-gray-400">{c.phone}</p>}
           </div>
           <span className="text-[10px] text-gray-500">{c.totalOrders} đơn</span>
+          <button onClick={() => onEdit(c.id)} className="w-7 h-7 rounded flex items-center justify-center active:bg-blue-50"><FileText size={13} className="text-blue-400" /></button>
           <button onClick={() => { if (confirm(`Xóa ${c.name}?`)) onDelete(c.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
@@ -237,7 +274,7 @@ function WineCustomers({ customers, onAdd, onDelete }: { customers: { id: string
   );
 }
 
-function WineInventory({ items, onAdd, onDelete }: { items: { id: string; sku: string; name: string; stock: number; color: string }[]; onAdd: () => void; onDelete: (id: string) => void }) {
+function WineInventory({ items, onAdd, onEdit, onDelete }: { items: { id: string; sku: string; name: string; stock: number; color: string }[]; onAdd: () => void; onEdit: (id: string) => void; onDelete: (id: string) => void }) {
   return (
     <div className="p-4 space-y-2">
       <div className="flex items-center justify-between">
@@ -255,6 +292,7 @@ function WineInventory({ items, onAdd, onDelete }: { items: { id: string; sku: s
             <p className="text-sm font-bold text-orange-600">{i.stock}</p>
             <p className="text-[9px] text-gray-400">chai</p>
           </div>
+          <button onClick={() => onEdit(i.id)} className="w-7 h-7 rounded flex items-center justify-center active:bg-orange-50"><FileText size={13} className="text-orange-400" /></button>
           <button onClick={() => { if (confirm(`Xóa ${i.name}?`)) onDelete(i.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
