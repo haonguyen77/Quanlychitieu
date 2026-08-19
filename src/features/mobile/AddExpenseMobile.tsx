@@ -59,6 +59,7 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
   const [showExpanded, setShowExpanded] = useState(!!(getVal('event') || getVal('store') || getVal('warranty_months') || getVal('warranty_end_date')));
   const [showCatSheet, setShowCatSheet] = useState(false);
   const [showAccSheet, setShowAccSheet] = useState(false);
+  const [showBenSheet, setShowBenSheet] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [titleSuggestions, setTitleSuggestions] = useState<Array<{ title: string; categoryId: string; cnt: number }>>([]);
   const [showTitleSuggestions, setShowTitleSuggestions] = useState(false);
@@ -308,15 +309,13 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
           </div>
         </div>
 
-        {/* ─── 8. Beneficiary — DROPDOWN (Android: DropdownButtonFormField) ─── */}
+        {/* ─── 8. Beneficiary — Custom bottom sheet (Android: DropdownButtonFormField) ─── */}
         <div className="mt-5">
           <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Người nhận</label>
-          <select value={beneficiary} onChange={e => setBeneficiary(e.target.value)}
-            className="w-full mt-1.5 px-3.5 py-3 rounded-[10px] border border-gray-300 text-sm outline-none focus:border-blue-500 bg-white appearance-none"
-            style={{ backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 12px center', backgroundRepeat: 'no-repeat', backgroundSize: '20px' }}>
-            <option value="">Chọn người nhận</option>
-            {beneficiaryOptions.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
+          <button onClick={() => setShowBenSheet(true)} className="w-full mt-1.5 px-3.5 py-3 rounded-[10px] border border-gray-300 text-sm text-left flex items-center justify-between bg-white">
+            <span style={{ color: beneficiary ? '#1F2937' : '#9CA3AF' }}>{beneficiary || 'Chọn người nhận'}</span>
+            <ChevronDown size={16} color="#9E9E9E" />
+          </button>
         </div>
 
         {/* ─── 9. Attachment Section (Android: camera_alt_outlined + text) ─── */}
@@ -332,7 +331,7 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
         {/* ─── 10. Note (Android: TextFormField, maxLines 5, maxLength 200) ─── */}
         <div className="mt-5">
           <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Ghi chú</label>
-          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Nhập ghi chú (không bắt buộc)" rows={2} maxLength={200}
+          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Nhập ghi chú (không bắt buộc)" rows={4} maxLength={200}
             className="w-full mt-1.5 px-3.5 py-3 rounded-[10px] border border-gray-300 text-sm outline-none focus:border-blue-500 resize-none" />
         </div>
 
@@ -370,8 +369,11 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
               <div className="flex-1">
                 <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Hết BH</label>
                 <div className="relative mt-1.5">
-                  <input type="date" value={warrantyEndDate} onChange={e => setWarrantyEndDate(e.target.value)}
-                    className="w-full px-3 py-3 rounded-[10px] border border-gray-300 text-sm outline-none focus:border-blue-500" />
+                  <div className="relative">
+                    <input type="date" value={warrantyEndDate} onChange={e => setWarrantyEndDate(e.target.value)}
+                      className="w-full pl-8 pr-3 py-3 rounded-[10px] border border-gray-300 text-sm outline-none focus:border-blue-500" />
+                    <Calendar size={14} color="#757575" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -418,6 +420,22 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
               </button>
             );
           })}
+        </BottomSheet>
+      )}
+      {/* Beneficiary Bottom Sheet */}
+      {showBenSheet && (
+        <BottomSheet title="Chọn người nhận" onClose={() => setShowBenSheet(false)}>
+          <button onClick={() => { setBeneficiary(''); setShowBenSheet(false); }}
+            className={`w-full px-4 py-3.5 text-left text-sm active:bg-gray-50 border-b border-gray-50 ${!beneficiary ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'}`}>
+            Không chọn
+          </button>
+          {beneficiaryOptions.map(b => (
+            <button key={b} onClick={() => { setBeneficiary(b); setShowBenSheet(false); }}
+              className={`w-full px-4 py-3.5 text-left text-sm active:bg-gray-50 border-b border-gray-50 flex items-center justify-between ${beneficiary === b ? 'bg-blue-50' : ''}`}>
+              <span className={beneficiary === b ? 'text-blue-700 font-semibold' : 'text-gray-900'}>{b}</span>
+              {beneficiary === b && <MobileIcon name="check" size={16} color="#004DEB" />}
+            </button>
+          ))}
         </BottomSheet>
       )}
     </div>
