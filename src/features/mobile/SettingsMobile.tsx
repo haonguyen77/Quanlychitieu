@@ -1,6 +1,10 @@
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { GoogleDriveMobile } from './GoogleDriveMobile';
+import { CategoriesMobile } from './CategoriesMobile';
+import { AccountsMobile } from './AccountsMobile';
+import { BeneficiariesMobile } from './BeneficiariesMobile';
+import { TrashMobile } from './TrashMobile';
 import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Package, Database, Lock, ChevronRight, Palette } from 'lucide-react';
 
 /**
@@ -23,13 +27,13 @@ export function SettingsMobile() {
       <div className="px-4 pb-24 pt-4 space-y-5">
         {/* 1. DỮ LIỆU */}
         <SettingsSection title="1. DỮ LIỆU">
-          <SettingsNav icon={<Tag size={18} />} iconBg="#E8F5E9" iconColor="#2E7D32" label="Danh mục" subtitle="Quản lý danh mục chi tiêu" onTap={() => {/* TODO: push CategoriesMobile */}} />
+          <SettingsNav icon={<Tag size={18} />} iconBg="#E8F5E9" iconColor="#2E7D32" label="Danh mục" subtitle="Quản lý danh mục chi tiêu" onTap={() => push({ id: 'categories', component: <CategoriesMobile /> })} />
           <Divider />
-          <SettingsNav icon={<Wallet size={18} />} iconBg="#E3F2FD" iconColor="#1565C0" label="Phương thức thanh toán" subtitle="Quản lý tài khoản, ví, thẻ..." onTap={() => {/* TODO: push AccountsMobile */}} />
+          <SettingsNav icon={<Wallet size={18} />} iconBg="#E3F2FD" iconColor="#1565C0" label="Phương thức thanh toán" subtitle="Quản lý tài khoản, ví, thẻ..." onTap={() => push({ id: 'accounts', component: <AccountsMobile /> })} />
           <Divider />
-          <SettingsNav icon={<User size={18} />} iconBg="#F3E5F5" iconColor="#6A1B9A" label="Người nhận" subtitle="Quản lý danh sách người nhận" onTap={() => {/* TODO */}} />
+          <SettingsNav icon={<User size={18} />} iconBg="#F3E5F5" iconColor="#6A1B9A" label="Người nhận" subtitle="Quản lý danh sách người nhận" onTap={() => push({ id: 'beneficiaries', component: <BeneficiariesMobile /> })} />
           <Divider />
-          <SettingsNav icon={<Trash2 size={18} />} iconBg="#FFEBEE" iconColor="#D32F2F" label="Thùng rác" subtitle="Xem và khôi phục giao dịch đã xóa" onTap={() => {/* TODO */}} />
+          <SettingsNav icon={<Trash2 size={18} />} iconBg="#FFEBEE" iconColor="#D32F2F" label="Thùng rác" subtitle="Xem và khôi phục giao dịch đã xóa" onTap={() => push({ id: 'trash', component: <TrashMobile /> })} />
         </SettingsSection>
 
         {/* 2. QUẢN LÝ MODULE */}
