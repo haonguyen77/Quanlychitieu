@@ -5,7 +5,9 @@ import { CategoriesMobile } from './CategoriesMobile';
 import { AccountsMobile } from './AccountsMobile';
 import { BeneficiariesMobile } from './BeneficiariesMobile';
 import { TrashMobile } from './TrashMobile';
-import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Package, Database, Lock, ChevronRight, Palette } from 'lucide-react';
+import { MobileIcon } from './MobileIcon';
+import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
+import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette } from 'lucide-react';
 
 /**
  * SettingsMobile — Full reproduction of Android settings_screen.dart.
@@ -38,13 +40,14 @@ export function SettingsMobile() {
 
         {/* 2. QUẢN LÝ MODULE */}
         <SettingsSection title="2. QUẢN LÝ MODULE">
-          {modules.filter(m => m.isVisible !== false).map(mod => (
-            <ModuleToggle key={mod.id} name={mod.name} isActive={mod.isActive} onToggle={() => {
-              // Toggle module active state in data
+          {modules.filter(m => m.isVisible !== false).map(mod => {
+            const iconInfo = getModuleIconInfo(mod.icon);
+            const color = getModuleColor(mod.id);
+            return <ModuleToggle key={mod.id} name={mod.name} iconName={iconInfo.icon} iconColor={color} isActive={mod.isActive} onToggle={() => {
               const updated = { ...data!, modules: data!.modules.map(m => m.id === mod.id ? { ...m, isActive: !m.isActive } : m), lastModified: new Date().toISOString() };
               useAppStore.getState().setData(updated);
-            }} />
-          ))}
+            }} />;
+          })}
         </SettingsSection>
 
         {/* 3. ĐỒNG BỘ */}
@@ -109,10 +112,10 @@ function SettingsNav({ icon, iconBg, iconColor, label, subtitle, onTap }: { icon
   );
 }
 
-function ModuleToggle({ name, isActive, onToggle }: { name: string; isActive: boolean; onToggle: () => void }) {
+function ModuleToggle({ name, iconName, iconColor, isActive, onToggle }: { name: string; iconName: string; iconColor: string; isActive: boolean; onToggle: () => void }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-b-0">
-      <Package size={16} className="text-gray-400" />
+      <MobileIcon name={iconName} size={16} color={iconColor} />
       <span className="flex-1 text-sm text-gray-900">{name}</span>
       <button onClick={onToggle} className={`w-11 h-6 rounded-full transition-colors relative ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
         <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isActive ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />

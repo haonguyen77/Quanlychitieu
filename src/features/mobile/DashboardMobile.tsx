@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
-import { TrendingDown, TrendingUp, Wallet, CreditCard, BarChart3, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Bell, User, ChevronRight as ChevronR } from 'lucide-react';
+import { MobileIcon } from './MobileIcon';
+import { getCategoryIconInfo } from './mobileIconMap';
+import { Search, SlidersHorizontal, ChevronLeft, ChevronRight, Bell, User } from 'lucide-react';
 
 type FilterPeriod = 'week' | 'month' | 'year' | 'all';
 
@@ -167,14 +169,14 @@ export function DashboardMobile() {
       <div className="px-4 pb-20 pt-4 space-y-4">
         {/* Summary Cards Row 1 */}
         <div className="grid grid-cols-3 gap-2">
-          <SummaryBox icon={<TrendingUp size={14} />} color={colors.green} label="Tổng thu" value={fmtShort(stats.income)} />
-          <SummaryBox icon={<TrendingDown size={14} />} color={colors.red} label="Tổng chi" value={fmtShort(stats.expense)} />
-          <SummaryBox icon={<Wallet size={14} />} color={colors.blue} label="Số dư" value={fmtShort(balance)} />
+          <SummaryBox iconName="trending-up" color={colors.green} label="Tổng thu" value={fmtShort(stats.income)} />
+          <SummaryBox iconName="arrow-down" color={colors.red} label="Tổng chi" value={fmtShort(stats.expense)} />
+          <SummaryBox iconName="wallet" color={colors.blue} label="Số dư" value={fmtShort(balance)} />
         </div>
         {/* Summary Cards Row 2 */}
         <div className="grid grid-cols-2 gap-2">
-          <SummaryBox icon={<CreditCard size={14} />} color={colors.purple} label="Tổng nợ" value="0" />
-          <SummaryBox icon={<BarChart3 size={14} />} color={colors.orange} label="TB/ngày" value={fmtShort(avgPerDay)} />
+          <SummaryBox iconName="credit-card" color={colors.purple} label="Tổng nợ" value="0" />
+          <SummaryBox iconName="bar-chart-3" color={colors.orange} label="TB/ngày" value={fmtShort(avgPerDay)} />
         </div>
 
         {/* Category Donut */}
@@ -307,16 +309,24 @@ export function DashboardMobile() {
                 const type = typeKey ? String(r.values[typeKey] ?? '0') : '0';
                 const date = dateKey ? String(r.values[dateKey] ?? '') : '';
                 const isIncome = type === '1';
+                const catId = r.categoryId || '';
+                const mod = data?.modules.find(m => m.id === 'mod_chitieu');
+                const cat = mod?.categories?.find(c => c.id === catId);
+                const catIcon = getCategoryIconInfo(cat?.icon);
                 return (
                   <div key={r.id} className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isIncome ? 'bg-green-50' : 'bg-red-50'}`}>
-                      {isIncome ? <TrendingUp size={14} className="text-green-500" /> : <TrendingDown size={14} className="text-red-500" />}
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: catId && cat ? catIcon.bgColor : (isIncome ? '#E8F5E9' : '#FFEBEE') }}>
+                      {catId && cat ? (
+                        <MobileIcon name={catIcon.icon} size={14} color={catIcon.color} />
+                      ) : (
+                        <MobileIcon name={isIncome ? 'trending-up' : 'arrow-down'} size={14} color={isIncome ? '#20A84A' : '#EF3030'} />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-gray-900 truncate">{title}</p>
                       <p className="text-[10px] text-gray-400">{date}</p>
                     </div>
-                    <span className={`text-xs font-semibold ${isIncome ? 'text-green-600' : 'text-red-600'}`}>{isIncome ? '+' : '-'}{fmtShort(amount)}</span>
+                    <span className="text-xs font-semibold" style={{ color: isIncome ? '#20A84A' : '#EF3030' }}>{isIncome ? '+' : '-'}{fmtShort(amount)}</span>
                   </div>
                 );
               })}
@@ -328,11 +338,13 @@ export function DashboardMobile() {
   );
 }
 
-function SummaryBox({ icon, color, label, value }: { icon: React.ReactNode; color: string; label: string; value: string }) {
+function SummaryBox({ iconName, color, label, value }: { iconName: string; color: string; label: string; value: string }) {
   return (
     <div className="border border-gray-200 rounded-xl p-2.5 text-center">
       <div className="flex items-center justify-center gap-1.5 mb-1.5">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}15` }}><div style={{ color }}>{icon}</div></div>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+          <MobileIcon name={iconName} size={14} color={color} />
+        </div>
         <span className="text-[9px] text-gray-500 leading-tight">{label}</span>
       </div>
       <p className="text-sm font-bold" style={{ color }}>{value}</p>
