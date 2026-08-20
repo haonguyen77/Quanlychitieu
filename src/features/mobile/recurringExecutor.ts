@@ -62,8 +62,11 @@ export function executeRecurringTransactions(): number {
         rt.linkedModuleId || undefined
       );
 
-      // Advance nextRunDate
-      const newNextDate = advanceDate(rt.nextRunDate, rt.frequency);
+      // Advance nextRunDate until it's in the future (handles overdue)
+      let newNextDate = advanceDate(rt.nextRunDate, rt.frequency);
+      while (newNextDate <= today) {
+        newNextDate = advanceDate(newNextDate, rt.frequency);
+      }
       updatedRecurring.push({ ...rt, nextRunDate: newNextDate });
       executed++;
     } else {
