@@ -8,12 +8,63 @@ import { Icon } from '@/shared/components/ui/Icon';
 import { SharedConfigSection } from './SharedConfigSection';
 import { ReminderSection } from './ReminderSection';
 import { RecurringReminderSection } from './RecurringReminderSection';
+import { SecuritySection } from './SecuritySection';
+import { cryptoService, type EncryptedEnvelope } from '@/services/crypto/cryptoService';
+import { indexedDBService } from '@/services/indexeddb/indexedDBService';
+import { PinPromptModal } from '@/features/mobile/PinPromptModal';
 
 export function SettingsView() {
   const { data, userEmail, setSyncing, setData, setAuth } = useAppStore();
   const [syncStatus, setSyncStatus] = useState('');
+  const [pinPrompt, setPinPrompt] = useState<{ mode: 'create' | 'enter'; remoteEnv?: EncryptedEnvelope } | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinErr, setPinErr] = useState('');
+
+  // Ensure a PIN/key before syncing — Google Drive must always store encrypted data.
+  const ensurePinThenSync = async () => {
+    if (cryptoService.hasKey()) return true;
+    let token = driveService.token;
+    if (!token) {
+      token = await driveService.login();
+      if (!token) { setSyncStatus(`Lỗi: ${driveService.getLastError() || 'Unknown'}`); return false; }
+      const profile = await driveService.getUserProfile();
+      if (profile) setAuth(profile.email, profile.avatar || undefined);
+    }
+    let raw: unknown = null;
+    try { raw = await driveService.fetchRemoteRaw(); } catch { /* no file */ }
+    if (raw && cryptoService.isEncryptedEnvelope(raw)) { setPinErr(''); setPinPrompt({ mode: 'enter', remoteEnv: raw as EncryptedEnvelope }); }
+    else if (cryptoService.isEnabled()) { setPinErr(''); setPinPrompt({ mode: 'enter' }); }
+    else { setPinErr(''); setPinPrompt({ mode: 'create' }); }
+    return false;
+  };
+
+  const handlePinSubmit = async (pin: string) => {
+    if (!pinPrompt) return;
+    setPinBusy(true); setPinErr('');
+    try {
+      if (pinPrompt.mode === 'create') {
+        await cryptoService.setupPin(pin);
+        if (data) await indexedDBService.saveData(data);
+      } else if (pinPrompt.remoteEnv) {
+        const decrypted = await cryptoService.establishFromEnvelope(pin, pinPrompt.remoteEnv);
+        if (!decrypted) { setPinBusy(false); setPinErr('Mã PIN không đúng'); return; }
+        await indexedDBService.saveData(decrypted as never);
+        setData(decrypted as never);
+      } else {
+        const ok = await cryptoService.verifyPin(pin);
+        if (!ok) { setPinBusy(false); setPinErr('Mã PIN không đúng'); return; }
+      }
+      setPinBusy(false); setPinPrompt(null);
+      await doSync();
+    } catch (e) { setPinBusy(false); setPinErr(String(e)); }
+  };
 
   const handleSync = async () => {
+    const ready = await ensurePinThenSync();
+    if (ready) await doSync();
+  };
+
+  const doSync = async () => {
     setSyncing(true);
     setSyncStatus('Đang đồng bộ...');
     try {
@@ -155,6 +206,9 @@ export function SettingsView() {
             </details>
           </div>
         </section>
+
+        {/* Security: PIN encryption */}
+        <SecuritySection />
 
         {/* Shared Config: Tài khoản, Danh mục, Người nhận */}
         <SharedConfigSection />
@@ -329,6 +383,20 @@ export function SettingsView() {
           </div>
         </section>
       </div>
+
+      {pinPrompt && (
+        <PinPromptModal
+          mode={pinPrompt.mode}
+          busy={pinBusy}
+          error={pinErr}
+          title={pinPrompt.mode === 'create' ? 'Tạo mã PIN để đồng bộ' : 'Nhập mã PIN'}
+          subtitle={pinPrompt.mode === 'create'
+            ? 'Google Drive chỉ lưu dữ liệu đã mã hóa. Đặt mã PIN để bảo mật (dùng chung để mở khóa app).'
+            : 'Dữ liệu trên Drive đã mã hóa. Nhập đúng mã PIN để giải mã và đồng bộ.'}
+          onSubmit={handlePinSubmit}
+          onCancel={() => { setPinPrompt(null); setPinErr(''); }}
+        />
+      )}
     </div>
   );
 }
