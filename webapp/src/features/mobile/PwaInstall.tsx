@@ -57,13 +57,11 @@ export function PwaInstall() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hidden if already installed or dismissed this session
+  // Hidden only if already installed, or dismissed for this session (X button).
+  // Otherwise ALWAYS shown on mobile — even before the browser fires the prompt.
   if (installed || dismissed) return null;
 
   const ios = isIOS();
-  // On Android/Chrome, only show when the browser fired beforeinstallprompt.
-  // On iOS, show manual guidance (no beforeinstallprompt support).
-  if (!deferredPrompt && !ios) return null;
 
   const handleClick = async () => {
     if (deferredPrompt) {
@@ -72,7 +70,8 @@ export function PwaInstall() {
       if (choice.outcome === 'accepted') setInstalled(true);
       setDeferredPrompt(null);
       (window as unknown as { __pwaPrompt?: BeforeInstallPromptEvent }).__pwaPrompt = undefined;
-    } else if (ios) {
+    } else {
+      // Prompt not available yet (iOS, or Chrome criteria pending) → show manual steps.
       setShowIosGuide(true);
     }
   };
@@ -96,29 +95,46 @@ export function PwaInstall() {
         </div>
       </div>
 
-      {/* iOS Add-to-Home guidance */}
+      {/* Add-to-Home guidance (iOS Safari, or Android when the prompt isn't ready) */}
       {showIosGuide && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center" onClick={() => setShowIosGuide(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-t-2xl w-full p-5 space-y-3" onClick={e => e.stopPropagation()} style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}>
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-semibold text-gray-900">Cài đặt trên iPhone/iPad</h3>
+              <h3 className="text-base font-semibold text-gray-900">{ios ? 'Cài đặt trên iPhone/iPad' : 'Cài đặt ứng dụng'}</h3>
               <button onClick={() => setShowIosGuide(false)}><X size={20} className="text-gray-400" /></button>
             </div>
-            <ol className="space-y-3 text-sm text-gray-700">
-              <li className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
-                <span>Nhấn nút Chia sẻ <Share size={14} className="inline text-blue-500" /> ở thanh Safari</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
-                <span>Chọn "Thêm vào MH chính" (Add to Home Screen)</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
-                <span>Nhấn "Thêm" để hoàn tất</span>
-              </li>
-            </ol>
+            {ios ? (
+              <ol className="space-y-3 text-sm text-gray-700">
+                <li className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
+                  <span>Nhấn nút Chia sẻ <Share size={14} className="inline text-blue-500" /> ở thanh Safari</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
+                  <span>Chọn "Thêm vào MH chính" (Add to Home Screen)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
+                  <span>Nhấn "Thêm" để hoàn tất</span>
+                </li>
+              </ol>
+            ) : (
+              <ol className="space-y-3 text-sm text-gray-700">
+                <li className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
+                  <span>Mở menu ⋮ ở góc trên bên phải trình duyệt</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
+                  <span>Chọn "Cài đặt ứng dụng" hoặc "Thêm vào Màn hình chính"</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
+                  <span>Nhấn "Cài đặt" / "Thêm" để hoàn tất</span>
+                </li>
+              </ol>
+            )}
             <button onClick={() => setShowIosGuide(false)} className="w-full py-3 rounded-xl text-white text-sm font-semibold mt-2" style={{ backgroundColor: '#6C2BD9' }}>Đã hiểu</button>
           </div>
         </div>
