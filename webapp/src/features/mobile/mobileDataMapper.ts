@@ -5,13 +5,77 @@
  */
 
 import type { FinanceData, DataRecord, ModuleDefinition, CategoryDefinition, Account } from '@/types';
-import { getCategoryIconInfo, getAccountIconInfo, getModuleIconInfo, getModuleColor, BENEFICIARY_OPTIONS } from './mobileIconMap';
+import { getAccountIconInfo, getModuleIconInfo, getModuleColor, BENEFICIARY_OPTIONS, CATEGORY_ICONS } from './mobileIconMap';
+import { hasMobileIcon } from './MobileIcon';
 
 export interface DisplayInfo {
   label: string;
   icon: string;
   color: string;
   bgColor: string;
+}
+
+// ─── Category Icon Resolution (shared by list + Add screen) ───────────────────
+// Category icons come in TWO naming systems in synced data:
+//   1. Semantic keys mapped in CATEGORY_ICONS (e.g. "food", "shopping", "health")
+//   2. Direct Lucide/MobileIcon names (e.g. "utensils", "car", "shopping-bag", "heart")
+// We resolve both; only fall back to "other" (dots) when neither matches.
+function hexTint(hex?: string | null): string {
+  return hex && /^#[0-9a-fA-F]{6}$/.test(hex) ? `${hex}1A` : '#F5F5F5';
+}
+
+export function resolveCategoryVisual(icon?: string | null, color?: string | null): { icon: string; color: string; bgColor: string } {
+  const other = CATEGORY_ICONS.other;
+  if (!icon) return { icon: other.icon, color: color || other.color, bgColor: color ? hexTint(color) : other.bgColor };
+  const semantic = CATEGORY_ICONS[icon];
+  if (semantic) return { icon: semantic.icon, color: color || semantic.color, bgColor: color ? hexTint(color) : semantic.bgColor };
+  if (hasMobileIcon(icon)) { const c = color || '#607D8B'; return { icon, color: c, bgColor: hexTint(c) }; }
+  return { icon: other.icon, color: color || other.color, bgColor: color ? hexTint(color) : other.bgColor };
+}
+
+// ─── Credit Card helpers ──────────────────────────────────────────────────────
+export interface CreditCardInfo {
+  id: string;
+  name: string;
+  bankName: string;
+  last4: string;
+  creditLimit: number;
+  statementDay: number;   // day-of-month the statement closes
+  paymentDueDays: number; // days after statement date payment is due
+}
+
+/**
+ * Normalize a transaction's payment/account value to a credit-card id.
+ * Handles all known formats so App/EXT/WebApp data all resolve to the same card:
+ *   - "credit_card_<id>"  (EXT/finance.json transaction account)
+ *   - "acc_cc_<id>"       (auto-created account id)
+ * Returns null if the value is not a credit-card reference.
+ */
+export function resolveCreditCardIdFromAccount(account?: string | null): string | null {
+  if (!account) return null;
+  if (account.startsWith('credit_card_')) return account.slice('credit_card_'.length);
+  if (account.startsWith('acc_cc_')) return account.slice('acc_cc_'.length);
+  return null;
+}
+
+/** All credit cards, read from mod_creditcard records (the synced entity). */
+export function getCreditCards(data: FinanceData | null): CreditCardInfo[] {
+  if (!data) return [];
+  return data.records
+    .filter(r => r.moduleId === 'mod_creditcard' && !r.isDeleted)
+    .map(r => {
+      const stmt = parseInt(getRecordField(r, 'statement_day'), 10);
+      const due = parseInt(getRecordField(r, 'payment_due_day'), 10);
+      return {
+        id: r.id,
+        name: getRecordField(r, 'card_name') || 'Thẻ',
+        bankName: getRecordField(r, 'bank_name'),
+        last4: getRecordField(r, 'last4'),
+        creditLimit: Number(getRecordField(r, 'credit_limit')) || 0,
+        statementDay: Number.isFinite(stmt) && stmt >= 1 && stmt <= 31 ? stmt : 0,
+        paymentDueDays: Number.isFinite(due) && due >= 0 && due <= 60 ? due : 0,
+      };
+    });
 }
 
 // ─── Category Display ─────────────────────────────────────────────────────────
@@ -21,8 +85,8 @@ export function getCategoryDisplay(categoryId: string | undefined | null, data: 
   for (const mod of data.modules) {
     const cat = mod.categories?.find(c => c.id === categoryId);
     if (cat) {
-      const iconInfo = getCategoryIconInfo(cat.icon);
-      return { label: cat.name, icon: iconInfo.icon, color: cat.color || iconInfo.color, bgColor: iconInfo.bgColor };
+      const v = resolveCategoryVisual(cat.icon, cat.color);
+      return { label: cat.name, icon: v.icon, color: v.color, bgColor: v.bgColor };
     }
   }
   return { label: 'Không phân loại', icon: 'more-horizontal', color: '#9E9E9E', bgColor: '#F5F5F5' };
@@ -32,6 +96,13 @@ export function getCategoryDisplay(categoryId: string | undefined | null, data: 
 
 export function getAccountDisplay(accountId: string | undefined | null, data: FinanceData | null): DisplayInfo {
   if (!accountId || !data) return { label: 'Chưa chọn', icon: 'wallet', color: '#2196F3', bgColor: '#E3F2FD' };
+  // Credit-card payment values (credit_card_<id> / acc_cc_<id>) → resolve to the card.
+  const ccId = resolveCreditCardIdFromAccount(accountId);
+  if (ccId) {
+    const card = getCreditCards(data).find(c => c.id === ccId);
+    const label = card ? (card.last4 ? `${card.name} (*${card.last4})` : card.name) : 'Thẻ tín dụng';
+    return { label, icon: 'credit-card', color: '#1A237E', bgColor: '#E8EAF6' };
+  }
   // Try find by id first, then by icon/name for backward compat
   let account = data.accounts?.find(a => a.id === accountId);
   if (!account) account = data.accounts?.find(a => a.icon === accountId || a.name === accountId);

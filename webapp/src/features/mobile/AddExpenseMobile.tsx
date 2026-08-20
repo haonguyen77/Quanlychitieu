@@ -4,8 +4,8 @@ import { useRecordStore } from '@/core/store/recordStore';
 import { X, ChevronLeft, ChevronRight, Calendar, ArrowDown, ArrowUp, Minus, Plus, Camera, ChevronDown, ChevronUp as CUp } from 'lucide-react';
 import type { RecordValues } from '@/types';
 import { GridChip, ModulePill, MobileIcon } from './MobileIcon';
-import { getCategoryIconInfo, getAccountIconInfo, getModuleIconInfo, getModuleColor, BENEFICIARY_OPTIONS } from './mobileIconMap';
-import { getCategories, getActiveAccounts, getActiveModules, getBeneficiaryOptions, formatDate } from './mobileDataMapper';
+import { getAccountIconInfo, getModuleIconInfo, getModuleColor } from './mobileIconMap';
+import { getCategories, getActiveAccounts, getActiveModules, getBeneficiaryOptions, formatDate, resolveCategoryVisual } from './mobileDataMapper';
 
 interface Props {
   onClose: () => void;
@@ -67,7 +67,8 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
   // Data
   const categories = getCategories(data, type);
   const accounts = getActiveAccounts(data);
-  const modules = getActiveModules(data);
+  // Hide Rượu + Thẻ tín dụng from the module picker (UI-only; data untouched).
+  const modules = getActiveModules(data).filter(m => m.id !== 'mod_ruou' && m.id !== 'mod_creditcard');
   const beneficiaryOptions = getBeneficiaryOptions(data);
 
   // Amount suggestions (from Android _buildAmountSuggestions)
@@ -276,24 +277,26 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
         {/* ─── 5. Payment Method — GRID CHIPS with icons (Android: _buildPaymentMethodSection) ─── */}
         <div className="mt-5">
           <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Phương thức thanh toán *</label>
-          <div className="flex gap-2 mt-2.5 flex-wrap">
+          {/* One row only — 4 equal columns, chips fluid to fit width */}
+          <div className="grid grid-cols-4 gap-2 mt-2.5">
             {visibleAccs.map(acc => {
               const iconInfo = getAccountIconInfo(acc.icon);
-              return <GridChip key={acc.id} label={acc.name} icon={iconInfo.icon} iconColor={acc.color || iconInfo.color} isSelected={accountId === acc.id} onTap={() => setAccountId(acc.id)} />;
+              return <GridChip fluid key={acc.id} label={acc.name} icon={iconInfo.icon} iconColor={acc.color || iconInfo.color} isSelected={accountId === acc.id} onTap={() => setAccountId(acc.id)} />;
             })}
-            {hasMoreAccs && <GridChip label="Thêm" icon="more-horizontal" iconColor="#757575" isSelected={false} onTap={() => setShowAccSheet(true)} />}
+            {hasMoreAccs && <GridChip fluid label="Thêm" icon="more-horizontal" iconColor="#757575" isSelected={false} onTap={() => setShowAccSheet(true)} />}
           </div>
         </div>
 
         {/* ─── 6. Category — GRID CHIPS with icons (Android: _buildCategorySection, Wrap) ─── */}
         <div className="mt-5">
           <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Danh mục *</label>
-          <div className="flex gap-2 mt-2.5 flex-wrap">
+          {/* Max 2 rows — 4 columns; overflow goes into the "Thêm" sheet */}
+          <div className="grid grid-cols-4 gap-2 mt-2.5">
             {visibleCats.map(cat => {
-              const iconInfo = getCategoryIconInfo(cat.icon);
-              return <GridChip key={cat.id} label={cat.name} icon={iconInfo.icon} iconColor={cat.color || iconInfo.color} isSelected={categoryId === cat.id} onTap={() => setCategoryId(cat.id)} />;
+              const v = resolveCategoryVisual(cat.icon, cat.color);
+              return <GridChip fluid key={cat.id} label={cat.name} icon={v.icon} iconColor={v.color} isSelected={categoryId === cat.id} onTap={() => setCategoryId(cat.id)} />;
             })}
-            {hasMoreCats && <GridChip label="Thêm" icon="more-horizontal" iconColor="#757575" isSelected={false} onTap={() => setShowCatSheet(true)} />}
+            {hasMoreCats && <GridChip fluid label="Thêm" icon="more-horizontal" iconColor="#757575" isSelected={false} onTap={() => setShowCatSheet(true)} />}
           </div>
         </div>
 
@@ -391,12 +394,12 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
       {showCatSheet && (
         <BottomSheet title="Chọn danh mục" onClose={() => setShowCatSheet(false)}>
           {categories.map(c => {
-            const iconInfo = getCategoryIconInfo(c.icon);
+            const v = resolveCategoryVisual(c.icon, c.color);
             return (
               <button key={c.id} onClick={() => { setCategoryId(c.id); setShowCatSheet(false); }}
                 className={`w-full px-4 py-3 flex items-center gap-3 active:bg-gray-50 ${categoryId === c.id ? 'bg-blue-50' : ''}`}>
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${c.color || iconInfo.color}1A` }}>
-                  <MobileIcon name={iconInfo.icon} size={18} color={c.color || iconInfo.color} />
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: v.bgColor }}>
+                  <MobileIcon name={v.icon} size={18} color={v.color} />
                 </div>
                 <span className="flex-1 text-left text-sm text-gray-900">{c.name}</span>
                 {categoryId === c.id && <MobileIcon name="check" size={16} color="#004DEB" />}

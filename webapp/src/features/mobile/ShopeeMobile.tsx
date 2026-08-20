@@ -3,7 +3,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { TransactionDetailMobile } from './TransactionDetailMobile';
 import { getRecordField } from './mobileDataMapper';
-import { ArrowLeft, Search, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Search, ShoppingCart, ChevronLeft, ChevronRight, SlidersHorizontal, Calendar, X } from 'lucide-react';
 import type { DataRecord } from '@/types';
 
 type FilterPeriod = 'week' | 'month' | 'year' | 'all';
@@ -20,6 +20,7 @@ export function ShopeeMobile() {
   const [refDate, setRefDate] = useState(new Date());
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
 
   const RED = '#FF2D16';
 
@@ -93,24 +94,45 @@ export function ShopeeMobile() {
           <p className="text-base font-bold" style={{ color: '#0F1F4D' }}>Mua sắm online</p>
           <p className="text-[11px] text-gray-500 truncate">Chi tiêu mua sắm trên các sàn TMĐT</p>
         </div>
-        <button onClick={() => setShowSearch(!showSearch)} className="w-9 h-9 flex items-center justify-center"><Search size={18} color="#0F1F4D" /></button>
+        <button onClick={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} className="w-9 h-9 flex items-center justify-center">
+          {showSearch ? <X size={18} color="#0F1F4D" /> : <Search size={18} color="#0F1F4D" />}
+        </button>
+        <button onClick={() => setShowFilter(!showFilter)} className="w-9 h-9 flex items-center justify-center">
+          <SlidersHorizontal size={18} color={showFilter ? RED : '#0F1F4D'} />
+        </button>
       </header>
 
       {showSearch && (
-        <div className="px-4 py-2"><input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." autoFocus className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none" style={{ borderColor: undefined }} /></div>
+        <div className="px-4 py-2"><input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." autoFocus className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none" /></div>
       )}
 
-      {/* Period filter */}
-      <div className="px-4 py-2 flex items-center gap-1.5">
-        <button onClick={() => period !== 'all' && navigate(-1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={16} /></button>
-        {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
-          <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2 rounded-full text-[11px] font-semibold text-center"
-            style={{ backgroundColor: period === p ? RED : '#fff', color: period === p ? '#fff' : '#1A1A1A', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
-            {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
-          </button>
-        ))}
-        <button onClick={() => period !== 'all' && navigate(1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronRight size={16} /></button>
-      </div>
+      {/* Period filter — hidden by default, toggled by Filter button (matches App) */}
+      {showFilter && (
+        <div className="px-4 py-2 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => period !== 'all' && navigate(-1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={16} /></button>
+            {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
+              <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2 rounded-full text-[11px] font-semibold text-center"
+                style={{ backgroundColor: period === p ? RED : '#fff', color: period === p ? '#fff' : '#1A1A1A', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
+                {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
+              </button>
+            ))}
+            <button onClick={() => period !== 'all' && navigate(1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronRight size={16} /></button>
+          </div>
+          {/* Date range (read-only display of the active period, matches App) */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-9 px-3 border border-gray-200 rounded-lg flex items-center gap-2">
+              <Calendar size={13} color="#9E9E9E" />
+              <span className="text-xs text-gray-700">{startDate.split('-').reverse().join('/')}</span>
+            </div>
+            <span className="text-xs text-gray-300">-</span>
+            <div className="flex-1 h-9 px-3 border border-gray-200 rounded-lg flex items-center gap-2">
+              <Calendar size={13} color="#9E9E9E" />
+              <span className="text-xs text-gray-700">{endDate.split('-').reverse().join('/')}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3-stat summary card */}
       <div className="mx-4 my-2 border border-gray-200 rounded-2xl p-4 flex">

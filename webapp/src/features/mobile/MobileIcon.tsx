@@ -72,6 +72,12 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'save': Save,
 };
 
+/** True if `name` maps to a real icon (not the fallback). Used to decide
+ *  whether a category's stored icon is a direct Lucide name we can render. */
+export function hasMobileIcon(name?: string | null): boolean {
+  return !!name && ICON_MAP[name] !== undefined;
+}
+
 interface Props {
   name: string;
   size?: number;
@@ -98,15 +104,17 @@ interface GridChipProps {
   iconColor: string;
   isSelected: boolean;
   onTap: () => void;
+  fluid?: boolean;
 }
 
-export function GridChip({ label, icon, iconColor, isSelected, onTap }: GridChipProps) {
+export function GridChip({ label, icon, iconColor, isSelected, onTap, fluid }: GridChipProps) {
   return (
-    <button onClick={onTap} className="flex flex-col items-center" style={{ width: 72 }}>
+    <button onClick={onTap} className="flex flex-col items-center" style={{ width: fluid ? '100%' : 72 }}>
       <div
         className="flex items-center justify-center rounded-xl"
         style={{
-          width: 52,
+          width: fluid ? '100%' : 52,
+          maxWidth: 60,
           height: 52,
           backgroundColor: isSelected ? `${iconColor}26` : `${iconColor}14`,
           border: `${isSelected ? 2 : 1}px solid ${isSelected ? iconColor : `${iconColor}4D`}`,

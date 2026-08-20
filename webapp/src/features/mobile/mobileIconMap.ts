@@ -40,11 +40,13 @@ export const CATEGORY_ICONS: Record<string, { icon: string; color: string; bgCol
 // ─── Account/Payment Method Icons (from _getAccountIcon) ──────────────────────
 // Android: Icons.payments, Icons.credit_card, Icons.account_balance, Icons.phone_android, Icons.account_balance_wallet
 export const ACCOUNT_ICONS: Record<string, { icon: string; color: string; bgColor: string }> = {
-  cash:   { icon: 'banknote',       color: '#4CAF50', bgColor: '#E8F5E9' },
-  card:   { icon: 'credit-card',    color: '#1A237E', bgColor: '#E8EAF6' },
-  bank:   { icon: 'landmark',       color: '#1B5E20', bgColor: '#E8F5E9' },
-  momo:   { icon: 'smartphone',     color: '#D81B60', bgColor: '#FCE4EC' },
-  wallet: { icon: 'wallet',         color: '#2196F3', bgColor: '#E3F2FD' },
+  cash:          { icon: 'banknote',    color: '#4CAF50', bgColor: '#E8F5E9' },
+  card:          { icon: 'credit-card', color: '#1A237E', bgColor: '#E8EAF6' },
+  credit_card:   { icon: 'credit-card', color: '#1A237E', bgColor: '#E8EAF6' },
+  'credit-card': { icon: 'credit-card', color: '#1A237E', bgColor: '#E8EAF6' },
+  bank:          { icon: 'landmark',    color: '#1B5E20', bgColor: '#E8F5E9' },
+  momo:          { icon: 'smartphone',  color: '#D81B60', bgColor: '#FCE4EC' },
+  wallet:        { icon: 'wallet',      color: '#2196F3', bgColor: '#E3F2FD' },
 };
 
 // ─── Module Icons (from TransactionStyles.moduleIcon + moduleColor) ───────────
