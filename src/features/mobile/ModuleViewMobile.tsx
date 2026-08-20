@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
-import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { TransactionDetailMobile } from './TransactionDetailMobile';
-import { ArrowLeft, Search, TrendingDown, TrendingUp, Calendar, Wallet, ChevronLeft, ChevronRight, ShoppingCart, Gem, Home, CreditCard, Wine, Package } from 'lucide-react';
+import { showPrompt } from './mobileDialog';
+import { ArrowLeft, Search, TrendingDown, TrendingUp, Calendar, ChevronLeft, ChevronRight, ShoppingCart, Gem, Home, CreditCard, Wine, Package } from 'lucide-react';
 import type { ModuleDefinition, DataRecord } from '@/types';
 
 interface Props { module: ModuleDefinition; }
@@ -157,7 +157,7 @@ export function ModuleViewMobile({ module }: Props) {
               <p className="text-xs text-green-800">Ngày đóng tiền: <strong>{dueDay}</strong> hàng tháng</p>
               {(() => { const now = new Date(); let due = new Date(now.getFullYear(), now.getMonth(), dueDay); if (due <= now) due = new Date(now.getFullYear(), now.getMonth() + 1, dueDay); const daysLeft = Math.ceil((due.getTime() - now.getTime()) / 86400000); return daysLeft <= alertDays ? <p className="text-[10px] text-orange-600 mt-0.5">⚠️ Còn {daysLeft} ngày đến hạn!</p> : <p className="text-[10px] text-green-600 mt-0.5">Còn {daysLeft} ngày</p>; })()}
             </div>
-            <button onClick={() => { const val = prompt('Ngày đóng tiền (1-31):', String(dueDay)); const n = Number(val); if (n >= 1 && n <= 31) setDueDay(n); }} className="text-xs text-green-700 font-medium px-2 py-1 rounded bg-green-100">Sửa</button>
+            <button onClick={async () => { const res = await showPrompt({ title: 'Ngày đóng tiền', fields: [{ key: 'day', label: 'Ngày (1-31)', numeric: true, initialValue: String(dueDay), required: true }] }); if (res) { const n = Number(res.day); if (n >= 1 && n <= 31) setDueDay(n); } }} className="text-xs text-green-700 font-medium px-2 py-1 rounded bg-green-100">Sửa</button>
           </div>
         </div>
       )}

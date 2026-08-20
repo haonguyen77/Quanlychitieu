@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useAppStore } from '@/core/store/appStore';
-import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
+import { showConfirm } from './mobileDialog';
 import { ArrowLeft, RotateCcw, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 
 /**
@@ -29,8 +29,10 @@ export function TrashMobile() {
     setData(updated);
   };
 
-  const permanentDelete = (id: string) => {
-    if (!data || !confirm('Xóa vĩnh viễn? Không thể khôi phục.')) return;
+  const permanentDelete = async (id: string) => {
+    if (!data) return;
+    const ok = await showConfirm({ title: 'Xóa vĩnh viễn?', message: 'Không thể khôi phục sau khi xóa.', confirmLabel: 'Xóa', danger: true });
+    if (!ok) return;
     const updated = { ...data, records: data.records.filter(r => r.id !== id), lastModified: new Date().toISOString() };
     setData(updated);
   };

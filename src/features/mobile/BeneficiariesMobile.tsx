@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
+import { showConfirm } from './mobileDialog';
 import { ArrowLeft, Plus, Edit, Trash2, User } from 'lucide-react';
 
 /**
@@ -42,8 +43,10 @@ export function BeneficiariesMobile() {
     setNewName(''); setShowAdd(false); setEditIdx(null);
   };
 
-  const remove = (idx: number) => {
-    if (!data || !confirm('Xóa người nhận này?')) return;
+  const remove = async (idx: number) => {
+    if (!data) return;
+    const ok = await showConfirm({ title: 'Xóa người nhận?', confirmLabel: 'Xóa', danger: true });
+    if (!ok) return;
     const updatedModules = data.modules.map(m => {
       if (m.id !== 'mod_chitieu') return m;
       return { ...m, fields: m.fields.map(f => {

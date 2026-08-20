@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
+import { showConfirm } from './mobileDialog';
 import { ArrowLeft, Plus, Edit, Trash2, Wallet } from 'lucide-react';
 
 /**
@@ -34,8 +35,10 @@ export function AccountsMobile() {
     setName(''); setBalance(''); setShowAdd(false); setEditId(null);
   };
 
-  const remove = (id: string) => {
-    if (!data || !confirm('Xóa tài khoản này?')) return;
+  const remove = async (id: string) => {
+    if (!data) return;
+    const ok = await showConfirm({ title: 'Xóa tài khoản?', confirmLabel: 'Xóa', danger: true });
+    if (!ok) return;
     setData({ ...data, accounts: data.accounts.filter(a => a.id !== id), lastModified: new Date().toISOString() });
   };
 

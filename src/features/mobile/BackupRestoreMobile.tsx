@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
+import { showConfirm } from './mobileDialog';
 import { ArrowLeft, Download, Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import type { FinanceData } from '@/types';
 
@@ -44,7 +45,8 @@ export function BackupRestoreMobile() {
         setStatus({ type: 'error', msg: 'File không đúng format finance.json (thiếu version/modules/records)' });
         return;
       }
-      if (!confirm(`Import sẽ ghi đè toàn bộ dữ liệu hiện tại.\n\nFile: ${file.name}\nRecords: ${parsed.records.length}\nModules: ${parsed.modules.length}\n\nBạn có chắc chắn?`)) return;
+      const ok = await showConfirm({ title: 'Ghi đè dữ liệu?', message: `Import sẽ ghi đè toàn bộ dữ liệu hiện tại.\n\nFile: ${file.name}\nRecords: ${parsed.records.length}\nModules: ${parsed.modules.length}`, confirmLabel: 'Import', danger: true });
+      if (!ok) return;
       // Import
       useAppStore.getState().setData({ ...parsed, lastModified: new Date().toISOString() });
       setStatus({ type: 'success', msg: `Import thành công! ${parsed.records.length} records, ${parsed.modules.length} modules.` });

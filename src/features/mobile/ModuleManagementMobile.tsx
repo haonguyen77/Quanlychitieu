@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
+import { showConfirm, showAlert } from './mobileDialog';
 import { ArrowLeft, Plus, Trash2, Edit, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { ModuleDefinition } from '@/types';
@@ -44,11 +45,12 @@ export function ModuleManagementMobile() {
     resetForm();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!data) return;
     const mod = modules.find(m => m.id === id);
-    if (mod?.isDefault) { alert('Không thể xóa module mặc định'); return; }
-    if (!confirm(`Xóa module "${mod?.name}"?`)) return;
+    if (mod?.isDefault) { await showAlert({ title: 'Không thể xóa', message: 'Đây là module mặc định.' }); return; }
+    const ok = await showConfirm({ title: 'Xóa module?', message: `Xóa module "${mod?.name}"?`, confirmLabel: 'Xóa', danger: true });
+    if (!ok) return;
     useAppStore.getState().setData({ ...data, modules: modules.filter(m => m.id !== id), lastModified: new Date().toISOString() });
   };
 

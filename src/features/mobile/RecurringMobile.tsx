@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { ArrowLeft, Plus, Trash2, Edit, X, Play, Pause } from 'lucide-react';
-import { formatMoney, getRecordField } from './mobileDataMapper';
+import { formatMoney } from './mobileDataMapper';
+import { showConfirm } from './mobileDialog';
 import { v4 as uuidv4 } from 'uuid';
 import type { RecurringTransaction, RecordValues } from '@/types';
 
@@ -37,8 +38,10 @@ export function RecurringMobile() {
     resetForm();
   };
 
-  const handleDelete = (id: string) => {
-    if (!data || !confirm('Xóa giao dịch định kỳ này?')) return;
+  const handleDelete = async (id: string) => {
+    if (!data) return;
+    const ok = await showConfirm({ title: 'Xóa giao dịch định kỳ?', confirmLabel: 'Xóa', danger: true });
+    if (!ok) return;
     useAppStore.getState().setData({ ...data, recurringTransactions: recurring.filter(r => r.id !== id), lastModified: new Date().toISOString() });
   };
 

@@ -4,6 +4,7 @@ import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { ArrowLeft, BarChart3, FileText, Plus, Users, Package, Trash2, X } from 'lucide-react';
 import { deductInventoryForOrder, returnInventoryForOrder, adjustInventoryForEdit, shouldCreateCustomer, getCustomerValues } from './wineService';
+import { showConfirm, showPrompt } from './mobileDialog';
 
 type WineTab = 'reports' | 'orders' | 'customers' | 'inventory';
 
@@ -95,37 +96,37 @@ export function WineMobile() {
           setOrderDate(get('order_date') || new Date().toISOString().slice(0, 10));
           setShowAddOrder(true);
         }} />}
-        {activeTab === 'customers' && <WineCustomers customers={customers} onAdd={() => {
-          const name = prompt('Tên khách hàng:');
-          if (!name?.trim()) return;
-          const phone = prompt('SĐT:') || '';
-          addRecord('mod_ruou_customers', { mod_ruou_customers_full_name: name.trim(), mod_ruou_customers_phone: phone, mod_ruou_customers_total_orders: 0, mod_ruou_customers_note: '' });
-        }} onEdit={(id) => {
+        {activeTab === 'customers' && <WineCustomers customers={customers} onAdd={async () => {
+          const res = await showPrompt({ title: 'Thêm khách hàng', fields: [{ key: 'name', label: 'Họ tên', required: true }, { key: 'phone', label: 'SĐT' }] });
+          if (!res) return;
+          addRecord('mod_ruou_customers', { mod_ruou_customers_full_name: res.name.trim(), mod_ruou_customers_phone: res.phone || '', mod_ruou_customers_total_orders: 0, mod_ruou_customers_note: '' });
+        }} onEdit={async (id) => {
           const record = data?.records.find(r => r.id === id);
           if (!record) return;
-          const oldName = String(record.values['mod_ruou_customers_full_name'] || '');
-          const oldPhone = String(record.values['mod_ruou_customers_phone'] || '');
-          const newName = prompt('Tên khách hàng:', oldName);
-          if (!newName?.trim()) return;
-          const newPhone = prompt('SĐT:', oldPhone) || '';
-          updateRecord(id, { ...record.values, mod_ruou_customers_full_name: newName.trim(), mod_ruou_customers_phone: newPhone });
+          const res = await showPrompt({ title: 'Sửa khách hàng', fields: [
+            { key: 'name', label: 'Họ tên', required: true, initialValue: String(record.values['mod_ruou_customers_full_name'] || '') },
+            { key: 'phone', label: 'SĐT', initialValue: String(record.values['mod_ruou_customers_phone'] || '') },
+          ] });
+          if (!res) return;
+          updateRecord(id, { ...record.values, mod_ruou_customers_full_name: res.name.trim(), mod_ruou_customers_phone: res.phone });
         }} onDelete={(id) => deleteRecord(id)} />}
-        {activeTab === 'inventory' && <WineInventory items={inventory} onAdd={() => {
-          const sku = prompt('SKU:');
-          if (!sku?.trim()) return;
-          const name = prompt('Tên sản phẩm:') || '';
-          const stock = Number(prompt('Số lượng tồn:') || '0');
-          addRecord('mod_ruou_inventory', { mod_ruou_inventory_sku: sku.trim(), mod_ruou_inventory_product_name: name, mod_ruou_inventory_stock: stock, mod_ruou_inventory_color: '' });
-        }} onEdit={(id) => {
+        {activeTab === 'inventory' && <WineInventory items={inventory} onAdd={async () => {
+          const res = await showPrompt({ title: 'Thêm tồn kho', fields: [
+            { key: 'sku', label: 'SKU', required: true },
+            { key: 'name', label: 'Tên sản phẩm', required: true },
+            { key: 'stock', label: 'Số lượng tồn', numeric: true },
+          ] });
+          if (!res) return;
+          addRecord('mod_ruou_inventory', { mod_ruou_inventory_sku: res.sku.trim(), mod_ruou_inventory_product_name: res.name.trim(), mod_ruou_inventory_stock: Number(res.stock) || 0, mod_ruou_inventory_color: '' });
+        }} onEdit={async (id) => {
           const record = data?.records.find(r => r.id === id);
           if (!record) return;
-          const oldName = String(record.values['mod_ruou_inventory_product_name'] || '');
-          const oldStock = String(record.values['mod_ruou_inventory_stock'] || '0');
-          const newName = prompt('Tên sản phẩm:', oldName);
-          if (newName === null) return;
-          const newStock = prompt('Số lượng tồn:', oldStock);
-          if (newStock === null) return;
-          updateRecord(id, { ...record.values, mod_ruou_inventory_product_name: newName, mod_ruou_inventory_stock: Number(newStock) || 0 });
+          const res = await showPrompt({ title: 'Sửa tồn kho', fields: [
+            { key: 'name', label: 'Tên sản phẩm', required: true, initialValue: String(record.values['mod_ruou_inventory_product_name'] || '') },
+            { key: 'stock', label: 'Số lượng tồn', numeric: true, initialValue: String(record.values['mod_ruou_inventory_stock'] || '0') },
+          ] });
+          if (!res) return;
+          updateRecord(id, { ...record.values, mod_ruou_inventory_product_name: res.name.trim(), mod_ruou_inventory_stock: Number(res.stock) || 0 });
         }} onDelete={(id) => deleteRecord(id)} />}
       </div>
 
@@ -264,7 +265,7 @@ function WineOrders({ orders, onDelete, onEdit }: { orders: { id: string; custom
           </div>
           <span className="text-xs font-bold text-purple-600">{fmtMoney(o.amount)}₫</span>
           <button onClick={() => onEdit(o.id)} className="w-7 h-7 rounded flex items-center justify-center active:bg-purple-50"><FileText size={13} className="text-purple-400" /></button>
-          <button onClick={() => { if (confirm('Xóa đơn hàng?')) onDelete(o.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
+          <button onClick={async () => { if (await showConfirm({ title: 'Xóa đơn hàng?', confirmLabel: 'Xóa', danger: true })) onDelete(o.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
       {orders.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Chưa có đơn hàng</p>}
@@ -288,7 +289,7 @@ function WineCustomers({ customers, onAdd, onEdit, onDelete }: { customers: { id
           </div>
           <span className="text-[10px] text-gray-500">{c.totalOrders} đơn</span>
           <button onClick={() => onEdit(c.id)} className="w-7 h-7 rounded flex items-center justify-center active:bg-blue-50"><FileText size={13} className="text-blue-400" /></button>
-          <button onClick={() => { if (confirm(`Xóa ${c.name}?`)) onDelete(c.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
+          <button onClick={async () => { if (await showConfirm({ title: 'Xóa khách hàng?', message: `Xóa "${c.name}"?`, confirmLabel: 'Xóa', danger: true })) onDelete(c.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
       {customers.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Chưa có khách hàng</p>}
@@ -315,7 +316,7 @@ function WineInventory({ items, onAdd, onEdit, onDelete }: { items: { id: string
             <p className="text-[9px] text-gray-400">chai</p>
           </div>
           <button onClick={() => onEdit(i.id)} className="w-7 h-7 rounded flex items-center justify-center active:bg-orange-50"><FileText size={13} className="text-orange-400" /></button>
-          <button onClick={() => { if (confirm(`Xóa ${i.name}?`)) onDelete(i.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
+          <button onClick={async () => { if (await showConfirm({ title: 'Xóa sản phẩm?', message: `Xóa "${i.name}"?`, confirmLabel: 'Xóa', danger: true })) onDelete(i.id); }} className="w-7 h-7 rounded flex items-center justify-center active:bg-red-50"><Trash2 size={13} className="text-red-400" /></button>
         </div>
       ))}
       {items.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Chưa có sản phẩm</p>}

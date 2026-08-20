@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
+import { showConfirm } from './mobileDialog';
 import { ArrowLeft, Plus, Edit, Trash2, Tag } from 'lucide-react';
 
 /**
@@ -33,8 +34,10 @@ export function CategoriesMobile() {
     setNewName(''); setShowAdd(false); setEditId(null);
   };
 
-  const deleteCategory = (id: string) => {
-    if (!data || !confirm('Xóa danh mục này?')) return;
+  const deleteCategory = async (id: string) => {
+    if (!data) return;
+    const ok = await showConfirm({ title: 'Xóa danh mục?', confirmLabel: 'Xóa', danger: true });
+    if (!ok) return;
     const updatedModules = data.modules.map(m => {
       if (m.id !== 'mod_chitieu') return m;
       return { ...m, categories: (m.categories || []).filter(c => c.id !== id) };

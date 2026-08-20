@@ -9,6 +9,7 @@ import { AddExpenseMobile } from '@/features/mobile/AddExpenseMobile';
 import { MobileIcon } from '@/features/mobile/MobileIcon';
 import { NAV_COLORS } from '@/features/mobile/mobileIconMap';
 import { executeRecurringTransactions } from '@/features/mobile/recurringExecutor';
+import { MobileDialogHost } from '@/features/mobile/mobileDialog';
 import { Plus } from 'lucide-react';
 
 type MobileTab = 'dashboard' | 'expense' | 'add' | 'modules' | 'settings';
@@ -92,6 +93,9 @@ export function MobileShell() {
 
         {/* Add Expense Fullscreen Overlay */}
         {showAddForm && <AddExpenseMobile onClose={() => setShowAddForm(false)} />}
+
+        {/* Global dialog host (replaces window.confirm/prompt/alert) */}
+        <MobileDialogHost />
       </div>
     </MobileNavProvider>
   );

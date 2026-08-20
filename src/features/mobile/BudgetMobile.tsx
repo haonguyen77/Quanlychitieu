@@ -3,6 +3,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { ArrowLeft, Plus, Trash2, Edit } from 'lucide-react';
 import { getCategoryDisplay, formatMoney, getRecordField } from './mobileDataMapper';
+import { showConfirm } from './mobileDialog';
 import { v4 as uuidv4 } from 'uuid';
 import type { Budget } from '@/types';
 
@@ -47,8 +48,10 @@ export function BudgetMobile() {
     setShowAdd(false); setEditId(null); setSelectedCatId(''); setLimitAmount('');
   };
 
-  const handleDelete = (id: string) => {
-    if (!data || !confirm('Xóa ngân sách này?')) return;
+  const handleDelete = async (id: string) => {
+    if (!data) return;
+    const ok = await showConfirm({ title: 'Xóa ngân sách?', confirmLabel: 'Xóa', danger: true });
+    if (!ok) return;
     useAppStore.getState().setData({ ...data, budgets: budgets.filter(b => b.id !== id), lastModified: new Date().toISOString() });
   };
 
