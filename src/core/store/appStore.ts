@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { FinanceData, ModuleDefinition, MenuItem, AppSettings, FieldDefinition } from '@/types';
 import { createDefaultFinanceData } from '@/core/defaults/defaultData';
-import { indexedDBService } from '@/services/indexeddb/indexedDBService';
+import { indexedDBService, LockedError } from '@/services/indexeddb/indexedDBService';
+import { cryptoService } from '@/services/crypto/cryptoService';
 import { syncService } from '@/services/sync/syncService';
 import { driveService } from '@/services/drive/driveService';
 
@@ -10,6 +11,10 @@ interface AppState {
   data: FinanceData | null;
   isLoading: boolean;
   error: string | null;
+
+  // Encryption lock
+  isLocked: boolean;
+  unlockApp: (pin: string) => Promise<boolean>;
 
   // UI State
   theme: 'light' | 'dark';
@@ -53,6 +58,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   data: null,
   isLoading: true,
   error: null,
+  isLocked: cryptoService.isLocked(),
   theme: 'light',
   activeModuleId: null,
   activeView: 'dashboard',
@@ -66,12 +72,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   lastSyncAt: null,
 
   // Actions
+  unlockApp: async (pin: string) => {
+    const ok = await cryptoService.unlock(pin);
+    if (!ok) return false;
+    set({ isLocked: false });
+    await get().initializeApp();
+    return true;
+  },
+
   initializeApp: async () => {
+    // If data is encrypted and no key loaded → require PIN unlock first
+    if (cryptoService.isLocked()) {
+      set({ isLocked: true, isLoading: false });
+      return;
+    }
     try {
       set({ isLoading: true, error: null });
 
       // Try to load from IndexedDB first (offline-first)
-      let data = await indexedDBService.loadData();
+      let data: FinanceData | null;
+      try {
+        data = await indexedDBService.loadData();
+      } catch (e) {
+        if (e instanceof LockedError) {
+          set({ isLocked: true, isLoading: false });
+          return;
+        }
+        throw e;
+      }
 
       if (!data) {
         // First time - create default data

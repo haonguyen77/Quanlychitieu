@@ -10,6 +10,7 @@ import { BudgetMobile } from './BudgetMobile';
 import { BackupRestoreMobile } from './BackupRestoreMobile';
 import { ModuleManagementMobile } from './ModuleManagementMobile';
 import { RecurringMobile } from './RecurringMobile';
+import { SecurityMobile } from './SecurityMobile';
 import { MobileIcon } from './MobileIcon';
 import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
 import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette, BarChart3, PieChart, Repeat, Layers } from 'lucide-react';
@@ -80,7 +81,7 @@ export function SettingsMobile() {
 
         {/* 6. BẢO MẬT */}
         <SettingsSection title="6. BẢO MẬT">
-          <SettingsNav icon={<Lock size={18} />} iconBg="#ECEFF1" iconColor="#37474F" label="Bảo mật" subtitle="Chưa hỗ trợ trên Web" onTap={() => {}} />
+          <SettingsNav icon={<Lock size={18} />} iconBg="#ECEFF1" iconColor="#37474F" label="Bảo mật" subtitle="Mã PIN, mã hóa dữ liệu trên thiết bị" onTap={() => push({ id: 'security', component: <SecurityMobile /> })} />
         </SettingsSection>
 
         {/* GIAO DIỆN */}
