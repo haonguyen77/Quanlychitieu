@@ -29,6 +29,17 @@ export function ModuleViewMobile({ module }: Props) {
   const isRental = module.id === 'mod_nhatro';
   useEffect(() => { if (isRental) localStorage.setItem('rental_due_day', String(dueDay)); }, [dueDay, isRental]);
 
+  // Module accent color (Android uses module-specific primary color)
+  const accentColor = (() => {
+    switch (module.id) {
+      case 'mod_shopee': return '#FF2D16';
+      case 'mod_vang': return '#F59E0B';
+      case 'mod_nhatro': return '#16A34A';
+      case 'mod_creditcard': return '#6C2BD9';
+      default: return '#1264F5';
+    }
+  })();
+
   // Date range
   const { startDate, endDate } = useMemo(() => {
     const ref = refDate;
@@ -118,7 +129,7 @@ export function ModuleViewMobile({ module }: Props) {
         <button onClick={() => navigate(-1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={16} /></button>
         {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
           <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2 rounded-full text-[11px] font-semibold text-center"
-            style={{ backgroundColor: period === p ? '#1264F5' : '#fff', color: period === p ? '#fff' : '#1A1A1A', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
+            style={{ backgroundColor: period === p ? accentColor : '#fff', color: period === p ? '#fff' : '#1A1A1A', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
             {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
           </button>
         ))}
