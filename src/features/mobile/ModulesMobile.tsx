@@ -3,6 +3,7 @@ import { useMobileNav } from './MobileNavigation';
 import { ModuleViewMobile } from './ModuleViewMobile';
 import { WineMobile } from './WineMobile';
 import { CreditCardMobile } from './CreditCardMobile';
+import { ShopeeMobile } from './ShopeeMobile';
 import { MobileIcon } from './MobileIcon';
 import { getModuleIconInfo, getModuleColor, MODULE_ICONS } from './mobileIconMap';
 import { ChevronRight } from 'lucide-react';
@@ -24,6 +25,8 @@ export function ModulesMobile() {
       push({ id: 'wine-home', component: <WineMobile /> });
     } else if (mod.id === 'mod_creditcard') {
       push({ id: 'creditcard', component: <CreditCardMobile /> });
+    } else if (mod.id === 'mod_shopee') {
+      push({ id: 'shopee', component: <ShopeeMobile /> });
     } else {
       push({ id: `module-${mod.id}`, component: <ModuleViewMobile module={mod} /> });
     }

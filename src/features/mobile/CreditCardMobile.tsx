@@ -56,6 +56,13 @@ export function CreditCardMobile() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [data, cardAccounts, selectedCard]);
 
+  // Group transactions by day (Android table style)
+  const groupedTx = useMemo(() => {
+    const map = new Map<string, typeof transactions>();
+    for (const t of transactions) { if (!map.has(t.date)) map.set(t.date, []); map.get(t.date)!.push(t); }
+    return Array.from(map.entries());
+  }, [transactions]);
+
   // Calculate outstanding (Android: SUM(type=0) - SUM(type=2))
   const totalSpent = transactions.filter(t => t.type === '0').reduce((s, t) => s + t.amount, 0);
   const totalPaid = transactions.filter(t => t.type === '2').reduce((s, t) => s + t.amount, 0);
@@ -124,25 +131,32 @@ export function CreditCardMobile() {
           </button>
         )}
 
-        {/* Transactions — Android: grouped by day with titles and amounts */}
+        {/* Transactions — Android: purple table header "Tên giao dịch | Số tiền" grouped by day */}
         <div>
-          <h3 className="text-sm font-semibold mb-2" style={{ color: '#101B4D' }}>Giao dịch ({transactions.length})</h3>
+          <div className="flex items-center px-3 py-2 rounded-t-lg text-white text-[11px] font-semibold" style={{ backgroundColor: '#6C2BD9' }}>
+            <span className="flex-1">Tên giao dịch</span>
+            <span className="text-right">Số tiền</span>
+          </div>
           {transactions.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-6">Chưa có giao dịch thẻ tín dụng</p>
+            <p className="text-xs text-gray-400 text-center py-6 border border-gray-100 rounded-b-lg">Chưa có giao dịch thẻ tín dụng</p>
           ) : (
-            <div className="space-y-2">
-              {transactions.map(t => (
-                <div key={t.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${t.type === '2' ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <CreditCard size={15} className={t.type === '2' ? 'text-green-600' : 'text-red-500'} />
+            <div className="border border-gray-100 rounded-b-lg overflow-hidden">
+              {groupedTx.map(([day, items]) => (
+                <div key={day}>
+                  <div className="px-3 py-1.5" style={{ backgroundColor: '#F3EEFB' }}>
+                    <span className="text-[11px] font-medium" style={{ color: '#6C2BD9' }}>📅 {fmtDate(day)}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate" style={{ color: '#101B4D' }}>{t.title}</p>
-                    <p className="text-[10px] text-gray-400">{fmtDate(t.date)}</p>
-                  </div>
-                  <span className={`text-xs font-bold ${t.type === '2' ? 'text-green-600' : 'text-red-500'}`}>
-                    {t.type === '2' ? '+' : '-'}{formatMoney(t.amount)}
-                  </span>
+                  {items.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-gray-50">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.type === '2' ? 'bg-green-50' : 'bg-red-50'}`}>
+                        <CreditCard size={14} className={t.type === '2' ? 'text-green-600' : 'text-red-500'} />
+                      </div>
+                      <span className="flex-1 text-sm text-gray-900 truncate">{t.title}</span>
+                      <span className={`text-sm font-bold ${t.type === '2' ? 'text-green-600' : 'text-red-500'}`}>
+                        {t.type === '2' ? '+' : '-'}{formatMoney(t.amount)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>

@@ -264,7 +264,7 @@ function createCreditCardModule(now: string): ModuleDefinition {
     description: 'Quản lý thẻ tín dụng, trả góp',
     sortOrder: 4,
     isDefault: true,
-    isActive: false,
+    isActive: true,
     isVisible: true,
     fields: [
       createField(moduleId, 'card_name', 'Tên thẻ', 'text', 0, true, true, now),
