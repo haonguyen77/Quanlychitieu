@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { MobileNavProvider } from '@/features/mobile/MobileNavigation';
 import { DashboardMobile } from '@/features/mobile/DashboardMobile';
@@ -8,6 +8,7 @@ import { SettingsMobile } from '@/features/mobile/SettingsMobile';
 import { AddExpenseMobile } from '@/features/mobile/AddExpenseMobile';
 import { MobileIcon } from '@/features/mobile/MobileIcon';
 import { NAV_COLORS } from '@/features/mobile/mobileIconMap';
+import { executeRecurringTransactions } from '@/features/mobile/recurringExecutor';
 import { Plus } from 'lucide-react';
 
 type MobileTab = 'dashboard' | 'expense' | 'add' | 'modules' | 'settings';
@@ -21,6 +22,15 @@ export function MobileShell() {
   const [activeTab, setActiveTab] = useState<MobileTab>('expense');
   const [showAddForm, setShowAddForm] = useState(false);
   const { data } = useAppStore();
+  const recurringRan = useRef(false);
+
+  // Execute recurring transactions once when data loads
+  useEffect(() => {
+    if (data && !recurringRan.current) {
+      recurringRan.current = true;
+      executeRecurringTransactions();
+    }
+  }, [data]);
 
   if (!data) {
     return (

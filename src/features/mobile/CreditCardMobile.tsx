@@ -25,6 +25,7 @@ export function CreditCardMobile() {
   const [showPayment, setShowPayment] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedCardIdx, setSelectedCardIdx] = useState(0);
 
   // Find credit card accounts (Android uses icon='card' or id starts with 'acc_cc_')
   const cardAccounts = useMemo(() => {
@@ -32,26 +33,28 @@ export function CreditCardMobile() {
     return data.accounts?.filter(a => a.isActive && (a.icon === 'card' || a.id.startsWith('acc_cc_'))) || [];
   }, [data]);
 
-  // Find all transactions using credit card accounts
+  const selectedCard = cardAccounts[selectedCardIdx] || cardAccounts[0] || null;
+
+  // Find transactions for selected card only (or all if no selection)
   const transactions = useMemo(() => {
     if (!data || cardAccounts.length === 0) return [];
-    const cardAccountIds = new Set(cardAccounts.map(a => a.id));
+    const targetIds = selectedCard ? new Set([selectedCard.id]) : new Set(cardAccounts.map(a => a.id));
     return data.records
       .filter(r => {
         if (r.isDeleted) return false;
         const account = getRecordField(r, 'account');
-        return cardAccountIds.has(account);
+        return targetIds.has(account);
       })
       .map(r => ({
         id: r.id,
         title: getRecordField(r, 'title') || '—',
         amount: Math.abs(Number(getRecordField(r, 'amount')) || 0),
-        type: getRecordField(r, 'type'), // 0=expense, 1=income, 2=payment
+        type: getRecordField(r, 'type'),
         date: getRecordField(r, 'date'),
         account: getRecordField(r, 'account'),
       }))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [data, cardAccounts]);
+  }, [data, cardAccounts, selectedCard]);
 
   // Calculate outstanding (Android: SUM(type=0) - SUM(type=2))
   const totalSpent = transactions.filter(t => t.type === '0').reduce((s, t) => s + t.amount, 0);
@@ -59,7 +62,7 @@ export function CreditCardMobile() {
   const outstanding = totalSpent - totalPaid;
 
   // Card info
-  const cardName = cardAccounts.length > 0 ? cardAccounts[0].name : 'Thẻ tín dụng';
+  const cardName = selectedCard?.name || 'Thẻ tín dụng';
 
   const fmtDate = (d: string) => d ? d.split('-').reverse().join('/') : '';
 
@@ -75,6 +78,18 @@ export function CreditCardMobile() {
       </header>
 
       <div className="flex-1 overflow-auto px-4 py-4 space-y-4">
+        {/* Card selector (Android: horizontal scroll chips) */}
+        {cardAccounts.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {cardAccounts.map((card, idx) => (
+              <button key={card.id} onClick={() => setSelectedCardIdx(idx)}
+                className={`flex-shrink-0 px-3 py-2 rounded-xl border text-xs font-medium ${selectedCardIdx === idx ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600'}`}>
+                {card.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Hero Card — Android gradient #1A237E → #3949AB */}
         <div className="rounded-2xl p-5 text-white" style={{ background: 'linear-gradient(135deg, #1A237E, #3949AB)' }}>
           <div className="flex items-center gap-2 mb-4">
@@ -153,8 +168,8 @@ export function CreditCardMobile() {
             <button onClick={() => {
               const amt = Number(payAmount) || 0;
               if (amt <= 0) return;
-              // Create type=2 payment transaction with the credit card account
-              const ccAccountId = cardAccounts[0]?.id || '';
+              // Create type=2 payment transaction with the selected credit card account
+              const ccAccountId = selectedCard?.id || cardAccounts[0]?.id || '';
               addRecord('mod_chitieu', {
                 mod_chitieu_title: 'Thanh toán thẻ',
                 mod_chitieu_amount: amt,

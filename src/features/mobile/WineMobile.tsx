@@ -21,9 +21,7 @@ export function WineMobile() {
   const [orderCustomer, setOrderCustomer] = useState('');
   const [orderPhone, setOrderPhone] = useState('');
   const [orderAddress, setOrderAddress] = useState('');
-  const [orderProduct, setOrderProduct] = useState('');
-  const [orderQty, setOrderQty] = useState('1');
-  const [orderPrice, setOrderPrice] = useState('');
+  const [orderLines, setOrderLines] = useState<Array<{ name: string; sku: string; qty: string; price: string }>>([{ name: '', sku: '', qty: '1', price: '' }]);
   const [orderShipFee, setOrderShipFee] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -83,9 +81,16 @@ export function WineMobile() {
           setOrderCustomer(get('customer_name'));
           setOrderPhone(get('customer_phone'));
           setOrderAddress(get('customer_address'));
-          setOrderProduct(get('product_name'));
-          setOrderQty(get('quantity') || '1');
-          setOrderPrice(get('price'));
+          // Parse product lines
+          const plRaw = order.values['mod_ruou_product_lines'];
+          if (plRaw && typeof plRaw === 'string' && String(plRaw).length > 2) {
+            try {
+              const parsed = JSON.parse(String(plRaw)) as Array<Record<string, string>>;
+              setOrderLines(parsed.map(p => ({ name: p.productName || '', sku: p.productSku || '', qty: p.quantity || '1', price: p.price || '0' })));
+            } catch { setOrderLines([{ name: get('product_name'), sku: get('product_name'), qty: get('quantity') || '1', price: get('price') }]); }
+          } else {
+            setOrderLines([{ name: get('product_name'), sku: get('product_name'), qty: get('quantity') || '1', price: get('price') }]);
+          }
           setOrderShipFee(get('ship_fee'));
           setOrderDate(get('order_date') || new Date().toISOString().slice(0, 10));
           setShowAddOrder(true);
@@ -139,39 +144,56 @@ export function WineMobile() {
             <input type="text" value={orderCustomer} onChange={e => setOrderCustomer(e.target.value)} placeholder="Tên khách hàng..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
             <input type="text" value={orderPhone} onChange={e => setOrderPhone(e.target.value)} placeholder="Số điện thoại..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
             <input type="text" value={orderAddress} onChange={e => setOrderAddress(e.target.value)} placeholder="Địa chỉ..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-            {/* Product */}
+            {/* Product lines — multi-product support (Android: product_lines JSON) */}
             <div className="border-t border-gray-100 pt-3">
-              <p className="text-xs font-medium text-gray-600 mb-2">Sản phẩm</p>
-              <input type="text" value={orderProduct} onChange={e => setOrderProduct(e.target.value)} placeholder="Tên sản phẩm..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-              <div className="flex gap-2 mt-2">
-                <input type="text" inputMode="numeric" value={orderQty} onChange={e => setOrderQty(e.target.value.replace(/\D/g, ''))} placeholder="SL" className="w-20 px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-                <input type="text" inputMode="numeric" value={orderPrice} onChange={e => setOrderPrice(e.target.value.replace(/\D/g, ''))} placeholder="Đơn giá" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-600">Sản phẩm</p>
+                <button onClick={() => setOrderLines([...orderLines, { name: '', sku: '', qty: '1', price: '' }])} className="text-xs text-purple-600 font-medium">+ Thêm SP</button>
               </div>
+              {orderLines.map((line, idx) => (
+                <div key={idx} className="mb-2 p-2 bg-gray-50 rounded-lg">
+                  <input type="text" value={line.name} onChange={e => { const l = [...orderLines]; l[idx] = { ...l[idx], name: e.target.value }; setOrderLines(l); }} placeholder="Tên sản phẩm..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-1" />
+                  <div className="flex gap-2">
+                    <input type="text" inputMode="numeric" value={line.qty} onChange={e => { const l = [...orderLines]; l[idx] = { ...l[idx], qty: e.target.value.replace(/\D/g, '') }; setOrderLines(l); }} placeholder="SL" className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm" />
+                    <input type="text" inputMode="numeric" value={line.price} onChange={e => { const l = [...orderLines]; l[idx] = { ...l[idx], price: e.target.value.replace(/\D/g, '') }; setOrderLines(l); }} placeholder="Đơn giá" className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm" />
+                    {orderLines.length > 1 && <button onClick={() => setOrderLines(orderLines.filter((_, i) => i !== idx))} className="text-red-400 text-xs px-2">✕</button>}
+                  </div>
+                </div>
+              ))}
             </div>
             {/* Ship + Total */}
             <input type="text" inputMode="numeric" value={orderShipFee} onChange={e => setOrderShipFee(e.target.value.replace(/\D/g, ''))} placeholder="Phí ship (0)" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
             <div className="flex justify-between items-center px-1">
               <span className="text-xs text-gray-500">Tổng cộng:</span>
-              <span className="text-sm font-bold" style={{ color: '#6C2BD9' }}>{((Number(orderQty) || 1) * (Number(orderPrice) || 0) + (Number(orderShipFee) || 0)).toLocaleString('vi-VN')}₫</span>
+              <span className="text-sm font-bold" style={{ color: '#6C2BD9' }}>{(orderLines.reduce((s, l) => s + (Number(l.qty) || 1) * (Number(l.price) || 0), 0) + (Number(orderShipFee) || 0)).toLocaleString('vi-VN')}₫</span>
             </div>
             <button onClick={() => {
               if (!orderCustomer.trim()) return;
-              const qty = Number(orderQty) || 1;
-              const price = Number(orderPrice) || 0;
+              const validLines = orderLines.filter(l => l.name.trim());
+              const firstLine = validLines[0] || { name: '', sku: '', qty: '1', price: '0' };
+              const itemsTotal = validLines.reduce((s, l) => s + (Number(l.qty) || 1) * (Number(l.price) || 0), 0);
               const shipFee = Number(orderShipFee) || 0;
-              const total = qty * price + shipFee;
-              const values = {
+              const total = itemsTotal + shipFee;
+              const values: Record<string, string | number | boolean | string[] | null> = {
                 mod_ruou_customer_name: orderCustomer.trim(),
                 mod_ruou_customer_phone: orderPhone.trim() || null,
                 mod_ruou_customer_address: orderAddress.trim() || null,
-                mod_ruou_product_name: orderProduct.trim() || null,
-                mod_ruou_product_sku: orderProduct.trim() || null,
-                mod_ruou_quantity: qty,
-                mod_ruou_price: price,
+                mod_ruou_product_name: firstLine.name.trim() || null,
+                mod_ruou_product_sku: firstLine.sku.trim() || firstLine.name.trim() || null,
+                mod_ruou_quantity: Number(firstLine.qty) || 1,
+                mod_ruou_price: Number(firstLine.price) || 0,
                 mod_ruou_ship_fee: shipFee,
                 mod_ruou_total_amount: total,
                 mod_ruou_order_date: orderDate,
               };
+              // Multi-product: store as product_lines JSON (matches Android)
+              if (validLines.length > 1) {
+                values['mod_ruou_product_lines'] = JSON.stringify(validLines.map(l => ({
+                  productName: l.name.trim(), productSku: l.sku.trim() || l.name.trim(),
+                  quantity: String(Number(l.qty) || 1), price: String(Number(l.price) || 0),
+                  color: '', glasses: '0', boxes: '0',
+                })));
+              }
               if (editOrderId) {
                 // Edit: get old values for inventory rollback
                 const oldRecord = data?.records.find(r => r.id === editOrderId);
@@ -185,7 +207,7 @@ export function WineMobile() {
                   addRecord('mod_ruou_customers', getCustomerValues(values));
                 }
               }
-              setShowAddOrder(false); setEditOrderId(null); setOrderCustomer(''); setOrderPhone(''); setOrderAddress(''); setOrderProduct(''); setOrderQty('1'); setOrderPrice(''); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10));
+              setShowAddOrder(false); setEditOrderId(null); setOrderCustomer(''); setOrderPhone(''); setOrderAddress(''); setOrderLines([{ name: '', sku: '', qty: '1', price: '' }]); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10));
             }} className="w-full py-3 rounded-lg text-white text-sm font-semibold" style={{ backgroundColor: '#6C2BD9' }}>{editOrderId ? 'Cập nhật' : 'Lưu đơn hàng'}</button>
           </div>
         </div>
