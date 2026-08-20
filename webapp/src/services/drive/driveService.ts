@@ -1,4 +1,5 @@
 import type { FinanceData } from '@/types';
+import { cryptoService } from '@/services/crypto/cryptoService';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
@@ -172,12 +173,40 @@ class DriveService {
     const url = `${DRIVE_API_BASE}/files/${fileId}?alt=media`;
     const response = await this.fetchWithAuth(url);
     if (!response.ok) return null;
+    const parsed = await response.json();
+    // Encrypted envelope on Drive → decrypt with PIN. Plaintext (legacy/new install) → as-is.
+    if (cryptoService.isEncryptedEnvelope(parsed)) {
+      if (!cryptoService.hasKey()) { this.lastError = 'LOCKED'; return null; }
+      return cryptoService.decryptData<FinanceData>(parsed);
+    }
+    return parsed as FinanceData;
+  }
+
+  /**
+   * Fetch remote finance file content WITHOUT decrypting.
+   * Used to detect whether Drive holds an encrypted envelope that this client
+   * cannot yet read (needs PIN) — so sync never clobbers ciphertext with plaintext.
+   * Returns parsed JSON (envelope or plaintext FinanceData) or null if no file.
+   */
+  async fetchRemoteRaw(): Promise<unknown | null> {
+    const file = await this.findFile();
+    if (!file) return null;
+    const url = `${DRIVE_API_BASE}/files/${file.id}?alt=media`;
+    const response = await this.fetchWithAuth(url);
+    if (!response.ok) return null;
     return response.json();
   }
 
   async uploadFile(data: FinanceData): Promise<string | null> {
     const existingFile = await this.findFile();
-    const content = JSON.stringify(data, null, 2);
+    // Encrypt to envelope when PIN encryption is enabled; else plaintext.
+    let content: string;
+    if (cryptoService.hasKey()) {
+      const envelope = await cryptoService.encryptData(data);
+      content = JSON.stringify(envelope);
+    } else {
+      content = JSON.stringify(data, null, 2);
+    }
     if (existingFile) return this.updateFile(existingFile.id, content);
     return this.createFile(content);
   }

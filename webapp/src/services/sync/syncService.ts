@@ -1,8 +1,9 @@
 import type { FinanceData } from '@/types';
 import { driveService } from '@/services/drive/driveService';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
+import { cryptoService } from '@/services/crypto/cryptoService';
 
-export type SyncStatus = 'idle' | 'syncing' | 'success' | 'conflict' | 'error';
+export type SyncStatus = 'idle' | 'syncing' | 'success' | 'conflict' | 'error' | 'locked';
 
 export interface SyncResult {
   status: SyncStatus;
@@ -27,6 +28,15 @@ class SyncService {
   private readonly DEBOUNCE_MS = 3000; // Wait 3s after last edit before syncing
 
   /**
+   * True when Drive holds an encrypted envelope this client cannot decrypt yet
+   * (no PIN key loaded). In that state we must NOT push plaintext over it.
+   */
+  private async isRemoteLocked(): Promise<boolean> {
+    const raw = await driveService.fetchRemoteRaw();
+    return !!raw && cryptoService.isEncryptedEnvelope(raw) && !cryptoService.hasKey();
+  }
+
+  /**
    * Pull latest data from Google Drive
    * Called on app open or manual sync.
    * Works even when local database is empty (fresh install).
@@ -42,6 +52,11 @@ class SyncService {
       if (!remoteFile) {
         // No file on Drive yet
         return { status: 'idle', message: 'No remote file found on Drive' };
+      }
+
+      // Encrypted Drive data we can't read yet → require PIN (don't clobber).
+      if (await this.isRemoteLocked()) {
+        return { status: 'locked', message: 'Dữ liệu Drive đã mã hóa — cần nhập mã PIN.' };
       }
 
       const localData = await indexedDBService.loadData();
@@ -90,6 +105,11 @@ class SyncService {
       const localData = await indexedDBService.loadData();
       if (!localData) {
         return { status: 'error', message: 'No local data to push' };
+      }
+
+      // SAFETY: never overwrite an encrypted Drive envelope with plaintext when locked.
+      if (await this.isRemoteLocked()) {
+        return { status: 'locked', message: 'Dữ liệu Drive đã mã hóa — cần nhập mã PIN trước khi đồng bộ.' };
       }
 
       // SAFETY CHECK: don't push if local has significantly fewer records than remote
@@ -143,6 +163,11 @@ class SyncService {
       const token = driveService.token;
       if (!token) {
         return { status: 'idle', message: 'Not authenticated' };
+      }
+
+      // SAFETY: never overwrite an encrypted Drive envelope with plaintext when locked.
+      if (await this.isRemoteLocked()) {
+        return { status: 'locked', message: 'Dữ liệu Drive đã mã hóa — cần nhập mã PIN trước khi đồng bộ.' };
       }
 
       const localData = await indexedDBService.loadData();

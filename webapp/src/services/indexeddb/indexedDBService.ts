@@ -1,10 +1,16 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { FinanceData } from '@/types';
+import { cryptoService, type EncryptedEnvelope } from '@/services/crypto/cryptoService';
 
 const DB_NAME = 'PersonalDataPlatform';
 const DB_VERSION = 1;
 const STORE_NAME = 'appData';
 const DATA_KEY = 'finance_data';
+
+/** Thrown when data is encrypted but no key is loaded (needs PIN unlock). */
+export class LockedError extends Error {
+  constructor() { super('DATA_LOCKED'); this.name = 'LockedError'; }
+}
 
 class IndexedDBService {
   private db: IDBPDatabase | null = null;
@@ -23,15 +29,38 @@ class IndexedDBService {
     return this.db;
   }
 
+  /**
+   * Save data. If PIN encryption is enabled AND a key is loaded, the blob is
+   * encrypted at rest (AES-GCM). Otherwise stored as plaintext (default).
+   * NOTE: Google Drive upload path uses the in-memory object, so Drive stays plaintext.
+   */
   async saveData(data: FinanceData): Promise<void> {
     const db = await this.getDB();
-    await db.put(STORE_NAME, data, DATA_KEY);
+    if (cryptoService.hasKey()) {
+      const envelope = await cryptoService.encryptData(data);
+      await db.put(STORE_NAME, envelope, DATA_KEY);
+    } else {
+      await db.put(STORE_NAME, data, DATA_KEY);
+    }
   }
 
+  /**
+   * Load data. Returns:
+   * - null if no data stored
+   * - decrypted FinanceData if encrypted + key loaded
+   * - plaintext FinanceData if not encrypted
+   * Throws LockedError if data is encrypted but no key is loaded.
+   */
   async loadData(): Promise<FinanceData | null> {
     const db = await this.getDB();
-    const data = await db.get(STORE_NAME, DATA_KEY);
-    return data as FinanceData | null;
+    const stored = await db.get(STORE_NAME, DATA_KEY);
+    if (!stored) return null;
+
+    if (cryptoService.isEncryptedEnvelope(stored)) {
+      if (!cryptoService.hasKey()) throw new LockedError();
+      return cryptoService.decryptData<FinanceData>(stored as EncryptedEnvelope);
+    }
+    return stored as FinanceData;
   }
 
   async clearData(): Promise<void> {
@@ -40,8 +69,12 @@ class IndexedDBService {
   }
 
   async getLastModified(): Promise<string | null> {
-    const data = await this.loadData();
-    return data?.lastModified || null;
+    try {
+      const data = await this.loadData();
+      return data?.lastModified || null;
+    } catch {
+      return null; // locked
+    }
   }
 }
 

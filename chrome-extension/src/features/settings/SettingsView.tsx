@@ -8,6 +8,7 @@ import { Icon } from '@/shared/components/ui/Icon';
 import { SharedConfigSection } from './SharedConfigSection';
 import { ReminderSection } from './ReminderSection';
 import { RecurringReminderSection } from './RecurringReminderSection';
+import { SecuritySection } from './SecuritySection';
 
 export function SettingsView() {
   const { data, userEmail, setSyncing, setData, setAuth } = useAppStore();
@@ -155,6 +156,9 @@ export function SettingsView() {
             </details>
           </div>
         </section>
+
+        {/* Security: PIN encryption */}
+        <SecuritySection />
 
         {/* Shared Config: Tài khoản, Danh mục, Người nhận */}
         <SharedConfigSection />

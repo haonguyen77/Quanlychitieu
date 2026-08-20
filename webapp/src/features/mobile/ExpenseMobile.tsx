@@ -1,208 +1,248 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
+import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { TransactionDetailMobile } from './TransactionDetailMobile';
-import { Search, X, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
+import { MobileIcon } from './MobileIcon';
+import { getCategoryIconInfo, getAccountIconInfo, getModuleColor } from './mobileIconMap';
+import { getCategoryDisplay, getAccountDisplay, getModuleDisplay, getRecordField, formatMoney } from './mobileDataMapper';
+import { Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import type { DataRecord } from '@/types';
 
+type FilterPeriod = 'week' | 'month' | 'year' | 'all';
+
 /**
- * Mobile Expense List — Card-based, grouped by date, with search + filter.
- * Design reference: Android App "Chi tiêu" screen.
+ * ExpenseMobile — Reproduction of Android expense_screen.dart.
+ * Layout: Header → Search → Period Filter → Date Range → Summary → Grouped List
+ * 
+ * Key Android details:
+ * - Header: "Chi tiêu" (26px bold, #0F1F4D) + search + filter buttons
+ * - Summary: 2 cards (Tổng chi = wallet icon red, Tổng thu = arrow_down icon green)
+ * - Day header: bgLight (#F5F7FA), calendar icon + "Hôm nay, dd/MM/yyyy" + "Tổng: 3M5"
+ * - Transaction row: 40x40 category icon (rounded 10, bgColor+icon) + title + account+module sub + amount
+ * - Amount color: expenses = #0F1F4D (dark), income = #20A84A (green)
  */
 export function ExpenseMobile() {
   const { data } = useAppStore();
   const { push } = useMobileNav();
 
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-  const [filterModule, setFilterModule] = useState<string | null>(null);
   const [showFilter, setShowFilter] = useState(false);
+  const [period, setPeriod] = useState<FilterPeriod>('month');
+  const [refDate, setRefDate] = useState(new Date());
 
-  const allTransactions = useMemo(() => {
+  // Date range calculation (Android: _startDate, _endDate)
+  const { startDate, endDate } = useMemo(() => {
+    const ref = refDate;
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    switch (period) {
+      case 'week': { const day = ref.getDay(); const diff = day === 0 ? -6 : 1 - day; const s = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + diff); const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6); return { startDate: fmt(s), endDate: fmt(e) }; }
+      case 'month': { const s = new Date(ref.getFullYear(), ref.getMonth(), 1); const e = new Date(ref.getFullYear(), ref.getMonth() + 1, 0); return { startDate: fmt(s), endDate: fmt(e) }; }
+      case 'year': return { startDate: `${ref.getFullYear()}-01-01`, endDate: `${ref.getFullYear()}-12-31` };
+      default: return { startDate: '2020-01-01', endDate: '2099-12-31' };
+    }
+  }, [period, refDate]);
+
+  // Transactions (Android: _loadData + _displayedTransactions)
+  const allTxns = useMemo(() => {
     if (!data) return [];
     return data.records
-      .filter(r => !r.isDeleted && r.moduleId === 'mod_chitieu')
-      .map(r => {
-        const titleKey = Object.keys(r.values).find(k => k.endsWith('_title'));
-        const amtKey = Object.keys(r.values).find(k => k.endsWith('_amount'));
-        const typeKey = Object.keys(r.values).find(k => k.endsWith('_type'));
-        const dateKey = Object.keys(r.values).find(k => k.endsWith('_date'));
-        return {
-          record: r,
-          title: titleKey ? String(r.values[titleKey] ?? '') : '—',
-          amount: amtKey ? Math.abs(Number(r.values[amtKey] ?? 0)) : 0,
-          type: typeKey ? String(r.values[typeKey] ?? '0') : '0',
-          date: dateKey ? String(r.values[dateKey] ?? '') : r.createdAt?.slice(0, 10) || '',
-          linkedModule: r.linkedModuleId || '',
-        };
+      .filter(r => {
+        if (r.isDeleted || r.moduleId !== 'mod_chitieu') return false;
+        const d = getRecordField(r, 'date');
+        if (d < startDate || d > endDate) return false;
+        const type = getRecordField(r, 'type');
+        return type !== '2'; // exclude transfer
       })
-      .filter(t => t.type !== '2')
+      .map(r => ({
+        record: r,
+        title: getRecordField(r, 'title') || '—',
+        amount: Math.abs(Number(getRecordField(r, 'amount')) || 0),
+        type: getRecordField(r, 'type'),
+        date: getRecordField(r, 'date') || r.createdAt?.slice(0, 10) || '',
+        account: getRecordField(r, 'account'),
+        categoryId: r.categoryId || '',
+      }))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [data]);
+  }, [data, startDate, endDate]);
 
-  // Apply search + filter
+  // Search filter (Android: _displayedTransactions)
   const filtered = useMemo(() => {
-    let result = allTransactions;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(t => t.title.toLowerCase().includes(q));
-    }
-    if (filterModule) {
-      result = result.filter(t => t.linkedModule === filterModule || (!t.linkedModule && filterModule === 'mod_chitieu'));
-    }
-    return result;
-  }, [allTransactions, searchQuery, filterModule]);
+    if (!searchQuery.trim()) return allTxns;
+    const q = searchQuery.toLowerCase();
+    return allTxns.filter(t => t.title.toLowerCase().includes(q));
+  }, [allTxns, searchQuery]);
 
-  // Group by date
+  // Group by day (Android: _grouped)
   const grouped = useMemo(() => {
-    const groups = new Map<string, typeof filtered>();
-    for (const t of filtered) {
-      const day = t.date.slice(0, 10);
-      if (!groups.has(day)) groups.set(day, []);
-      groups.get(day)!.push(t);
-    }
-    return Array.from(groups.entries()).map(([date, txns]) => ({ date, txns }));
+    const map = new Map<string, typeof filtered>();
+    for (const t of filtered) { const day = t.date.slice(0, 10); if (!map.has(day)) map.set(day, []); map.get(day)!.push(t); }
+    return Array.from(map.entries());
   }, [filtered]);
 
+  // Totals (Android: _totalExpense, _totalIncome)
   const totalExpense = filtered.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0);
   const totalIncome = filtered.filter(t => t.type === '1').reduce((s, t) => s + t.amount, 0);
 
-  const fmtMoney = (n: number) => {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
+  // Format helpers (Android: Formatters.currencyCompact)
+  const fmtCompact = (n: number) => {
+    if (n >= 1000000) { const m = Math.floor(n / 1000000); const h = Math.floor((n - m * 1000000) / 100000); return h > 0 ? `${m}M${h}` : `${m}M`; }
     if (n >= 1000) return `${Math.round(n / 1000).toLocaleString('vi-VN')}K`;
     return n.toLocaleString('vi-VN');
   };
+  const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
+  const navigate = (dir: number) => { const d = new Date(refDate); if (period === 'week') d.setDate(d.getDate() + 7 * dir); else if (period === 'month') d.setMonth(d.getMonth() + dir); else if (period === 'year') d.setFullYear(d.getFullYear() + dir); setRefDate(d); };
 
-  const fmtDate = (d: string) => {
-    try {
-      const date = new Date(d);
-      const day = date.getDate();
-      const month = date.getMonth() + 1;
-      const weekday = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
-      return `${weekday}, ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
-    } catch { return d; }
+  // Day label (Android: "Hôm nay, dd/MM/yyyy")
+  const fmtDayLabel = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
+    const formatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    if (diff === 0) return `Hôm nay, ${formatted}`;
+    if (diff === 1) return `Hôm qua, ${formatted}`;
+    return formatted;
   };
 
-  const openDetail = (record: DataRecord) => {
-    push({ id: `detail-${record.id}`, component: <TransactionDetailMobile record={record} /> });
-  };
+  const openDetail = (record: DataRecord) => { push({ id: `detail-${record.id}`, component: <TransactionDetailMobile record={record} /> }); };
 
-  const activeModules = data?.modules.filter(m => m.isActive && m.isVisible !== false) || [];
+  // Resolve display info using shared mapper
+  const getCatInfo = (catId: string) => getCategoryDisplay(catId, data);
+  const getAccInfo = (accId: string) => getAccountDisplay(accId, data);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="bg-white px-5 pt-14 pb-3 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Chi tiêu</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setShowSearch(!showSearch)} className={`w-9 h-9 rounded-xl flex items-center justify-center ${showSearch ? 'bg-primary-50' : 'bg-gray-50'}`}>
-            <Search size={18} className={showSearch ? 'text-primary-500' : 'text-gray-500'} />
-          </button>
-          <button onClick={() => setShowFilter(!showFilter)} className={`w-9 h-9 rounded-xl flex items-center justify-center ${filterModule ? 'bg-primary-50' : 'bg-gray-50'}`}>
-            <SlidersHorizontal size={18} className={filterModule ? 'text-primary-500' : 'text-gray-500'} />
-          </button>
-        </div>
+    <div className="h-full flex flex-col bg-white overflow-hidden">
+      {/* ═══ HEADER — Android: "Chi tiêu" 26px bold + search + filter ═══ */}
+      <div className="px-5 pb-1 flex items-center gap-2" style={{ paddingTop: 'max(14px, env(safe-area-inset-top))' }}>
+        <h1 className="flex-1 font-bold" style={{ fontSize: 26, color: '#0F1F4D' }}>Chi tiêu</h1>
+        <button onClick={() => { setIsSearching(!isSearching); if (isSearching) setSearchQuery(''); }} className="w-10 h-10 flex items-center justify-center rounded-lg active:bg-gray-100">
+          {isSearching ? <X size={20} color="#0F1F4D" /> : <Search size={20} color="#0F1F4D" />}
+        </button>
+        <button onClick={() => setShowFilter(!showFilter)} className="w-10 h-10 flex items-center justify-center rounded-lg active:bg-gray-100">
+          <SlidersHorizontal size={20} color={showFilter ? '#1264F5' : '#0F1F4D'} />
+        </button>
       </div>
 
-      {/* Search bar */}
-      {showSearch && (
+      {/* ═══ SEARCH BAR — Android: TextField with hint ═══ */}
+      {isSearching && (
         <div className="px-4 pb-2">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Tìm giao dịch..."
-              autoFocus
-              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary-500 outline-none"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X size={16} className="text-gray-400" />
-              </button>
-            )}
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-[10px] border border-gray-200" style={{ backgroundColor: '#F5F7FA' }}>
+            <Search size={16} color="#9E9E9E" />
+            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Tìm theo tên hoặc ghi chú..." autoFocus
+              className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400" />
           </div>
         </div>
       )}
 
-      {/* Filter chips */}
+      {/* ═══ PERIOD FILTER — Android: pills (Tuần/Tháng/Năm/Tất cả) + arrows ═══ */}
       {showFilter && (
-        <div className="px-4 pb-2 flex gap-2 overflow-x-auto">
-          <button
-            onClick={() => setFilterModule(null)}
-            className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap ${!filterModule ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'}`}
-          >Tất cả</button>
-          {activeModules.map(m => (
-            <button
-              key={m.id}
-              onClick={() => setFilterModule(m.id === filterModule ? null : m.id)}
-              className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap ${filterModule === m.id ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'}`}
-            >{m.name}</button>
-          ))}
+        <div className="px-4 pb-2 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => period !== 'all' && navigate(-1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 active:bg-gray-50">
+              <ChevronLeft size={16} color="#616161" />
+            </button>
+            {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
+              <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2.5 rounded-full text-xs font-semibold text-center"
+                style={{ backgroundColor: period === p ? '#1264F5' : '#fff', color: period === p ? '#fff' : '#0F1F4D', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
+                {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
+              </button>
+            ))}
+            <button onClick={() => period !== 'all' && navigate(1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 active:bg-gray-50">
+              <ChevronRight size={16} color="#616161" />
+            </button>
+          </div>
+          {/* Date range */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-9 px-3 border border-gray-200 rounded-lg flex items-center gap-2">
+              <Calendar size={13} color="#9E9E9E" />
+              <span className="text-xs text-gray-700">{startDate.split('-').reverse().join('/')}</span>
+            </div>
+            <span className="text-xs text-gray-300">→</span>
+            <div className="flex-1 h-9 px-3 border border-gray-200 rounded-lg flex items-center gap-2">
+              <Calendar size={13} color="#9E9E9E" />
+              <span className="text-xs text-gray-700">{endDate.split('-').reverse().join('/')}</span>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Summary */}
-      <div className="px-4 py-2">
-        <div className="flex gap-3">
-          <div className="flex-1 bg-red-50 rounded-2xl p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrendingDown size={14} className="text-red-500" />
-              <span className="text-[10px] text-gray-500">Tổng chi</span>
-            </div>
-            <p className="text-base font-bold text-red-600">{fmtMoney(totalExpense)}₫</p>
+      {/* ═══ SUMMARY — Android: 2 cards (Tổng chi = wallet/red, Tổng thu = arrow_down/green) ═══ */}
+      <div className="px-4 py-2 flex gap-3">
+        <div className="flex-1 border border-gray-200 rounded-[14px] p-3 flex items-center gap-2.5">
+          <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center" style={{ backgroundColor: '#FFEBEE' }}>
+            <MobileIcon name="wallet" size={18} color="#EF3030" />
           </div>
-          <div className="flex-1 bg-green-50 rounded-2xl p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrendingUp size={14} className="text-green-500" />
-              <span className="text-[10px] text-gray-500">Tổng thu</span>
-            </div>
-            <p className="text-base font-bold text-green-600">{fmtMoney(totalIncome)}₫</p>
+          <div><p className="text-[12px] text-gray-500">Tổng chi</p><p className="text-[15px] font-bold" style={{ color: '#EF3030' }}>{fmtCompact(totalExpense)}</p></div>
+        </div>
+        <div className="flex-1 border border-gray-200 rounded-[14px] p-3 flex items-center gap-2.5">
+          <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center" style={{ backgroundColor: '#E8F5E9' }}>
+            <MobileIcon name="arrow-down" size={18} color="#20A84A" />
           </div>
+          <div><p className="text-[12px] text-gray-500">Tổng thu</p><p className="text-[15px] font-bold" style={{ color: '#20A84A' }}>{fmtCompact(totalIncome)}</p></div>
         </div>
       </div>
 
-      {/* Transaction List */}
-      <div className="flex-1 overflow-auto px-4 pb-24 space-y-4">
+      {/* ═══ TRANSACTION LIST — grouped by day ═══ */}
+      <div className="flex-1 overflow-auto">
         {grouped.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-400 text-sm">{searchQuery || filterModule ? 'Không tìm thấy' : 'Chưa có giao dịch'}</p>
+          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+            <MobileIcon name="receipt" size={40} color="#E0E0E0" />
+            <p className="text-sm mt-2">Chưa có giao dịch</p>
           </div>
         ) : (
-          grouped.map(({ date, txns }) => {
-            const dayTotal = txns.reduce((s, t) => s + (t.type === '1' ? t.amount : -t.amount), 0);
+          grouped.map(([day, txns]) => {
+            const dayTotal = txns.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0);
             return (
-              <div key={date}>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-medium text-gray-500">{fmtDate(date)}</span>
-                  <span className={`text-xs font-semibold ${dayTotal >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {dayTotal >= 0 ? '+' : ''}{fmtMoney(Math.abs(dayTotal))}₫
-                  </span>
+              <div key={day}>
+                {/* Day header — Android: bgLight + calendar + label + total */}
+                <div className="flex items-center gap-2 px-4 py-2.5" style={{ backgroundColor: '#F5F7FA' }}>
+                  <Calendar size={14} color="#757575" />
+                  <span className="flex-1 text-xs font-semibold" style={{ color: '#0F1F4D' }}>{fmtDayLabel(day)}</span>
+                  <span className="text-xs font-semibold" style={{ color: '#EF3030' }}>Tổng: {fmtCompact(dayTotal)}</span>
                 </div>
-                <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-                  {txns.map(t => (
-                    <button
-                      key={t.record.id}
-                      onClick={() => openDetail(t.record)}
-                      className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 text-left"
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === '1' ? 'bg-green-50' : 'bg-red-50'}`}>
-                        {t.type === '1' ? <TrendingUp size={18} className="text-green-500" /> : <TrendingDown size={18} className="text-red-500" />}
+                {/* Transaction rows */}
+                {txns.map(t => {
+                  const catInfo = getCatInfo(t.categoryId);
+                  const accInfo = getAccInfo(t.account);
+                  const isIncome = t.type === '1';
+                  return (
+                    <button key={t.record.id} onClick={() => openDetail(t.record)} className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 active:bg-gray-50 text-left">
+                      {/* Category icon — Android: 40x40 rounded-10 container + icon */}
+                      <div className="w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: t.categoryId ? catInfo.bgColor : (isIncome ? '#E8F5E9' : '#FFEBEE') }}>
+                        {t.categoryId ? (
+                          <MobileIcon name={catInfo.icon} size={20} color={catInfo.color} />
+                        ) : (
+                          <MobileIcon name={isIncome ? 'trending-up' : 'arrow-down'} size={18} color={isIncome ? '#20A84A' : '#EF3030'} />
+                        )}
                       </div>
+                      {/* Content — Android: title (14px w600) + subtitle (account icon + name | module) */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{t.title}</p>
+                        <p className="text-[14px] font-semibold truncate" style={{ color: '#0F1F4D' }}>{t.title}</p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MobileIcon name={accInfo.icon} size={13} color={accInfo.color} />
+                          <span className="text-[11px] truncate" style={{ color: accInfo.color }}>{accInfo.label}</span>
+                          {t.categoryId && (
+                            <>
+                              <span className="text-[11px] text-gray-300 mx-0.5">|</span>
+                              <span className="text-[11px] text-gray-500 truncate">{catInfo.label}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <span className={`text-sm font-semibold tabular-nums ${t.type === '1' ? 'text-green-600' : 'text-red-600'}`}>
+                      {/* Amount — Android: 14px w700, dark for expense, green for income */}
+                      <span className="text-[14px] font-bold flex-shrink-0" style={{ color: isIncome ? '#20A84A' : '#0F1F4D' }}>
                         {fmtMoney(t.amount)}₫
                       </span>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             );
           })
         )}
+        <div className="h-4" />
       </div>
     </div>
   );

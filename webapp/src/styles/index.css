@@ -2,19 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Theme variables (aligned with chrome-extension) ─────────────────────── */
 :root {
+  /* Neutral palette — same semantics/values as extension */
+  --color-bg: #ffffff;          /* elevated surfaces: cards, menus, sidebar */
+  --color-surface: #f8fafc;     /* recessed page background */
+  --color-text: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-border: #e2e8f0;
+
+  /* Brand accent (webapp = purple) */
   --color-primary: #6C2BD9;
+  --color-primary-hover: #5A22B8;
   --color-primary-light: #F3EAFF;
   --color-navy: #101B4D;
-  --color-bg: #F8F9FA;
-  --color-border: #EEEEEE;
-  --color-text: #1A1A2E;
-  --color-text-secondary: #6B7280;
-  --color-surface: #FFFFFF;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.dark {
+  --color-bg: #1e1e2e;
+  --color-surface: #181825;
+  --color-text: #cdd6f4;
+  --color-text-secondary: #a6adc8;
+  --color-border: #313244;
+  --color-primary: #9353FF;
+  --color-primary-hover: #AE7EFF;
+  --color-primary-light: #2a1a4d;
 }
 
 * {
   -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -22,21 +47,42 @@ body {
   -webkit-font-smoothing: antialiased;
   margin: 0;
   padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--color-bg);
+  color: var(--color-text);
 }
 
-/* Mobile: prevent bounce scroll */
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Mobile: prevent bounce scroll, handle keyboard */
 @media (max-width: 1023px) {
-  html, body {
+  html, body, #root {
     overscroll-behavior: none;
-    overflow: hidden;
+    position: fixed;
+    width: 100%;
     height: 100%;
   }
-  #root {
-    height: 100%;
-    overflow: hidden;
+
+  /* When virtual keyboard opens, allow content to shrink */
+  @supports (height: 100dvh) {
+    html, body, #root {
+      height: 100dvh;
+    }
   }
 }
 
+/* Desktop: normal scroll */
+@media (min-width: 1024px) {
+  html, body, #root {
+    overflow: auto;
+    position: static;
+    height: 100%;
+  }
+}
 
 /* Mobile input styling */
 .input-mobile {
@@ -44,10 +90,61 @@ body {
   @apply focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none;
 }
 
-/* Safe area for devices with gesture navigation */
-.safe-area-top {
-  padding-top: env(safe-area-inset-top, 0);
+/* Form input — Android style rounded */
+.form-input {
+  @apply w-full px-4 py-3 rounded-xl border border-gray-200 text-sm;
+  @apply focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none;
+  @apply bg-white;
 }
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0);
+
+/* ─── Shared component classes (parity with chrome-extension globals.css) ─── */
+@layer components {
+  .card {
+    @apply bg-[var(--color-bg)] border border-[var(--color-border)]
+           rounded-lg p-4 shadow-sm;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 bg-[var(--color-primary)] text-white rounded-md
+           hover:bg-[var(--color-primary-hover)] transition-colors
+           text-sm font-medium;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 border border-[var(--color-border)] rounded-md
+           hover:bg-[var(--color-surface)] transition-colors
+           text-sm font-medium text-[var(--color-text)];
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 rounded-md border border-[var(--color-border)]
+           bg-[var(--color-bg)] text-[var(--color-text)] text-sm
+           focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]
+           placeholder:text-[var(--color-text-secondary)];
+  }
+
+  .animate-in {
+    animation: slideIn 0.2s ease-out;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Scrollbar hide for mobile */
+@media (max-width: 1023px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
 }

@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { useAppStore } from './core/store/appStore';
 import { AppShell } from './shared/components/layout/AppShell';
 import { AuthGuard } from './features/auth/AuthGuard';
+import { PinLock } from './features/auth/PinLock';
 
 export function App() {
   const { theme, initializeApp } = useAppStore();
+  const isLocked = useAppStore((s) => s.isLocked);
 
   useEffect(() => {
     // Apply theme class to document
@@ -18,6 +20,8 @@ export function App() {
   useEffect(() => {
     initializeApp();
   }, [initializeApp]);
+
+  if (isLocked) return <PinLock />;
 
   return (
     <AuthGuard>

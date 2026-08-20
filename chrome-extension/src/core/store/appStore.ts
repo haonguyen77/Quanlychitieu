@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { FinanceData, ModuleDefinition, MenuItem, AppSettings, FieldDefinition } from '@/types';
 import { createDefaultFinanceData } from '@/core/defaults/defaultData';
-import { indexedDBService } from '@/services/indexeddb/indexedDBService';
+import { indexedDBService, LockedError } from '@/services/indexeddb/indexedDBService';
+import { cryptoService } from '@/services/crypto/cryptoService';
 import { syncService } from '@/services/sync/syncService';
 import { driveService } from '@/services/drive/driveService';
 
@@ -10,6 +11,10 @@ interface AppState {
   data: FinanceData | null;
   isLoading: boolean;
   error: string | null;
+
+  // Encryption lock
+  isLocked: boolean;
+  unlockApp: (pin: string) => Promise<boolean>;
 
   // UI State
   theme: 'light' | 'dark';
@@ -53,6 +58,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   data: null,
   isLoading: true,
   error: null,
+  isLocked: cryptoService.isLocked(),
   theme: 'light',
   activeModuleId: null,
   activeView: 'dashboard',
@@ -66,12 +72,52 @@ export const useAppStore = create<AppState>((set, get) => ({
   lastSyncAt: null,
 
   // Actions
+  unlockApp: async (pin: string) => {
+    // Case 1: This client already has a local verify token → verify against it.
+    if (cryptoService.isEnabled()) {
+      const ok = await cryptoService.verifyPin(pin);
+      if (!ok) return false;
+      set({ isLocked: false });
+      await get().initializeApp();
+      return true;
+    }
+    // Case 2: Fresh client — encryption not set locally, but Drive holds an
+    // encrypted envelope. Establish the key by decrypting it with the entered PIN.
+    try {
+      const raw = await driveService.fetchRemoteRaw();
+      if (raw && cryptoService.isEncryptedEnvelope(raw)) {
+        const data = await cryptoService.establishFromEnvelope<FinanceData>(pin, raw);
+        if (data) {
+          await indexedDBService.saveData(data); // now stored encrypted locally
+          set({ isLocked: false });
+          await get().initializeApp();
+          return true;
+        }
+      }
+    } catch { /* fall through to failure */ }
+    return false;
+  },
+
   initializeApp: async () => {
+    // If data is encrypted and no key loaded → require PIN unlock first
+    if (cryptoService.isLocked()) {
+      set({ isLocked: true, isLoading: false });
+      return;
+    }
     try {
       set({ isLoading: true, error: null });
 
       // Try to load from IndexedDB first (offline-first)
-      let data = await indexedDBService.loadData();
+      let data: FinanceData | null;
+      try {
+        data = await indexedDBService.loadData();
+      } catch (e) {
+        if (e instanceof LockedError) {
+          set({ isLocked: true, isLoading: false });
+          return;
+        }
+        throw e;
+      }
 
       if (!data) {
         // First time - create default data
@@ -510,6 +556,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (isDefaultData && driveService.token) {
         // Fresh install or empty data: try to pull from Drive
         syncService.pull().then((result) => {
+          if (result.status === 'locked') {
+            // Drive holds encrypted data this client can't read yet → require PIN.
+            set({ isLocked: true });
+            return;
+          }
           if (result.status === 'success' && result.data) {
             // Reload app state with pulled data
             set({ data: result.data, activeModuleId: result.data.settings?.defaultModuleId || result.data.modules[0]?.id || null });
@@ -518,6 +569,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       } else if (driveService.token) {
         // Existing data: do a full sync (pull + merge + push) instead of blind push
         syncService.fullSync().then((result) => {
+          if (result.status === 'locked') {
+            set({ isLocked: true });
+            return;
+          }
           if (result.status === 'success' && result.data) {
             set({ data: result.data, activeModuleId: result.data.settings?.defaultModuleId || result.data.modules[0]?.id || null });
           }

@@ -307,7 +307,7 @@ export function WineSettingsView({ onClearFilters: _onClearFilters }: Props) {
                 continue;
               }
 
-              const values: Record<string, unknown> = {
+              const values: Record<string, string | number | boolean | string[] | null> = {
                 mod_ruou_order_date: orderDate,
                 mod_ruou_customer_name: customer,
                 mod_ruou_customer_phone: phone,
@@ -836,7 +836,7 @@ export function WineSettingsView({ onClearFilters: _onClearFilters }: Props) {
               try {
                 const { driveService } = await import('@/services/drive/driveService');
                 let token = driveService.token;
-                if (!token) { token = await driveService.login(); if (!token) { showStatus('Lỗi: ' + driveService.getLastError()); useAppStore.getState().setSyncing(false); return; } const profile = await driveService.getUserProfile(); if (profile) useAppStore.getState().setAuth(profile.email, profile.avatar); }
+                if (!token) { token = await driveService.login(); if (!token) { showStatus('Lỗi: ' + (driveService.getLastError() || 'Unknown')); useAppStore.getState().setSyncing(false); return; } const profile = await driveService.getUserProfile(); if (profile) useAppStore.getState().setAuth(profile.email, profile.avatar || undefined); }
                 const result = await syncService.fullSync();
                 if (result.data) { useAppStore.getState().setData({ ...result.data, metadata: { ...result.data.metadata, lastSyncAt: new Date().toISOString() } }); }
                 showStatus(`✓ ${result.message}${result.data ? ` (${result.data.records?.length ?? 0} records)` : ''}`);
