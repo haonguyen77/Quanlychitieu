@@ -3,6 +3,7 @@ import { useAppStore } from './core/store/appStore';
 import { AppShell } from './shared/components/layout/AppShell';
 import { AuthGuard } from './features/auth/AuthGuard';
 import { PinLock } from './features/auth/PinLock';
+import { PinOnboarding } from './features/auth/PinOnboarding';
 
 export function App() {
   const { theme, initializeApp } = useAppStore();
@@ -26,6 +27,7 @@ export function App() {
   return (
     <AuthGuard>
       <AppShell />
+      <PinOnboarding />
     </AuthGuard>
   );
 }

@@ -11,6 +11,7 @@ import { NAV_COLORS } from '@/features/mobile/mobileIconMap';
 import { executeRecurringTransactions } from '@/features/mobile/recurringExecutor';
 import { MobileDialogHost } from '@/features/mobile/mobileDialog';
 import { PwaInstall } from '@/features/mobile/PwaInstall';
+import { PinOnboarding } from '@/features/mobile/PinOnboarding';
 import { Plus } from 'lucide-react';
 
 type MobileTab = 'dashboard' | 'expense' | 'add' | 'modules' | 'settings';
@@ -97,6 +98,9 @@ export function MobileShell() {
 
         {/* PWA install banner (mobile only, hidden when installed) */}
         {!showAddForm && <PwaInstall />}
+
+        {/* First-launch optional PIN setup */}
+        <PinOnboarding />
 
         {/* Global dialog host (replaces window.confirm/prompt/alert) */}
         <MobileDialogHost />

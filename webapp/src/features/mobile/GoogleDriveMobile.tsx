@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { driveService } from '@/services/drive/driveService';
 import { syncService } from '@/services/sync/syncService';
+import { cryptoService, type EncryptedEnvelope } from '@/services/crypto/cryptoService';
+import { indexedDBService } from '@/services/indexeddb/indexedDBService';
 import { useMobileNav } from './MobileNavigation';
+import { PinPromptModal } from './PinPromptModal';
 import { ArrowLeft, Cloud, CloudOff, RefreshCw, LogOut, User, Check } from 'lucide-react';
 
 /**
@@ -16,6 +19,10 @@ export function GoogleDriveMobile() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [email, setEmail] = useState(userEmail || '');
+  // PIN gate before sync: Drive must always store encrypted data.
+  const [pinPrompt, setPinPrompt] = useState<{ mode: 'create' | 'enter'; remoteEnv?: EncryptedEnvelope } | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinErr, setPinErr] = useState('');
 
   useEffect(() => {
     setIsConnected(!!driveService.token);
@@ -37,7 +44,8 @@ export function GoogleDriveMobile() {
     }
   };
 
-  const handleSync = async () => {
+  // Actual sync (runs only once a PIN key is loaded → Drive stays encrypted).
+  const doSync = async () => {
     setIsSyncing(true);
     setSyncResult(null);
     try {
@@ -47,6 +55,11 @@ export function GoogleDriveMobile() {
           setData({ ...result.data, metadata: { ...result.data.metadata, lastSyncAt: new Date().toISOString() } });
         }
         setSyncResult({ type: 'success', message: result.message });
+      } else if (result.status === 'locked') {
+        // Remote is encrypted and we still have no key → ask for PIN.
+        const raw = await driveService.fetchRemoteRaw();
+        if (raw && cryptoService.isEncryptedEnvelope(raw)) setPinPrompt({ mode: 'enter', remoteEnv: raw as EncryptedEnvelope });
+        setSyncResult({ type: 'info', message: 'Cần nhập mã PIN để giải mã dữ liệu trên Drive.' });
       } else {
         setSyncResult({ type: result.status === 'error' ? 'error' : 'info', message: result.message });
       }
@@ -54,6 +67,54 @@ export function GoogleDriveMobile() {
       setSyncResult({ type: 'error', message: String(e) });
     }
     setIsSyncing(false);
+  };
+
+  // Sync entry point — requires a PIN so Google Drive always holds encrypted data.
+  const handleSync = async () => {
+    if (cryptoService.hasKey()) { await doSync(); return; }
+    // No key loaded yet → decide create vs enter based on what Drive holds.
+    setIsSyncing(true);
+    setSyncResult(null);
+    let raw: unknown = null;
+    try { raw = await driveService.fetchRemoteRaw(); } catch { /* not connected / no file */ }
+    setIsSyncing(false);
+    if (raw && cryptoService.isEncryptedEnvelope(raw)) {
+      setPinErr('');
+      setPinPrompt({ mode: 'enter', remoteEnv: raw as EncryptedEnvelope });
+    } else if (cryptoService.isEnabled()) {
+      // Encryption enabled on this device but key not loaded (shouldn't usually happen here) → enter PIN.
+      setPinErr('');
+      setPinPrompt({ mode: 'enter' });
+    } else {
+      // No PIN anywhere → must create one so the upload is encrypted.
+      setPinErr('');
+      setPinPrompt({ mode: 'create' });
+    }
+  };
+
+  const handlePinSubmit = async (pin: string) => {
+    if (!pinPrompt) return;
+    setPinBusy(true); setPinErr('');
+    try {
+      if (pinPrompt.mode === 'create') {
+        await cryptoService.setupPin(pin);
+        if (data) await indexedDBService.saveData(data); // re-store locally encrypted
+      } else if (pinPrompt.remoteEnv) {
+        const decrypted = await cryptoService.establishFromEnvelope(pin, pinPrompt.remoteEnv);
+        if (!decrypted) { setPinBusy(false); setPinErr('Mã PIN không đúng'); return; }
+        await indexedDBService.saveData(decrypted as never);
+        setData(decrypted as never);
+      } else {
+        const ok = await cryptoService.verifyPin(pin);
+        if (!ok) { setPinBusy(false); setPinErr('Mã PIN không đúng'); return; }
+      }
+      setPinBusy(false);
+      setPinPrompt(null);
+      await doSync();
+    } catch (e) {
+      setPinBusy(false);
+      setPinErr(String(e));
+    }
   };
 
   const handleLogout = async () => {
@@ -152,8 +213,23 @@ export function GoogleDriveMobile() {
           <p className="text-[11px] text-gray-500">• Đồng bộ 2 chiều với Android App và Chrome Extension</p>
           <p className="text-[11px] text-gray-500">• Dữ liệu offline vẫn hoạt động khi không có internet</p>
           <p className="text-[11px] text-gray-500">• Đăng xuất không xóa dữ liệu đã lưu trên thiết bị</p>
+          <p className="text-[11px] text-gray-500">• Dữ liệu trên Drive được mã hóa bằng mã PIN của bạn</p>
         </div>
       </div>
+
+      {pinPrompt && (
+        <PinPromptModal
+          mode={pinPrompt.mode}
+          busy={pinBusy}
+          error={pinErr}
+          title={pinPrompt.mode === 'create' ? 'Tạo mã PIN để đồng bộ' : 'Nhập mã PIN'}
+          subtitle={pinPrompt.mode === 'create'
+            ? 'Google Drive chỉ lưu dữ liệu đã mã hóa. Đặt mã PIN để bảo mật (dùng chung cho mở khóa app).'
+            : 'Dữ liệu trên Drive đã mã hóa. Nhập đúng mã PIN để giải mã và đồng bộ.'}
+          onSubmit={handlePinSubmit}
+          onCancel={() => { setPinPrompt(null); setPinErr(''); }}
+        />
+      )}
     </div>
   );
 }
