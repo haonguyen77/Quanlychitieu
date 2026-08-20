@@ -25,8 +25,14 @@ function isIOS(): boolean {
   return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 }
 
+/** Read a prompt event that may have been captured before React mounted. */
+function getStashedPrompt(): BeforeInstallPromptEvent | null {
+  return (window as unknown as { __pwaPrompt?: BeforeInstallPromptEvent }).__pwaPrompt ?? null;
+}
+
 export function PwaInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  // Initialize from the early-captured prompt (main.tsx) so we don't miss it.
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(getStashedPrompt);
   const [installed, setInstalled] = useState(isStandalone());
   const [showIosGuide, setShowIosGuide] = useState(false);
   const [dismissed, setDismissed] = useState(() => sessionStorage.getItem('pwa_install_dismissed') === '1');
@@ -36,14 +42,20 @@ export function PwaInstall() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
+    // Fired by main.tsx when it captured the prompt before React mounted.
+    const onPwaAvailable = () => setDeferredPrompt(getStashedPrompt());
     const onInstalled = () => { setInstalled(true); setDeferredPrompt(null); };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    window.addEventListener('pwa-available', onPwaAvailable);
     window.addEventListener('appinstalled', onInstalled);
+    // In case the event landed between module load and this effect running.
+    if (!deferredPrompt) { const s = getStashedPrompt(); if (s) setDeferredPrompt(s); }
     return () => {
       window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('pwa-available', onPwaAvailable);
       window.removeEventListener('appinstalled', onInstalled);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hidden if already installed or dismissed this session
   if (installed || dismissed) return null;
@@ -59,6 +71,7 @@ export function PwaInstall() {
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') setInstalled(true);
       setDeferredPrompt(null);
+      (window as unknown as { __pwaPrompt?: BeforeInstallPromptEvent }).__pwaPrompt = undefined;
     } else if (ios) {
       setShowIosGuide(true);
     }
