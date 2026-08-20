@@ -3,6 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import '../../services/sync_service.dart';
 import '../../services/drive_service.dart';
+import '../../services/crypto_service.dart';
 
 /// Google Drive screen with both SYNC (2-way merge) and BACKUP (full DB file).
 class GoogleDriveScreen extends StatefulWidget {
@@ -29,6 +30,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
   String? _syncResult;
   String? _syncResultType; // 'success', 'error', 'info'
   List<drive.File> _backups = [];
+  bool _encEnabled = false;
 
   @override
   void initState() {
@@ -39,6 +41,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
   Future<void> _init() async {
     _user = await _googleSignIn.signInSilently();
     _lastSyncTime = await SyncService.instance.getLastSyncTimestamp();
+    _encEnabled = await CryptoService.instance.isEnabled();
     if (_user != null && DriveService.instance.isSignedIn) {
       _loadBackups();
     }
@@ -79,6 +82,11 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       return;
     }
 
+    // Ensure the encryption key is available (prompt for PIN if needed) before
+    // syncing, so we can decrypt the Drive envelope and never clobber it.
+    final unlocked = await _ensureUnlocked();
+    if (!unlocked) return;
+
     setState(() {
       _isSyncing = true;
       _syncResult = null;
@@ -96,6 +104,123 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     } finally {
       if (mounted) setState(() => _isSyncing = false);
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ENCRYPTION (PIN — cross-client E2E, same PIN as WebApp/Extension)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Ensure the encryption key is loaded before syncing.
+  /// Returns false only when a required PIN prompt is cancelled or fails.
+  Future<bool> _ensureUnlocked() async {
+    final crypto = CryptoService.instance;
+    if (crypto.hasKey()) return true;
+
+    // This device already has encryption enabled → verify PIN to load the key.
+    if (await crypto.isEnabled()) {
+      final pin = await _promptPin('Nhập mã PIN', 'Nhập mã PIN mã hóa để đồng bộ dữ liệu.');
+      if (pin == null) return false;
+      final ok = await crypto.verifyPin(pin);
+      if (!ok) { _setResult('Mã PIN không đúng', 'error'); return false; }
+      if (mounted) setState(() => _encEnabled = true);
+      return true;
+    }
+
+    // Fresh device → Drive may hold an encrypted envelope. Establish key from it.
+    if (_user != null) {
+      final raw = await SyncService.instance.fetchRemoteRaw(_user!);
+      if (raw != null && crypto.isEncryptedEnvelope(raw)) {
+        final pin = await _promptPin('Nhập mã PIN', 'Dữ liệu Google Drive đã được mã hóa. Nhập mã PIN để mở khóa.');
+        if (pin == null) return false;
+        final data = await crypto.establishFromEnvelope(pin, raw);
+        if (data == null) { _setResult('Mã PIN không đúng', 'error'); return false; }
+        if (mounted) setState(() => _encEnabled = true);
+        return true;
+      }
+    }
+    return true; // no encryption in play
+  }
+
+  Future<void> _enableEncryption() async {
+    final pin = await _promptPin('Đặt mã PIN', 'Đặt mã PIN 4-6 số. Cùng mã PIN này sẽ mở khóa dữ liệu trên WebApp và Extension.');
+    if (pin == null) return;
+    if (pin.length < 4) { _setResult('PIN tối thiểu 4 số', 'error'); return; }
+    final pin2 = await _promptPin('Xác nhận mã PIN', 'Nhập lại mã PIN để xác nhận.');
+    if (pin2 == null) return;
+    if (pin != pin2) { _setResult('PIN nhập lại không khớp', 'error'); return; }
+    await CryptoService.instance.setupPin(pin);
+    if (mounted) setState(() => _encEnabled = true);
+    _setResult('Đã bật mã hóa. Nhấn "Đồng bộ ngay" để tải dữ liệu đã mã hóa lên Google Drive.', 'success');
+  }
+
+  Future<void> _changeEncryptionPin() async {
+    final oldPin = await _promptPin('Mã PIN hiện tại', 'Nhập mã PIN hiện tại.');
+    if (oldPin == null) return;
+    final newPin = await _promptPin('Mã PIN mới', 'Nhập mã PIN mới (4-6 số).');
+    if (newPin == null) return;
+    if (newPin.length < 4) { _setResult('PIN mới tối thiểu 4 số', 'error'); return; }
+    final confirm = await _promptPin('Xác nhận mã PIN mới', 'Nhập lại mã PIN mới.');
+    if (confirm == null) return;
+    if (newPin != confirm) { _setResult('PIN nhập lại không khớp', 'error'); return; }
+    final ok = await CryptoService.instance.changePin(oldPin, newPin);
+    if (!ok) { _setResult('Mã PIN hiện tại không đúng', 'error'); return; }
+    _setResult('Đã đổi mã PIN. Nhấn "Đồng bộ ngay" để cập nhật dữ liệu trên Drive.', 'success');
+  }
+
+  Future<void> _disableEncryption() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tắt mã hóa?'),
+        content: const Text('Dữ liệu trên thiết bị này sẽ trở lại dạng thường. Dữ liệu đã mã hóa trên Google Drive sẽ bị ghi đè bằng dạng thường ở lần đồng bộ tiếp theo.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Tắt'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final pin = await _promptPin('Nhập mã PIN', 'Nhập mã PIN để tắt mã hóa.');
+    if (pin == null) return;
+    final ok = await CryptoService.instance.verifyPin(pin);
+    if (!ok) { _setResult('Mã PIN không đúng', 'error'); return; }
+    await CryptoService.instance.disable();
+    if (mounted) setState(() => _encEnabled = false);
+    _setResult('Đã tắt mã hóa trên thiết bị này.', 'info');
+  }
+
+  Future<String?> _promptPin(String title, String subtitle) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(subtitle, style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(hintText: 'Mã PIN (4-6 số)', counterText: ''),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Xác nhận')),
+        ],
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -189,6 +314,12 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
             _buildSectionHeader('ĐỒNG BỘ DỮ LIỆU'),
             const SizedBox(height: 8),
             _buildSyncCard(),
+            const SizedBox(height: 20),
+
+            // ─── SECTION: MÃ HÓA ────────────────────────────────────────────
+            _buildSectionHeader('BẢO MẬT & MÃ HÓA'),
+            const SizedBox(height: 8),
+            _buildEncryptionCard(),
             const SizedBox(height: 20),
 
             // ─── SECTION 2: SAO LƯU ─────────────────────────────────────────
@@ -305,6 +436,75 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Encryption Card ───────────────────────────────────────────────────────
+
+  Widget _buildEncryptionCard() {
+    final color = _encEnabled ? _green : const Color(0xFF6C2BD9);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(_encEnabled ? Icons.verified_user_rounded : Icons.lock_outline_rounded, size: 18, color: color),
+            const SizedBox(width: 8),
+            Text(_encEnabled ? 'Mã hóa đang BẬT' : 'Mã hóa đang TẮT',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            _encEnabled
+                ? 'Dữ liệu trên Google Drive được mã hóa AES-256. Cùng mã PIN mở khóa trên WebApp và Extension.'
+                : 'Bật mã hóa để dữ liệu trên Google Drive được mã hóa AES-256 (PBKDF2 310k). Nếu quên PIN sẽ không khôi phục được dữ liệu đã mã hóa.',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          ),
+          const SizedBox(height: 14),
+          if (!_encEnabled)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _enableEncryption,
+                icon: const Icon(Icons.lock, size: 18),
+                label: const Text('Đặt mã PIN & bật mã hóa'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: color,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            )
+          else
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _changeEncryptionPin,
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: const Text('Đổi mã PIN', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _disableEncryption,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(color: Colors.red[200]!),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text('Tắt mã hóa', style: TextStyle(fontSize: 13, color: Colors.red[400])),
+                ),
+              ),
+            ]),
         ],
       ),
     );

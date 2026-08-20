@@ -31,6 +31,7 @@ dependencies:
   googleapis: ^13.2.0
   googleapis_auth: ^1.6.0
   http: ^1.2.0
+  cryptography: ^2.7.0
 
 dev_dependencies:
   flutter_test:

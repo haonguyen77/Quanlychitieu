@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../database/database_helper.dart';
+import 'crypto_service.dart';
 
 /// Sync status enum
 enum SyncStatus { idle, syncing, success, error }
@@ -60,6 +61,12 @@ class SyncService {
     return _downloadFinanceJson(user);
   }
 
+  /// Public raw fetch (no decryption) — used by the PIN unlock flow to obtain
+  /// the encrypted envelope for establishFromEnvelope onboarding.
+  Future<Map<String, dynamic>?> fetchRemoteRaw(GoogleSignInAccount user) async {
+    return _fetchRemoteRaw(user);
+  }
+
   Future<void> setLastSyncTimestamp(String timestamp) async {
     await _setLastSyncTimestamp(timestamp);
   }
@@ -83,9 +90,25 @@ class SyncService {
       final localRecCount = (localData['records'] as List?)?.length ?? 0;
       debugPrint('[SYNC] Local export: $localRecCount records');
 
-      // Step 2: Download remote finance.json
+      // Step 2: Download remote finance.json (raw, then decrypt if needed)
       debugPrint('[SYNC] Downloading remote...');
-      final remoteData = await _downloadFinanceJson(user);
+      final crypto = CryptoService.instance;
+      final remoteRaw = await _fetchRemoteRaw(user);
+      // SAFETY: encrypted remote we can't read yet → abort (never clobber ciphertext).
+      if (remoteRaw != null &&
+          crypto.isEncryptedEnvelope(remoteRaw) &&
+          !crypto.hasKey()) {
+        _status = SyncStatus.error;
+        _lastMessage = 'Dữ liệu Drive đã mã hóa — cần nhập mã PIN để đồng bộ.';
+        _notify();
+        return _lastMessage;
+      }
+      Map<String, dynamic>? remoteData;
+      if (remoteRaw != null) {
+        remoteData = crypto.isEncryptedEnvelope(remoteRaw)
+            ? await crypto.decryptData(remoteRaw)
+            : remoteRaw;
+      }
 
       Map<String, dynamic> dataToUpload;
 
@@ -178,7 +201,18 @@ class SyncService {
       final localData = await db.exportFinanceJson();
       localData['deviceId'] = await getDeviceId();
 
-      final remoteData = await _downloadFinanceJson(user);
+      final crypto = CryptoService.instance;
+      final remoteRaw = await _fetchRemoteRaw(user);
+      // SAFETY: don't overwrite an encrypted Drive envelope with plaintext when locked.
+      if (remoteRaw != null &&
+          crypto.isEncryptedEnvelope(remoteRaw) &&
+          !crypto.hasKey()) {
+        debugPrint('[SYNC] Quick push aborted: remote is encrypted and locked');
+        return;
+      }
+      final remoteData = (remoteRaw != null && crypto.isEncryptedEnvelope(remoteRaw))
+          ? await crypto.decryptData(remoteRaw)
+          : remoteRaw;
       Map<String, dynamic> dataToUpload;
 
       if (remoteData != null) {
@@ -295,7 +329,12 @@ class SyncService {
   // GOOGLE DRIVE — download/upload finance.json
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Future<Map<String, dynamic>?> _downloadFinanceJson(GoogleSignInAccount user) async {
+  /// Fetch the remote finance file content WITHOUT decrypting.
+  /// Returns the parsed JSON (an encrypted envelope OR plaintext finance data),
+  /// or null if there is no remote file. Used to detect whether Drive holds an
+  /// encrypted envelope this client cannot read yet — so sync never clobbers
+  /// ciphertext with plaintext.
+  Future<Map<String, dynamic>?> _fetchRemoteRaw(GoogleSignInAccount user) async {
     final client = await _getAuthClient(user);
     if (client == null) return null;
 
@@ -329,6 +368,29 @@ class SyncService {
     }
   }
 
+  /// True when Drive holds an encrypted envelope this device cannot decrypt yet
+  /// (no PIN key loaded). In that state we must NOT push plaintext over it.
+  Future<bool> isRemoteLocked(GoogleSignInAccount user) async {
+    final raw = await _fetchRemoteRaw(user);
+    return raw != null &&
+        CryptoService.instance.isEncryptedEnvelope(raw) &&
+        !CryptoService.instance.hasKey();
+  }
+
+  /// Download finance.json and, if it is an encrypted envelope, decrypt it.
+  /// Returns null if there is no remote file OR if it is encrypted but this
+  /// device has no key loaded (locked) — callers guard with [isRemoteLocked].
+  Future<Map<String, dynamic>?> _downloadFinanceJson(GoogleSignInAccount user) async {
+    final raw = await _fetchRemoteRaw(user);
+    if (raw == null) return null;
+    final crypto = CryptoService.instance;
+    if (crypto.isEncryptedEnvelope(raw)) {
+      if (!crypto.hasKey()) return null; // locked
+      return await crypto.decryptData(raw);
+    }
+    return raw;
+  }
+
   Future<bool> _uploadFinanceJson(GoogleSignInAccount user, Map<String, dynamic> data) async {
     final client = await _getAuthClient(user);
     if (client == null) return false;
@@ -336,7 +398,11 @@ class SyncService {
     try {
       final driveApi = drive.DriveApi(client);
       final folderId = await _findOrCreateFolder(driveApi);
-      final content = utf8.encode(jsonEncode(data));
+      // Encrypt to an envelope when PIN encryption is enabled; else plaintext.
+      final crypto = CryptoService.instance;
+      final Map<String, dynamic> payload =
+          crypto.hasKey() ? await crypto.encryptData(data) : data;
+      final content = utf8.encode(jsonEncode(payload));
       final media = drive.Media(Stream.value(content), content.length);
 
       // Find existing file
