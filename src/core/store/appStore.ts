@@ -73,7 +73,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Actions
   unlockApp: async (pin: string) => {
-    const ok = await cryptoService.unlock(pin);
+    const ok = await cryptoService.verifyPin(pin);
     if (!ok) return false;
     set({ isLocked: false });
     await get().initializeApp();

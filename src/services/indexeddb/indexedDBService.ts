@@ -1,6 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { FinanceData } from '@/types';
-import { cryptoService, type EncryptedBlob } from '@/services/crypto/cryptoService';
+import { cryptoService, type EncryptedEnvelope } from '@/services/crypto/cryptoService';
 
 const DB_NAME = 'PersonalDataPlatform';
 const DB_VERSION = 1;
@@ -37,8 +37,8 @@ class IndexedDBService {
   async saveData(data: FinanceData): Promise<void> {
     const db = await this.getDB();
     if (cryptoService.hasKey()) {
-      const blob = await cryptoService.encryptData(data);
-      await db.put(STORE_NAME, blob, DATA_KEY);
+      const envelope = await cryptoService.encryptData(data);
+      await db.put(STORE_NAME, envelope, DATA_KEY);
     } else {
       await db.put(STORE_NAME, data, DATA_KEY);
     }
@@ -56,9 +56,9 @@ class IndexedDBService {
     const stored = await db.get(STORE_NAME, DATA_KEY);
     if (!stored) return null;
 
-    if (cryptoService.isEncryptedBlob(stored)) {
+    if (cryptoService.isEncryptedEnvelope(stored)) {
       if (!cryptoService.hasKey()) throw new LockedError();
-      return cryptoService.decryptData<FinanceData>(stored as EncryptedBlob);
+      return cryptoService.decryptData<FinanceData>(stored as EncryptedEnvelope);
     }
     return stored as FinanceData;
   }

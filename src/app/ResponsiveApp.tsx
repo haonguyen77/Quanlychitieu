@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useLayoutMode } from '@/hooks/useLayoutMode';
 import { useAppStore } from '@/core/store/appStore';
 import { DesktopShell } from '@/layouts/DesktopShell';
@@ -12,6 +13,12 @@ import { PinLock } from '@/features/mobile/PinLock';
 export function ResponsiveApp() {
   const isDesktop = useLayoutMode();
   const isLocked = useAppStore((s) => s.isLocked);
+  const theme = useAppStore((s) => s.theme);
+
+  // Apply theme class to <html> so dark-mode CSS variables + Tailwind `dark:` kick in
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
   if (isLocked) return <PinLock />;
 

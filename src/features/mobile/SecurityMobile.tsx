@@ -29,7 +29,7 @@ export function SecurityMobile() {
     if (pin !== pin2) { setErr('PIN nhập lại không khớp'); return; }
     if (!data) return;
     setBusy(true);
-    await cryptoService.enablePin(pin);
+    await cryptoService.setupPin(pin);
     await indexedDBService.saveData(data); // re-save encrypted
     setBusy(false);
     setEnabled(true);
@@ -53,9 +53,9 @@ export function SecurityMobile() {
   const handleOff = async () => {
     if (!data) return;
     setBusy(true);
-    const ok = await cryptoService.unlock(oldPin);
+    const ok = await cryptoService.verifyPin(oldPin);
     if (!ok) { setBusy(false); setErr('PIN không đúng'); return; }
-    cryptoService.disablePin();
+    cryptoService.disable();
     await indexedDBService.saveData(data); // re-save plaintext
     setBusy(false);
     setEnabled(false);
