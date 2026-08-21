@@ -6,6 +6,7 @@ import { parseCSV, importCSVToModule } from '@/services/export/exportService';
 import { exportToGoogleSheets, importFromGoogleSheets } from '@/services/sheets/sheetsService';
 import { Icon } from '@/shared/components/ui/Icon';
 import { SharedConfigSection } from './SharedConfigSection';
+import { NotificationSettingsSection } from './NotificationSettingsSection';
 import { ReminderSection } from './ReminderSection';
 import { RecurringReminderSection } from './RecurringReminderSection';
 import { SecuritySection } from './SecuritySection';
@@ -147,6 +148,9 @@ export function SettingsView() {
       </div>
 
       <div className="p-6 max-w-2xl space-y-5">
+        {/* Notification Settings */}
+        <NotificationSettingsSection />
+
         {/* Reminder */}
         <ReminderSection />
 

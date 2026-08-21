@@ -1,5 +1,6 @@
 import { useAppStore } from '@/core/store/appStore';
 import { Icon } from '@/shared/components/ui/Icon';
+import { NotificationCenter } from '@/shared/components/notifications/NotificationCenter';
 import type { MenuItem } from '@/types';
 
 export function Sidebar() {
@@ -87,6 +88,7 @@ export function Sidebar() {
             Quản lý chi tiêu
           </span>
         </div>
+        <NotificationCenter />
       </div>
 
       {/* Menu items */}

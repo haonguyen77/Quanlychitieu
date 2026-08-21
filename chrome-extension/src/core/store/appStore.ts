@@ -5,6 +5,7 @@ import { indexedDBService } from '@/services/indexeddb/indexedDBService';
 import { cryptoService } from '@/services/crypto/cryptoService';
 import { syncService } from '@/services/sync/syncService';
 import { driveService } from '@/services/drive/driveService';
+import { syncNotificationsToBackground } from '@/services/notifications/notificationBridge';
 
 interface AppState {
   // Data
@@ -542,6 +543,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeView: savedView || 'dashboard',
       });
 
+      // Sync notifications to background service worker
+      syncNotificationsToBackground(data);
+
       // Background sync: attempt pull first (for fresh installs getting data from Drive)
       // Only push if we have meaningful local data (not default empty data)
       const isDefaultData = data.records.length === 0 && data.modules.length <= 5;
@@ -595,6 +599,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ data });
     indexedDBService.saveData(data);
     syncService.schedulePush();
+    syncNotificationsToBackground(data);
   },
 
   setTheme: (theme) => {

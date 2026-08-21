@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import '../screens/settings/recurring_reminder_screen.dart';
+import 'notification_checker.dart';
 
 class NotificationService {
   NotificationService._();
@@ -27,6 +28,8 @@ class NotificationService {
   static const String _keyCreditCardEnabled = 'notification_credit_card_enabled';
   static const String _keyRecurringEnabled = 'notification_recurring_enabled';
   static const String _keyBudgetEnabled = 'notification_budget_enabled';
+  static const String _keyRentEnabled = 'notification_rent_enabled';
+  static const String _keyWarrantyEnabled = 'notification_warranty_enabled';
 
   // Notification IDs
   static const int _dailyReminderId = 1000;
@@ -80,6 +83,9 @@ class NotificationService {
       // Also auto-enable credit card and recurring reminders
       await prefs.setBool(_keyCreditCardEnabled, true);
       await prefs.setBool(_keyRecurringEnabled, true);
+      await prefs.setBool(_keyRentEnabled, true);
+      await prefs.setBool(_keyWarrantyEnabled, true);
+      await prefs.setBool(_keyBudgetEnabled, true);
     }
 
     final dailyEnabled = prefs.getBool(_keyDailyEnabled) ?? true;
@@ -99,6 +105,9 @@ class NotificationService {
 
     // Start periodic checker (guaranteed to work since show() works)
     _startPeriodicCheck();
+
+    // Run data-driven check once on init (delayed to ensure DB is ready)
+    Future.delayed(const Duration(seconds: 5), () => _runDataDrivenCheck());
   }
 
   /// Request POST_NOTIFICATIONS permission on Android 13+
@@ -164,6 +173,32 @@ class NotificationService {
         return;
       }
     }
+
+    // Data-driven notification check (runs once per hour at minute 0)
+    if (now.minute == 0) {
+      await _runDataDrivenCheck();
+    }
+  }
+
+  /// Run the data-driven notification checker.
+  /// Queries DB for credit card, rent, warranty, recurring, budget alerts.
+  Future<void> _runDataDrivenCheck() async {
+    try {
+      final notifications = await NotificationChecker.instance.checkAll();
+      for (final n in notifications) {
+        await _fireNotification(n.notificationId, n.title, n.body);
+      }
+      if (notifications.isNotEmpty) {
+        debugPrint('[NOTIF] Data-driven check fired ${notifications.length} notifications');
+      }
+    } catch (e) {
+      debugPrint('[NOTIF] Data-driven check error: $e');
+    }
+  }
+
+  /// Public method to trigger data-driven check immediately (e.g., on app start)
+  Future<void> checkDataNotifications() async {
+    await _runDataDrivenCheck();
   }
 
   Future<void> _fireNotification(int id, String title, String body) async {
@@ -268,6 +303,26 @@ class NotificationService {
   Future<void> setBudgetAlertEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyBudgetEnabled, enabled);
+  }
+
+  Future<bool> isRentReminderEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyRentEnabled) ?? true;
+  }
+
+  Future<void> setRentReminderEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyRentEnabled, enabled);
+  }
+
+  Future<bool> isWarrantyReminderEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyWarrantyEnabled) ?? true;
+  }
+
+  Future<void> setWarrantyReminderEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyWarrantyEnabled, enabled);
   }
 
   // --- Scheduling ---
