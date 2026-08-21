@@ -96,6 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!data.recurringTransactions) { (data as Record<string, unknown>).recurringTransactions = []; }
         if (!data.budgets) { (data as Record<string, unknown>).budgets = []; }
         if (!data.activityLog) { (data as Record<string, unknown>).activityLog = []; }
+        if (!(data as Record<string, unknown>).menu) { (data as Record<string, unknown>).menu = []; normalized = true; }
         for (const mod of data.modules) {
           if (!mod.fields) { mod.fields = []; normalized = true; }
           if (!mod.categories) { mod.categories = []; normalized = true; }
@@ -565,6 +566,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     if (!data.settings) { data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never }; }
     if (!data.accounts) { (data as Record<string, unknown>).accounts = []; }
+    if (!(data as Record<string, unknown>).menu) { (data as Record<string, unknown>).menu = []; }
     for (const mod of data.modules) {
       if (!mod.fields) mod.fields = [];
       if (!mod.categories) mod.categories = [];
