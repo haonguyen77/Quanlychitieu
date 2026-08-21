@@ -56,8 +56,17 @@ class IndexedDBService {
     if (!stored) return null;
 
     if (cryptoService.isEncryptedEnvelope(stored)) {
+      if (!cryptoService.isEnabled()) {
+        // Encryption disabled but stale encrypted data found — clear it.
+        await db.delete(STORE_NAME, DATA_KEY);
+        return null;
+      }
       if (!cryptoService.hasKey()) throw new LockedError();
-      return cryptoService.decryptData<FinanceData>(stored as EncryptedEnvelope);
+      try {
+        return await cryptoService.decryptData<FinanceData>(stored as EncryptedEnvelope);
+      } catch {
+        return null;
+      }
     }
     return stored as FinanceData;
   }
