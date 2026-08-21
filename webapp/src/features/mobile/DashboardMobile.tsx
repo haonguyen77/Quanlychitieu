@@ -3,6 +3,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { MobileIcon } from './MobileIcon';
 import { resolveCategoryVisual } from './mobileDataMapper';
 import { Search, SlidersHorizontal, ChevronLeft, ChevronRight, Bell, User } from 'lucide-react';
+import { NotificationBellMobile } from './NotificationMobile';
 
 type FilterPeriod = 'week' | 'month' | 'year' | 'all';
 
@@ -148,6 +149,7 @@ export function DashboardMobile() {
           <h1 className="text-xl font-bold" style={{ color: colors.navy }}>Dashboard</h1>
           <p className="text-xs text-gray-500">Tổng quan tài chính cá nhân</p>
         </div>
+        <NotificationBellMobile />
         <button className="w-9 h-9 flex items-center justify-center"><Search size={20} color={colors.navy} /></button>
         <button onClick={() => setShowFilter(!showFilter)} className="w-9 h-9 flex items-center justify-center">
           <SlidersHorizontal size={20} color={showFilter ? colors.purple : colors.navy} />

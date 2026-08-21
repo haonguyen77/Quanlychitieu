@@ -44,17 +44,30 @@ function priorityLabel(p: AppNotification['priority']): string {
   }
 }
 
+type FilterType = 'all' | AppNotification['type'];
+
+const FILTERS: { key: FilterType; label: string; icon: string }[] = [
+  { key: 'all', label: 'Tất cả', icon: '🔔' },
+  { key: 'credit_card', label: 'Thẻ', icon: '💳' },
+  { key: 'rent', label: 'Nhà trọ', icon: '🏠' },
+  { key: 'warranty', label: 'Bảo hành', icon: '🛡️' },
+  { key: 'recurring', label: 'Định kỳ', icon: '🔄' },
+  { key: 'budget', label: 'Ngân sách', icon: '💰' },
+];
+
 export function NotificationCenter() {
   const { data } = useAppStore();
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(getReadIds);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(getDismissedIds);
+  const [filter, setFilter] = useState<FilterType>('all');
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Generate notifications
   const allNotifications = generateNotifications(data);
   const notifications = allNotifications.filter(n => !dismissedIds.has(n.id));
   const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
+  const filtered = filter === 'all' ? notifications : notifications.filter(n => n.type === filter);
 
   // Close on click outside
   useEffect(() => {
@@ -133,7 +146,25 @@ export function NotificationCenter() {
 
           {/* Notification list */}
           <div className="flex-1 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {/* Filter chips */}
+            <div className="flex gap-1 px-3 py-2 overflow-x-auto border-b border-[var(--color-border)]">
+              {FILTERS.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium whitespace-nowrap border transition-colors ${
+                    filter === f.key
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-transparent text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-blue-400'
+                  }`}
+                >
+                  <span>{f.icon}</span>
+                  <span>{f.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 px-4">
                 <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-3">
                   <Check size={24} className="text-green-600 dark:text-green-400" />
@@ -144,7 +175,7 @@ export function NotificationCenter() {
               </div>
             ) : (
               <div className="divide-y divide-[var(--color-border)]">
-                {notifications.map(n => (
+                {filtered.map(n => (
                   <NotificationItem
                     key={n.id}
                     notification={n}
