@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/security_provider.dart';
 import '../../services/security_service.dart';
+import '../../services/passcode_service.dart';
 
 /// Material 3 minimal security settings screen.
 class SecuritySettingsScreen extends StatefulWidget {
@@ -33,7 +34,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
 
   Future<void> _loadSettings() async {
     final service = SecurityService.instance;
-    final pinEnabled = await service.isPinEnabled();
+    final pinEnabled = await PasscodeService.instance.isEnabled();
     final biometricEnabled = await service.isBiometricEnabled();
     final biometricAvailable = await service.isBiometricAvailable();
     final privacyMode = await service.isPrivacyMode();
@@ -86,13 +87,21 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                         if (v) {
                           final pin = await _showSetPinDialog();
                           if (pin != null) {
-                            await SecurityService.instance.setPin(pin);
-                            await SecurityService.instance.setPinEnabled(true);
+                            await PasscodeService.instance.setup(pin);
                             setState(() => _pinEnabled = true);
+                            // Refresh lock state
+                            if (mounted) context.read<SecurityProvider>().refreshLockState();
                           }
                         } else {
-                          await SecurityService.instance.setPinEnabled(false);
-                          setState(() => _pinEnabled = false);
+                          // Need current passcode to disable
+                          final current = await _promptCurrentPasscode();
+                          if (current != null) {
+                            final ok = await PasscodeService.instance.disable(current);
+                            if (ok) {
+                              setState(() => _pinEnabled = false);
+                              if (mounted) context.read<SecurityProvider>().refreshLockState();
+                            }
+                          }
                         }
                       },
                     ),
@@ -140,7 +149,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                         onTap: () async {
                           final pin = await _showSetPinDialog(isChange: true);
                           if (pin != null) {
-                            await SecurityService.instance.setPin(pin);
+                            // Old passcode was verified in dialog; just setup new
+                            await PasscodeService.instance.setup(pin);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Đã đổi Passcode'), behavior: SnackBarBehavior.floating),
@@ -302,6 +312,21 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     }
   }
 
+  Future<String?> _promptCurrentPasscode() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nhập Passcode hiện tại'),
+        content: TextField(controller: controller, obscureText: true, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(hintText: 'Passcode (4-6 số)', counterText: '')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Xác nhận')),
+        ],
+      ),
+    );
+  }
+
   Future<String?> _showSetPinDialog({bool isChange = false}) async {
     final pinController = TextEditingController();
     final confirmController = TextEditingController();
@@ -328,12 +353,12 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
               TextField(
                 controller: pinController,
                 keyboardType: TextInputType.number,
-                maxLength: 4,
+                maxLength: 6,
                 obscureText: true,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 24, letterSpacing: 8),
                 decoration: InputDecoration(
-                  hintText: '••••',
+                  hintText: '••••••',
                   counterText: '',
                   filled: true,
                   fillColor: _purpleLight.withOpacity(0.5),
@@ -345,7 +370,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
               TextField(
                 controller: confirmController,
                 keyboardType: TextInputType.number,
-                maxLength: 4,
+                maxLength: 6,
                 obscureText: true,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 24, letterSpacing: 8),
@@ -374,8 +399,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                   onPressed: () {
                     final pin = pinController.text;
                     final confirm = confirmController.text;
-                    if (pin.length != 4) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mật khẩu phải đủ 4 số'), behavior: SnackBarBehavior.floating));
+                    if (pin.length < 4 || pin.length > 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passcode phải 4-6 số'), behavior: SnackBarBehavior.floating));
                       return;
                     }
                     if (pin != confirm) {
