@@ -69,26 +69,32 @@ export function GoogleDriveMobile() {
     setIsSyncing(false);
   };
 
-  // Sync entry point — requires a PIN so Google Drive always holds encrypted data.
+  // Sync entry point — only requires PIN if encryption key is NOT loaded (first-time / key lost).
   const handleSync = async () => {
     if (cryptoService.hasKey()) { await doSync(); return; }
-    // No key loaded yet → decide create vs enter based on what Drive holds.
-    setIsSyncing(true);
-    setSyncResult(null);
+    // Key not available — need PIN to establish it.
+    if (!cryptoService.isEnabled()) {
+      // No encryption at all — must create PIN so Drive stores encrypted data.
+      setIsSyncing(true); setSyncResult(null);
+      let raw: unknown = null;
+      try { raw = await driveService.fetchRemoteRaw(); } catch {}
+      setIsSyncing(false);
+      if (raw && cryptoService.isEncryptedEnvelope(raw)) {
+        setPinErr(''); setPinPrompt({ mode: 'enter', remoteEnv: raw as EncryptedEnvelope });
+      } else {
+        setPinErr(''); setPinPrompt({ mode: 'create' });
+      }
+      return;
+    }
+    // Encryption enabled but key not loaded (key was cleared/lost) — ask PIN once.
+    setIsSyncing(true); setSyncResult(null);
     let raw: unknown = null;
-    try { raw = await driveService.fetchRemoteRaw(); } catch { /* not connected / no file */ }
+    try { raw = await driveService.fetchRemoteRaw(); } catch {}
     setIsSyncing(false);
     if (raw && cryptoService.isEncryptedEnvelope(raw)) {
-      setPinErr('');
-      setPinPrompt({ mode: 'enter', remoteEnv: raw as EncryptedEnvelope });
-    } else if (cryptoService.isEnabled()) {
-      // Encryption enabled on this device but key not loaded (shouldn't usually happen here) → enter PIN.
-      setPinErr('');
-      setPinPrompt({ mode: 'enter' });
+      setPinErr(''); setPinPrompt({ mode: 'enter', remoteEnv: raw as EncryptedEnvelope });
     } else {
-      // No PIN anywhere → must create one so the upload is encrypted.
-      setPinErr('');
-      setPinPrompt({ mode: 'create' });
+      setPinErr(''); setPinPrompt({ mode: 'enter' });
     }
   };
 

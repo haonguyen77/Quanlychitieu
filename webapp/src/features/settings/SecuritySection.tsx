@@ -1,146 +1,112 @@
 import { useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { cryptoService } from '@/services/crypto/cryptoService';
+import { passcodeService } from '@/services/passcode/passcodeService';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
-import { Lock, ShieldCheck } from 'lucide-react';
+import { Lock, ShieldCheck, KeyRound } from 'lucide-react';
 
 /**
- * SecuritySection (desktop WebApp) — PIN encryption settings (Phase 6.0 E2E).
- * Same single PIN encrypts data + locks the app. Drive stores only ciphertext.
+ * SecuritySection (desktop WebApp Settings) — 2 independent sections:
+ * 1. PIN bảo vệ dữ liệu (encryption).
+ * 2. Passcode khóa ứng dụng (app lock).
  */
 export function SecuritySection() {
   const { data } = useAppStore();
-  const [enabled, setEnabled] = useState(cryptoService.isEnabled());
-  const [mode, setMode] = useState<'none' | 'set' | 'change' | 'off'>('none');
-  const [pin, setPin] = useState('');
-  const [pin2, setPin2] = useState('');
-  const [oldPin, setOldPin] = useState('');
+  const [pinEnabled] = useState(cryptoService.isEnabled());
+  const [passcodeEnabled, setPasscodeEnabled] = useState(passcodeService.isEnabled());
+  const [mode, setMode] = useState<'none' | 'pin-set' | 'pin-change' | 'pc-set' | 'pc-change' | 'pc-off'>('none');
+  const [f1, setF1] = useState('');
+  const [f2, setF2] = useState('');
+  const [f3, setF3] = useState('');
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const reset = () => { setMode('none'); setPin(''); setPin2(''); setOldPin(''); setErr(''); };
-
-  const handleSet = async () => {
-    if (!/^\d{4,6}$/.test(pin)) { setErr('Mã PIN gồm 4-6 chữ số'); return; }
-    if (pin !== pin2) { setErr('Nhập lại PIN không khớp'); return; }
-    if (!data) return;
-    setBusy(true);
-    await cryptoService.setupPin(pin);
-    await indexedDBService.saveData(data);
-    setBusy(false);
-    setEnabled(true);
-    reset();
-    setMsg('Đã bật mã hóa. Dữ liệu trên thiết bị này và Google Drive giờ được mã hóa bằng PIN.');
-    setTimeout(() => setMsg(''), 6000);
-  };
-
-  const handleChange = async () => {
-    if (!/^\d{4,6}$/.test(pin)) { setErr('Mã PIN mới gồm 4-6 chữ số'); return; }
-    if (pin !== pin2) { setErr('Nhập lại PIN không khớp'); return; }
-    if (!data) return;
-    setBusy(true);
-    const ok = await cryptoService.changePin(oldPin, pin);
-    if (!ok) { setBusy(false); setErr('PIN cũ không đúng'); return; }
-    await indexedDBService.saveData(data);
-    setBusy(false);
-    reset();
-    setMsg('Đã đổi mã PIN.');
-    setTimeout(() => setMsg(''), 6000);
-  };
-
-  const handleOff = async () => {
-    if (!data) return;
-    setBusy(true);
-    const ok = await cryptoService.verifyPin(oldPin);
-    if (!ok) { setBusy(false); setErr('PIN không đúng'); return; }
-    cryptoService.disable();
-    await indexedDBService.saveData(data);
-    setBusy(false);
-    setEnabled(false);
-    reset();
-    setMsg('Đã tắt mã hóa. Dữ liệu trở lại dạng thường trên thiết bị này.');
-    setTimeout(() => setMsg(''), 6000);
-  };
-
-  const pinInput = (val: string, set: (v: string) => void, placeholder: string) => (
-    <input type="password" inputMode="numeric" value={val} maxLength={6}
-      onChange={(e) => { set(e.target.value.replace(/\D/g, '')); setErr(''); }}
-      placeholder={placeholder}
-      className="input-field py-2 px-3 text-sm tracking-widest w-full" />
+  const reset = () => { setMode('none'); setF1(''); setF2(''); setF3(''); setErr(''); };
+  const pinInput = (val: string, set: (v: string) => void, ph: string) => (
+    <input type="password" inputMode="numeric" value={val} maxLength={6} onChange={e => { set(e.target.value.replace(/\D/g, '')); setErr(''); }} placeholder={ph} className="input-field py-2 px-3 text-sm tracking-widest w-full" />
   );
 
+  const handlePinSet = async () => {
+    if (!/^\d{4,6}$/.test(f1)) { setErr('PIN gồm 4-6 chữ số'); return; }
+    if (f1 !== f2) { setErr('Nhập lại PIN không khớp'); return; }
+    if (!data) return;
+    setBusy(true); await cryptoService.setupPin(f1); await indexedDBService.saveData(data); setBusy(false); reset();
+    setMsg('Đã thiết lập PIN mã hóa.'); setTimeout(() => setMsg(''), 5000);
+  };
+  const handlePinChange = async () => {
+    if (!/^\d{4,6}$/.test(f2)) { setErr('PIN mới gồm 4-6 chữ số'); return; }
+    if (f2 !== f3) { setErr('Nhập lại PIN mới không khớp'); return; }
+    if (!data) return;
+    setBusy(true);
+    const ok = await cryptoService.changePin(f1, f2);
+    if (!ok) { setBusy(false); setErr('PIN hiện tại không đúng'); return; }
+    await indexedDBService.saveData(data); setBusy(false); reset();
+    setMsg('Đã đổi PIN. Nhấn Đồng bộ để cập nhật Drive.'); setTimeout(() => setMsg(''), 6000);
+  };
+  const handlePcSet = async () => {
+    if (!/^\d{4,6}$/.test(f1)) { setErr('Passcode gồm 4-6 chữ số'); return; }
+    if (f1 !== f2) { setErr('Nhập lại Passcode không khớp'); return; }
+    setBusy(true); await passcodeService.setup(f1); setBusy(false); setPasscodeEnabled(true); reset();
+    setMsg('Đã bật Passcode.'); setTimeout(() => setMsg(''), 5000);
+  };
+  const handlePcChange = async () => {
+    if (!/^\d{4,6}$/.test(f2)) { setErr('Passcode mới gồm 4-6 chữ số'); return; }
+    if (f2 !== f3) { setErr('Nhập lại Passcode không khớp'); return; }
+    setBusy(true); const ok = await passcodeService.change(f1, f2);
+    if (!ok) { setBusy(false); setErr('Passcode hiện tại không đúng'); return; }
+    setBusy(false); reset(); setMsg('Đã đổi Passcode.'); setTimeout(() => setMsg(''), 5000);
+  };
+  const handlePcOff = async () => {
+    setBusy(true); const ok = await passcodeService.disable(f1);
+    if (!ok) { setBusy(false); setErr('Passcode không đúng'); return; }
+    setBusy(false); setPasscodeEnabled(false); reset(); setMsg('Đã tắt Passcode.'); setTimeout(() => setMsg(''), 5000);
+  };
+
   return (
-    <section className="card p-5">
-      <h2 className="text-sm font-semibold text-[var(--color-text)] mb-1">Bảo mật &amp; Mã hóa</h2>
-      <p className="text-[11px] text-[var(--color-text-secondary)] mb-3">
-        Mã hóa AES-256-GCM (PBKDF2 310k). Cùng một mã PIN (4-6 số) mở khóa dữ liệu trên WebApp / App / Extension và trên Google Drive.
-        <strong> Lưu ý:</strong> nếu quên PIN, dữ liệu đã mã hóa không thể khôi phục.
-      </p>
+    <>
+      {msg && <div className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">{msg}</div>}
 
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: enabled ? '#E8F5E9' : '#F3E5F5' }}>
-          {enabled ? <ShieldCheck size={18} className="text-green-600" /> : <Lock size={18} style={{ color: '#6C2BD9' }} />}
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-medium text-[var(--color-text)]">{enabled ? 'Mã hóa đang BẬT' : 'Mã hóa đang TẮT'}</p>
-          <p className="text-[10px] text-[var(--color-text-secondary)]">{enabled ? 'Dữ liệu local + Drive được mã hóa bằng PIN' : 'Dữ liệu đang ở dạng thường'}</p>
-        </div>
-      </div>
-
-      {msg && <div className="text-xs text-green-600 mb-3">{msg}</div>}
-
-      {mode === 'none' && (
-        <div className="flex gap-3">
-          {!enabled ? (
-            <button onClick={() => setMode('set')} className="btn-primary text-sm">Đặt mã PIN</button>
-          ) : (
-            <>
-              <button onClick={() => setMode('change')} className="btn-secondary text-sm">Đổi mã PIN</button>
-              <button onClick={() => { if (window.confirm('Tắt mã hóa? Dữ liệu sẽ trở lại dạng thường.')) setMode('off'); }} className="btn-secondary text-sm text-red-500">Tắt mã hóa</button>
-            </>
-          )}
-        </div>
-      )}
-
-      {mode === 'set' && (
-        <div className="space-y-2 max-w-xs">
-          <p className="text-sm font-medium text-[var(--color-text)]">Đặt mã PIN (4-6 số)</p>
-          {pinInput(pin, setPin, 'Nhập PIN')}
-          {pinInput(pin2, setPin2, 'Nhập lại PIN')}
-          {err && <p className="text-xs text-red-500">{err}</p>}
-          <div className="flex gap-2">
-            <button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button>
-            <button onClick={handleSet} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Lưu</button>
+      {/* PIN Section */}
+      <section className="card p-5 mb-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-green-50"><ShieldCheck size={18} className="text-green-600" /></div>
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">PIN bảo vệ dữ liệu</h2>
+            <p className="text-[10px] text-[var(--color-text-secondary)]">Mã hóa dữ liệu tài chính trên Google Drive.</p>
           </div>
         </div>
-      )}
+        <p className="text-[11px] text-[var(--color-text-secondary)] mb-3">Trạng thái: <span className="font-medium">{pinEnabled ? '✓ Đã thiết lập' : '○ Chưa thiết lập'}</span></p>
+        {mode === 'none' && (
+          !pinEnabled
+            ? <button onClick={() => setMode('pin-set')} className="btn-primary text-sm">Thiết lập PIN</button>
+            : <button onClick={() => setMode('pin-change')} className="btn-secondary text-sm">Đổi PIN</button>
+        )}
+        {mode === 'pin-set' && <div className="space-y-2 max-w-xs">{pinInput(f1, setF1, 'Nhập PIN (4-6 số)')}{pinInput(f2, setF2, 'Nhập lại PIN')}{err && <p className="text-xs text-red-500">{err}</p>}<div className="flex gap-2"><button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button><button onClick={handlePinSet} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Lưu</button></div></div>}
+        {mode === 'pin-change' && <div className="space-y-2 max-w-xs">{pinInput(f1, setF1, 'PIN hiện tại')}{pinInput(f2, setF2, 'PIN mới')}{pinInput(f3, setF3, 'Nhập lại PIN mới')}{err && <p className="text-xs text-red-500">{err}</p>}<div className="flex gap-2"><button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button><button onClick={handlePinChange} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Đổi</button></div></div>}
+        <p className="text-[10px] text-[var(--color-text-secondary)] mt-3">Nếu quên PIN, dữ liệu đã mã hóa không thể khôi phục.</p>
+      </section>
 
-      {mode === 'change' && (
-        <div className="space-y-2 max-w-xs">
-          <p className="text-sm font-medium text-[var(--color-text)]">Đổi mã PIN</p>
-          {pinInput(oldPin, setOldPin, 'PIN hiện tại')}
-          {pinInput(pin, setPin, 'PIN mới')}
-          {pinInput(pin2, setPin2, 'Nhập lại PIN mới')}
-          {err && <p className="text-xs text-red-500">{err}</p>}
-          <div className="flex gap-2">
-            <button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button>
-            <button onClick={handleChange} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Đổi</button>
+      {/* Passcode Section */}
+      <section className="card p-5">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F3E5F5' }}><KeyRound size={18} style={{ color: '#6C2BD9' }} /></div>
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">Passcode khóa ứng dụng</h2>
+            <p className="text-[10px] text-[var(--color-text-secondary)]">Khóa ứng dụng khi mở. Không ảnh hưởng dữ liệu.</p>
           </div>
         </div>
-      )}
-
-      {mode === 'off' && (
-        <div className="space-y-2 max-w-xs">
-          <p className="text-sm font-medium text-[var(--color-text)]">Nhập PIN để tắt mã hóa</p>
-          {pinInput(oldPin, setOldPin, 'PIN hiện tại')}
-          {err && <p className="text-xs text-red-500">{err}</p>}
-          <div className="flex gap-2">
-            <button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button>
-            <button onClick={handleOff} disabled={busy} className="text-sm flex-1 rounded-lg bg-red-500 text-white py-2 disabled:opacity-50">Tắt mã hóa</button>
-          </div>
-        </div>
-      )}
-    </section>
+        <p className="text-[11px] text-[var(--color-text-secondary)] mb-3">Trạng thái: <span className="font-medium">{passcodeEnabled ? '● Đang bật' : '○ Tắt'}</span></p>
+        {mode === 'none' && (
+          !passcodeEnabled
+            ? <button onClick={() => setMode('pc-set')} className="btn-primary text-sm">Bật Passcode</button>
+            : <div className="flex gap-2"><button onClick={() => setMode('pc-change')} className="btn-secondary text-sm">Đổi Passcode</button><button onClick={() => setMode('pc-off')} className="btn-secondary text-sm text-red-500">Tắt</button></div>
+        )}
+        {mode === 'pc-set' && <div className="space-y-2 max-w-xs">{pinInput(f1, setF1, 'Nhập Passcode (4-6 số)')}{pinInput(f2, setF2, 'Nhập lại Passcode')}{err && <p className="text-xs text-red-500">{err}</p>}<div className="flex gap-2"><button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button><button onClick={handlePcSet} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Bật</button></div></div>}
+        {mode === 'pc-change' && <div className="space-y-2 max-w-xs">{pinInput(f1, setF1, 'Passcode hiện tại')}{pinInput(f2, setF2, 'Passcode mới')}{pinInput(f3, setF3, 'Nhập lại Passcode mới')}{err && <p className="text-xs text-red-500">{err}</p>}<div className="flex gap-2"><button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button><button onClick={handlePcChange} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Đổi</button></div></div>}
+        {mode === 'pc-off' && <div className="space-y-2 max-w-xs">{pinInput(f1, setF1, 'Nhập Passcode để tắt')}{err && <p className="text-xs text-red-500">{err}</p>}<div className="flex gap-2"><button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button><button onClick={handlePcOff} disabled={busy} className="text-sm flex-1 rounded-lg bg-red-500 text-white py-2 disabled:opacity-50">Tắt</button></div></div>}
+        <p className="text-[10px] text-[var(--color-text-secondary)] mt-3">Đổi Passcode không ảnh hưởng mã hóa dữ liệu hoặc Google Drive.</p>
+      </section>
+    </>
   );
 }

@@ -20,7 +20,7 @@ export function SettingsView() {
   const [pinBusy, setPinBusy] = useState(false);
   const [pinErr, setPinErr] = useState('');
 
-  // Ensure a PIN/key before syncing — Google Drive must always store encrypted data.
+  // Ensure a PIN/key before syncing — only prompt if key not available.
   const ensurePinThenSync = async () => {
     if (cryptoService.hasKey()) return true;
     let token = driveService.token;
