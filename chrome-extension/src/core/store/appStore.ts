@@ -100,7 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (Array.isArray((data as Record<string, unknown>).menu) && ((data as Record<string, unknown>).menu as unknown[]).length === 0 && data.modules.length > 0) {
           (data as Record<string, unknown>).menu = [
             { id: 'menu_dashboard', label: 'Dashboard', icon: 'layout-dashboard', type: 'dashboard', sortOrder: 0, isVisible: true },
-            ...data.modules.filter(m => m.isActive !== false && m.isVisible !== false).map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'receipt', type: 'module', moduleId: m.id, sortOrder: i + 1, isVisible: true })),
+            ...data.modules.filter(m => m.isActive !== false && m.isVisible !== false).map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'receipt', type: 'module', targetId: m.id, sortOrder: i + 1, isVisible: true })),
             { id: 'menu_manager', label: 'Quản lý', icon: 'database', type: 'report', sortOrder: 98, isVisible: true },
             { id: 'menu_trash', label: 'Thùng rác', icon: 'trash-2', type: 'report', sortOrder: 99, isVisible: true },
             { id: 'menu_settings', label: 'Cài đặt', icon: 'settings', type: 'settings', sortOrder: 100, isVisible: true },
@@ -580,7 +580,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (Array.isArray((data as Record<string, unknown>).menu) && ((data as Record<string, unknown>).menu as unknown[]).length === 0 && data.modules.length > 0) {
       (data as Record<string, unknown>).menu = [
         { id: 'menu_dashboard', label: 'Dashboard', icon: 'layout-dashboard', type: 'dashboard', sortOrder: 0, isVisible: true },
-        ...data.modules.filter(m => m.isActive !== false && m.isVisible !== false).map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'receipt', type: 'module', moduleId: m.id, sortOrder: i + 1, isVisible: true })),
+        ...data.modules.filter(m => m.isActive !== false && m.isVisible !== false).map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'receipt', type: 'module', targetId: m.id, sortOrder: i + 1, isVisible: true })),
         { id: 'menu_manager', label: 'Quản lý', icon: 'database', type: 'report', sortOrder: 98, isVisible: true },
         { id: 'menu_trash', label: 'Thùng rác', icon: 'trash-2', type: 'report', sortOrder: 99, isVisible: true },
         { id: 'menu_settings', label: 'Cài đặt', icon: 'settings', type: 'settings', sortOrder: 100, isVisible: true },
