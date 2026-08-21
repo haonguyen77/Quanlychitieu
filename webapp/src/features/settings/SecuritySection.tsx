@@ -27,6 +27,21 @@ export function SecuritySection() {
     <input type="password" inputMode="numeric" value={val} maxLength={6} onChange={e => { set(e.target.value.replace(/\D/g, '')); setErr(''); }} placeholder={ph} className="input-field py-2 px-3 text-sm tracking-widest w-full" />
   );
 
+  const handleResetPin = async () => {
+    const ok = window.confirm('⚠️ CẢNH BÁO: Reset PIN\n\nThao tác này sẽ XÓA TOÀN BỘ DỮ LIỆU mã hóa trên thiết bị này và trên Google Drive.\n\nSau khi reset, bạn sẽ tạo PIN mới và bắt đầu lại từ đầu.\n\nBạn có chắc chắn muốn tiếp tục?');
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await cryptoService.disable();
+      await indexedDBService.clearData();
+      try { sessionStorage.removeItem('__pdp_k'); } catch {}
+      try { localStorage.removeItem('pdp_pin_prompted'); } catch {}
+      try { const { driveService } = await import('@/services/drive/driveService'); if (driveService.token) { const file = await driveService.findFile(); if (file) await driveService.uploadFile({ version: '1.0.0', records: [], accounts: [], modules: [], lastModified: new Date().toISOString(), metadata: { totalRecords: 0 } } as never); } } catch {}
+    } catch {}
+    setBusy(false);
+    location.reload();
+  };
+
   const handlePinSet = async () => {
     if (!/^\d{4,6}$/.test(f1)) { setErr('PIN gồm 4-6 chữ số'); return; }
     if (f1 !== f2) { setErr('Nhập lại PIN không khớp'); return; }
@@ -80,7 +95,7 @@ export function SecuritySection() {
         {mode === 'none' && (
           !pinEnabled
             ? <button onClick={() => setMode('pin-set')} className="btn-primary text-sm">Thiết lập PIN</button>
-            : <button onClick={() => setMode('pin-change')} className="btn-secondary text-sm">Đổi PIN</button>
+            : <div className="flex gap-2"><button onClick={() => setMode('pin-change')} className="btn-secondary text-sm">Đổi PIN</button><button onClick={handleResetPin} className="btn-secondary text-sm text-red-500">Reset PIN</button></div>
         )}
         {mode === 'pin-set' && <div className="space-y-2 max-w-xs">{pinInput(f1, setF1, 'Nhập PIN (4-6 số)')}{pinInput(f2, setF2, 'Nhập lại PIN')}{err && <p className="text-xs text-red-500">{err}</p>}<div className="flex gap-2"><button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button><button onClick={handlePinSet} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Lưu</button></div></div>}
         {mode === 'pin-change' && <div className="space-y-2 max-w-xs">{pinInput(f1, setF1, 'PIN hiện tại')}{pinInput(f2, setF2, 'PIN mới')}{pinInput(f3, setF3, 'Nhập lại PIN mới')}{err && <p className="text-xs text-red-500">{err}</p>}<div className="flex gap-2"><button onClick={reset} className="btn-secondary text-sm flex-1">Hủy</button><button onClick={handlePinChange} disabled={busy} className="btn-primary text-sm flex-1 disabled:opacity-50">Đổi</button></div></div>}

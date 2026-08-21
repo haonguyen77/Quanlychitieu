@@ -4,6 +4,7 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import '../../services/sync_service.dart';
 import '../../services/drive_service.dart';
 import '../../services/crypto_service.dart';
+import '../../database/database_helper.dart';
 
 /// Google Drive screen with both SYNC (2-way merge) and BACKUP (full DB file).
 class GoogleDriveScreen extends StatefulWidget {
@@ -180,26 +181,33 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tắt mã hóa?'),
-        content: const Text('Dữ liệu trên thiết bị này sẽ trở lại dạng thường. Dữ liệu đã mã hóa trên Google Drive sẽ bị ghi đè bằng dạng thường ở lần đồng bộ tiếp theo.'),
+        title: const Text('⚠️ Reset PIN'),
+        content: const Text('Thao tác này sẽ XÓA TOÀN BỘ DỮ LIỆU mã hóa trên thiết bị này và trên Google Drive.\n\nSau khi reset, bạn sẽ tạo PIN mới và bắt đầu lại từ đầu.\n\nBạn có chắc chắn muốn tiếp tục?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Tắt'),
+            child: const Text('Reset PIN'),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
-    final pin = await _promptPin('Nhập mã PIN', 'Nhập mã PIN để tắt mã hóa.');
-    if (pin == null) return;
-    final ok = await CryptoService.instance.verifyPin(pin);
-    if (!ok) { _setResult('Mã PIN không đúng', 'error'); return; }
     await CryptoService.instance.disable();
+    // Clear local DB encrypted data and upload empty to Drive
+    try {
+      final db = await DatabaseHelper.instance.database;
+      await db.delete('sync_records');
+      await db.delete('records');
+    } catch (_) {}
+    if (_user != null) {
+      try {
+        await SyncService.instance.fullSync(_user!);
+      } catch (_) {}
+    }
     if (mounted) setState(() => _encEnabled = false);
-    _setResult('Đã tắt mã hóa trên thiết bị này.', 'info');
+    _setResult('Đã reset PIN. Vui lòng thiết lập PIN mới.', 'success');
   }
 
   Future<String?> _promptPin(String title, String subtitle) async {
@@ -510,7 +518,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
                     side: BorderSide(color: Colors.red[200]!),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: Text('Tắt mã hóa', style: TextStyle(fontSize: 13, color: Colors.red[400])),
+                  child: Text('Reset PIN', style: TextStyle(fontSize: 13, color: Colors.red[400])),
                 ),
               ),
             ]),

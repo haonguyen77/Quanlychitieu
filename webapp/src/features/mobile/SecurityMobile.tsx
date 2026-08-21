@@ -33,6 +33,36 @@ export function SecurityMobile() {
   );
 
   // ─── PIN handlers ───────────────────────────────────────────────────────
+  const handleResetPin = async () => {
+    const ok = window.confirm(
+      '⚠️ CẢNH BÁO: Reset PIN\n\n' +
+      'Thao tác này sẽ XÓA TOÀN BỘ DỮ LIỆU mã hóa trên thiết bị này và trên Google Drive.\n\n' +
+      'Sau khi reset, bạn sẽ tạo PIN mới và bắt đầu lại từ đầu.\n\n' +
+      'Bạn có chắc chắn muốn tiếp tục?'
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await cryptoService.disable();
+      await indexedDBService.clearData();
+      try { sessionStorage.removeItem('__pdp_k'); } catch {}
+      try { localStorage.removeItem('pdp_pin_prompted'); } catch {}
+      // Try to delete Drive file if connected
+      try {
+        const { driveService } = await import('@/services/drive/driveService');
+        if (driveService.token) {
+          const file = await driveService.findFile();
+          if (file) {
+            // Upload empty plaintext to effectively "delete" encrypted data
+            await driveService.uploadFile({ version: '1.0.0', records: [], accounts: [], modules: [], lastModified: new Date().toISOString(), metadata: { totalRecords: 0 } } as never);
+          }
+        }
+      } catch {}
+    } catch {}
+    setBusy(false);
+    location.reload();
+  };
+
   const handlePinSet = async () => {
     if (!/^\d{4,6}$/.test(f1)) { setErr('PIN gồm 4-6 chữ số'); return; }
     if (f1 !== f2) { setErr('Nhập lại PIN không khớp'); return; }
@@ -117,7 +147,10 @@ export function SecurityMobile() {
               {!pinEnabled ? (
                 <button onClick={() => setMode('pin-set')} className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ backgroundColor: '#6C2BD9' }}>Thiết lập PIN</button>
               ) : (
-                <button onClick={() => setMode('pin-change')} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700">Đổi PIN</button>
+                <>
+                  <button onClick={() => setMode('pin-change')} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700">Đổi PIN</button>
+                  <button onClick={handleResetPin} className="flex-1 py-2.5 rounded-xl border border-red-200 text-sm font-medium text-red-500">Reset PIN</button>
+                </>
               )}
             </div>
           )}
