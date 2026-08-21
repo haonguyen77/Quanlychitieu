@@ -145,7 +145,7 @@ class DriveService {
     const existingFile = await this.findFile();
     // Encrypt to envelope when PIN encryption is enabled; else plaintext.
     let content: string;
-    if (cryptoService.hasKey()) {
+    if (cryptoService.isEnabled() && cryptoService.hasKey()) {
       const envelope = await cryptoService.encryptData(data);
       content = JSON.stringify(envelope);
     } else {

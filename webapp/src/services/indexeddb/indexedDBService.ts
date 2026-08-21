@@ -36,7 +36,7 @@ class IndexedDBService {
    */
   async saveData(data: FinanceData): Promise<void> {
     const db = await this.getDB();
-    if (cryptoService.hasKey()) {
+    if (cryptoService.isEnabled() && cryptoService.hasKey()) {
       const envelope = await cryptoService.encryptData(data);
       await db.put(STORE_NAME, envelope, DATA_KEY);
     } else {
