@@ -50,11 +50,12 @@ export function SecurityMobile() {
       // Try to delete Drive file if connected
       try {
         const { driveService } = await import('@/services/drive/driveService');
+        const { createDefaultFinanceData } = await import('@/core/defaults/defaultData');
         if (driveService.token) {
           const file = await driveService.findFile();
           if (file) {
-            // Upload empty plaintext to effectively "delete" encrypted data
-            await driveService.uploadFile({ version: '1.0.0', records: [], accounts: [], modules: [], lastModified: new Date().toISOString(), metadata: { totalRecords: 0 } } as never);
+            // Upload valid default data (not empty) so other clients don't crash
+            await driveService.uploadFile(createDefaultFinanceData());
           }
         }
       } catch {}

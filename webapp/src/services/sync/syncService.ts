@@ -3,6 +3,20 @@ import { driveService } from '@/services/drive/driveService';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
 import { cryptoService } from '@/services/crypto/cryptoService';
 
+/**
+ * Validate that a finance data object has minimum required structure.
+ * Only rejects data truly unusable (missing core arrays).
+ * Settings can be migrated/defaulted by appStore — NOT a reject reason.
+ */
+export function validateFinanceData(data: unknown): data is FinanceData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  if (!Array.isArray(d.modules)) return false;
+  if (!Array.isArray(d.records)) return false;
+  if (!Array.isArray(d.accounts)) return false;
+  return true;
+}
+
 export type SyncStatus = 'idle' | 'syncing' | 'success' | 'conflict' | 'error' | 'locked';
 
 export interface SyncResult {
@@ -68,7 +82,7 @@ class SyncService {
       // Download if: no local data (fresh install) OR remote is newer
       if (!localData || remoteModified > localModified) {
         const remoteData = await driveService.downloadFile(remoteFile.id);
-        if (remoteData) {
+        if (remoteData && validateFinanceData(remoteData)) {
           await indexedDBService.saveData(remoteData);
           const recordCount = remoteData.records?.length ?? 0;
           const moduleCount = remoteData.modules?.length ?? 0;
@@ -176,7 +190,13 @@ class SyncService {
       const remoteFile = await driveService.findFile();
       let remoteData: FinanceData | null = null;
       if (remoteFile) {
-        remoteData = await driveService.downloadFile(remoteFile.id);
+        const downloaded = await driveService.downloadFile(remoteFile.id);
+        // Validate remote data has required structure (reject empty/reset payloads)
+        if (downloaded && validateFinanceData(downloaded)) {
+          remoteData = downloaded;
+        } else if (downloaded) {
+          console.warn('[SYNC] Remote finance.json invalid (missing settings/modules). Treating as empty.');
+        }
       }
 
       // Case 1: No local data (fresh install)

@@ -548,10 +548,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setData: (data) => {
-    // NOTE: Do NOT modify data here (no cleanup, no field removal).
-    // Data integrity is maintained by sync merge logic.
-    // Cleanup only runs once during initializeApp migrations.
-    set({ data });
+    // Reject invalid/incomplete data that would crash the UI.
+    if (!data || !data.modules || !data.records) {
+      console.error('[AppStore] setData rejected: data missing modules or records');
+      set({ error: 'Dữ liệu không hợp lệ (thiếu modules/records)' });
+      return;
+    }
+    // If settings missing (old format), provide defaults so UI doesn't crash.
+    if (!data.settings) {
+      data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never };
+    }
+    set({ data, error: null });
     indexedDBService.saveData(data);
     // Auto-sync to Google Drive (debounced 3s)
     syncService.schedulePush();

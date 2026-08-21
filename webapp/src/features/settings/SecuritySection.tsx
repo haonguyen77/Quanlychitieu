@@ -36,7 +36,7 @@ export function SecuritySection() {
       await indexedDBService.clearData();
       try { sessionStorage.removeItem('__pdp_k'); } catch {}
       try { localStorage.removeItem('pdp_pin_prompted'); } catch {}
-      try { const { driveService } = await import('@/services/drive/driveService'); if (driveService.token) { const file = await driveService.findFile(); if (file) await driveService.uploadFile({ version: '1.0.0', records: [], accounts: [], modules: [], lastModified: new Date().toISOString(), metadata: { totalRecords: 0 } } as never); } } catch {}
+      try { const { driveService } = await import('@/services/drive/driveService'); const { createDefaultFinanceData } = await import('@/core/defaults/defaultData'); if (driveService.token) { const file = await driveService.findFile(); if (file) await driveService.uploadFile(createDefaultFinanceData()); } } catch {}
     } catch {}
     setBusy(false);
     location.reload();
