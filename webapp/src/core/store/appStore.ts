@@ -95,11 +95,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         let normalized = false;
         if (!data.settings) { data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never }; normalized = true; }
         if (!data.metadata) { data = { ...data, metadata: { totalRecords: data.records?.length ?? 0, createdAt: new Date().toISOString() } as never }; normalized = true; }
+        if (!data.accounts) { (data as Record<string, unknown>).accounts = []; normalized = true; }
+        if (!data.recurringTransactions) { (data as Record<string, unknown>).recurringTransactions = []; }
+        if (!data.budgets) { (data as Record<string, unknown>).budgets = []; }
+        if (!data.activityLog) { (data as Record<string, unknown>).activityLog = []; }
         for (const mod of data.modules) {
           if (!mod.fields) { mod.fields = []; normalized = true; }
           if (!mod.categories) { mod.categories = []; normalized = true; }
           if (!mod.tableConfig) { mod.tableConfig = { columns: [], defaultSort: { fieldId: '', direction: 'desc' as const }, pageSize: 50 }; normalized = true; }
           else if (!mod.tableConfig.columns) { mod.tableConfig.columns = []; normalized = true; }
+          // Ensure every field has options array (prevents .filter() crash on undefined)
+          for (const field of mod.fields) {
+            if (!field.options) { field.options = []; normalized = true; }
+          }
         }
         if (normalized) {
           console.log('[NORMALIZE]', { modules: data.modules.length, fixed: true });
@@ -574,10 +582,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     // Normalize before storing
     if (!data.settings) { data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never }; }
+    if (!data.accounts) { (data as Record<string, unknown>).accounts = []; }
     for (const mod of data.modules) {
       if (!mod.fields) mod.fields = [];
       if (!mod.categories) mod.categories = [];
       if (!mod.tableConfig) mod.tableConfig = { columns: [], defaultSort: { fieldId: '', direction: 'desc' as const }, pageSize: 50 };
+      for (const field of mod.fields) { if (!field.options) field.options = []; }
     }
     set({ data, error: null });
     indexedDBService.saveData(data);
