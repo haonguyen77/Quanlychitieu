@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/security_service.dart';
+import '../services/crypto_service.dart';
 import '../utils/formatters.dart';
 
 class SecurityProvider extends ChangeNotifier {
@@ -15,10 +16,17 @@ class SecurityProvider extends ChangeNotifier {
   }
 
   Future<void> _init() async {
-    final pinEnabled = await SecurityService.instance.isPinEnabled();
+    // Single PIN: the encryption PIN (CryptoService) is also the app passcode.
+    final pinEnabled = await CryptoService.instance.isEnabled();
     _isLocked = pinEnabled;
     _isPrivacyMode = await SecurityService.instance.isPrivacyMode();
     Formatters.privacyMode = _isPrivacyMode;
+    notifyListeners();
+  }
+
+  /// Re-read lock state (e.g. after enabling/disabling PIN in settings).
+  Future<void> refreshLockState() async {
+    _isLocked = await CryptoService.instance.isEnabled() && !CryptoService.instance.hasKey();
     notifyListeners();
   }
 
@@ -49,7 +57,7 @@ class SecurityProvider extends ChangeNotifier {
   /// Call when app resumes from background.
   /// Checks if enough time has passed to auto-lock.
   Future<void> checkShouldLock(DateTime lastActive) async {
-    final pinEnabled = await SecurityService.instance.isPinEnabled();
+    final pinEnabled = await CryptoService.instance.isEnabled();
     if (!pinEnabled) return;
 
     final autoLockMinutes = await SecurityService.instance.getAutoLockMinutes();

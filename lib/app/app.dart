@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/security/pin_lock_screen.dart';
+import '../screens/security/pin_onboarding_gate.dart';
 import '../providers/security_provider.dart';
 import '../providers/theme_provider.dart';
 
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
               if (security.isLocked) {
                 return const PinLockScreen();
               }
-              return const HomeScreen();
+              return const PinOnboardingGate(child: HomeScreen());
             },
           ),
         );
