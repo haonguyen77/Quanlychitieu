@@ -88,6 +88,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         await indexedDBService.saveData(data);
       }
 
+      // ─── Normalize: ensure every module has required arrays ──────────────
+      // Data from Android/older versions may lack fields/categories/tableConfig.
+      // This MUST run BEFORE any migration code that accesses these properties.
+      {
+        let normalized = false;
+        if (!data.settings) { data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never }; normalized = true; }
+        if (!data.metadata) { data = { ...data, metadata: { totalRecords: data.records?.length ?? 0, createdAt: new Date().toISOString() } as never }; normalized = true; }
+        for (const mod of data.modules) {
+          if (!mod.fields) { mod.fields = []; normalized = true; }
+          if (!mod.categories) { mod.categories = []; normalized = true; }
+          if (!mod.tableConfig) { mod.tableConfig = { columns: [], defaultSort: { fieldId: '', direction: 'desc' as const }, pageSize: 50 }; normalized = true; }
+          else if (!mod.tableConfig.columns) { mod.tableConfig.columns = []; normalized = true; }
+        }
+        if (normalized) {
+          console.log('[NORMALIZE]', { modules: data.modules.length, fixed: true });
+        }
+      }
+
       // Data migration: ensure Chi tiêu has new fields (for existing users)
       const chiTieu = data.modules.find((m) => m.id === 'mod_chitieu');
       if (chiTieu) {
@@ -554,9 +572,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ error: 'Dữ liệu không hợp lệ (thiếu modules/records)' });
       return;
     }
-    // If settings missing (old format), provide defaults so UI doesn't crash.
-    if (!data.settings) {
-      data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never };
+    // Normalize before storing
+    if (!data.settings) { data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never }; }
+    for (const mod of data.modules) {
+      if (!mod.fields) mod.fields = [];
+      if (!mod.categories) mod.categories = [];
+      if (!mod.tableConfig) mod.tableConfig = { columns: [], defaultSort: { fieldId: '', direction: 'desc' as const }, pageSize: 50 };
     }
     set({ data, error: null });
     indexedDBService.saveData(data);
