@@ -97,6 +97,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!data.budgets) { (data as Record<string, unknown>).budgets = []; }
         if (!data.activityLog) { (data as Record<string, unknown>).activityLog = []; }
         if (!(data as Record<string, unknown>).menu) { (data as Record<string, unknown>).menu = []; normalized = true; }
+        if (Array.isArray((data as Record<string, unknown>).menu) && ((data as Record<string, unknown>).menu as unknown[]).length === 0 && data.modules.length > 0) {
+          (data as Record<string, unknown>).menu = [
+            { id: 'menu_dashboard', label: 'Dashboard', icon: 'layout-dashboard', type: 'dashboard', sortOrder: 0, isVisible: true },
+            ...data.modules.filter(m => m.isActive !== false && m.isVisible !== false).map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'receipt', type: 'module', moduleId: m.id, sortOrder: i + 1, isVisible: true })),
+            { id: 'menu_manager', label: 'Quản lý', icon: 'database', type: 'report', sortOrder: 98, isVisible: true },
+            { id: 'menu_trash', label: 'Thùng rác', icon: 'trash-2', type: 'report', sortOrder: 99, isVisible: true },
+            { id: 'menu_settings', label: 'Cài đặt', icon: 'settings', type: 'settings', sortOrder: 100, isVisible: true },
+          ];
+          normalized = true;
+        }
         for (const mod of data.modules) {
           if (!mod.fields) { mod.fields = []; normalized = true; }
           if (!mod.categories) { mod.categories = []; normalized = true; }
@@ -567,6 +577,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!data.settings) { data = { ...data, settings: { theme: 'light', language: 'vi', currency: '₫', currencyLocale: 'vi-VN', dateFormat: 'dd/MM/yyyy', firstDayOfWeek: 1, defaultModuleId: 'mod_chitieu' } as never }; }
     if (!data.accounts) { (data as Record<string, unknown>).accounts = []; }
     if (!(data as Record<string, unknown>).menu) { (data as Record<string, unknown>).menu = []; }
+    if (Array.isArray((data as Record<string, unknown>).menu) && ((data as Record<string, unknown>).menu as unknown[]).length === 0 && data.modules.length > 0) {
+      (data as Record<string, unknown>).menu = [
+        { id: 'menu_dashboard', label: 'Dashboard', icon: 'layout-dashboard', type: 'dashboard', sortOrder: 0, isVisible: true },
+        ...data.modules.filter(m => m.isActive !== false && m.isVisible !== false).map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'receipt', type: 'module', moduleId: m.id, sortOrder: i + 1, isVisible: true })),
+        { id: 'menu_manager', label: 'Quản lý', icon: 'database', type: 'report', sortOrder: 98, isVisible: true },
+        { id: 'menu_trash', label: 'Thùng rác', icon: 'trash-2', type: 'report', sortOrder: 99, isVisible: true },
+        { id: 'menu_settings', label: 'Cài đặt', icon: 'settings', type: 'settings', sortOrder: 100, isVisible: true },
+      ];
+    }
     for (const mod of data.modules) {
       if (!mod.fields) mod.fields = [];
       if (!mod.categories) mod.categories = [];
