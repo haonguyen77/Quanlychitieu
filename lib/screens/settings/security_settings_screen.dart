@@ -79,8 +79,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                   _card(child: Column(children: [
                     _switchRow(
                       icon: Icons.lock_outline,
-                      title: 'Mật khẩu PIN',
-                      subtitle: _pinEnabled ? 'Đã bật — 4 chữ số' : 'Tắt',
+                      title: 'Passcode',
+                      subtitle: _pinEnabled ? 'Đã bật — nhập 4-6 số để mở khóa app' : 'Tắt',
                       value: _pinEnabled,
                       onChanged: (v) async {
                         if (v) {
@@ -136,14 +136,14 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                       _divider(),
                       _tapRow(
                         icon: Icons.password,
-                        title: 'Đổi mật khẩu PIN',
+                        title: 'Đổi Passcode',
                         onTap: () async {
                           final pin = await _showSetPinDialog(isChange: true);
                           if (pin != null) {
                             await SecurityService.instance.setPin(pin);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Đã đổi mật khẩu PIN'), behavior: SnackBarBehavior.floating),
+                                const SnackBar(content: Text('Đã đổi Passcode'), behavior: SnackBarBehavior.floating),
                               );
                             }
                           }
@@ -322,7 +322,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                 child: const Icon(Icons.lock_outline, color: _purple, size: 28),
               ),
               const SizedBox(height: 16),
-              Text(isChange ? 'Đổi mật khẩu PIN' : 'Đặt mật khẩu PIN',
+              Text(isChange ? 'Đổi Passcode' : 'Đặt Passcode',
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _navy)),
               const SizedBox(height: 20),
               TextField(

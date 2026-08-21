@@ -101,7 +101,8 @@ async function clearKeystore(): Promise<void> {
 class CryptoService {
   private keyCache = new Map<string, CryptoKey>();
   private sessionSalt: Uint8Array | null = null;
-  private _keyReady = false; // true when a persisted key has been loaded
+  private _keyReady = false;
+  private _pin: string | null = null; // held in memory after verification for on-demand key derivation
 
   isEnabled(): boolean {
     try { return localStorage.getItem(ENABLED_KEY) === '1'; } catch { return false; }
@@ -201,16 +202,17 @@ class CryptoService {
     const saltB64 = bufToB64(salt);
     let key = this.keyCache.get(saltB64);
     if (!key) {
-      // The envelope uses a different salt than our session salt.
-      // We need to re-derive from the persisted key's raw material — but the key is non-extractable.
-      // Workaround: we temporarily hold the PIN during setupPin/verifyPin to cache keys for multiple salts.
-      // If we reach here without a cached key for this salt, we cannot decrypt.
-      throw new Error('KEY_SALT_MISMATCH');
+      if (!this._pin) throw new Error('NO_KEY');
+      key = await this.deriveKey(this._pin, salt);
     }
     const iv = b64ToBytes(env.iv);
     const ct = b64ToBytes(env.ciphertext);
-    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as unknown as BufferSource }, key, ct as unknown as BufferSource);
-    return JSON.parse(new TextDecoder().decode(pt)) as T;
+    try {
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as unknown as BufferSource }, key, ct as unknown as BufferSource);
+      return JSON.parse(new TextDecoder().decode(pt)) as T;
+    } catch {
+      throw new Error('DECRYPT_FAILED');
+    }
   }
 
   /** Decrypt using a specific PIN (for envelopes with any salt). Used during sync. */
@@ -231,11 +233,11 @@ class CryptoService {
     const token: VerifyToken = { salt: bufToB64(verifySalt), iterations: ITERATIONS, hash };
     localStorage.setItem(VERIFY_KEY, JSON.stringify(token));
     localStorage.setItem(ENABLED_KEY, '1');
-    // Derive + persist a session key
     const sessionSalt = crypto.getRandomValues(new Uint8Array(16));
     const key = await this.deriveKey(pin, sessionSalt);
     this.sessionSalt = sessionSalt;
     this._keyReady = true;
+    this._pin = pin;
     await this.persistKey(key, sessionSalt);
   }
 
@@ -246,11 +248,11 @@ class CryptoService {
       const token = JSON.parse(raw) as VerifyToken;
       const hash = await this.pbkdf2Raw(pin, b64ToBytes(token.salt));
       if (hash === token.hash) {
-        // Derive a session key + persist
         const sessionSalt = crypto.getRandomValues(new Uint8Array(16));
         const key = await this.deriveKey(pin, sessionSalt);
         this.sessionSalt = sessionSalt;
         this._keyReady = true;
+        this._pin = pin;
         await this.persistKey(key, sessionSalt);
         return true;
       }
@@ -272,11 +274,11 @@ class CryptoService {
       const hash = await this.pbkdf2Raw(pin, verifySalt);
       localStorage.setItem(VERIFY_KEY, JSON.stringify({ salt: bufToB64(verifySalt), iterations: ITERATIONS, hash }));
       localStorage.setItem(ENABLED_KEY, '1');
-      // Use a fresh session salt for future encrypts
       const sessionSalt = crypto.getRandomValues(new Uint8Array(16));
       const sessionKey = await this.deriveKey(pin, sessionSalt);
       this.sessionSalt = sessionSalt;
       this._keyReady = true;
+      this._pin = pin;
       await this.persistKey(sessionKey, sessionSalt);
       return data;
     } catch {
