@@ -27,6 +27,15 @@ export function ModuleView() {
     [data, activeModuleId]
   );
 
+  // For filter modules (no fields), use Chi tiêu module's fields for display
+  const effectiveModule = useMemo(() => {
+    if (!module || !data) return module;
+    if (module.fields && module.fields.length > 0) return module;
+    const chiTieu = data.modules.find(m => m.id === 'mod_chitieu');
+    if (!chiTieu) return module;
+    return { ...module, fields: chiTieu.fields, tableConfig: chiTieu.tableConfig, categories: chiTieu.categories };
+  }, [module, data]);
+
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DataRecord | null>(null);
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
@@ -213,13 +222,13 @@ export function ModuleView() {
       ) : (
         <>
           <ModuleHeader module={module} onAdd={handleAdd} />
-          <ModuleStats module={module} records={records} />
+          <ModuleStats module={effectiveModule || module} records={records} />
           {module.id === 'mod_vang' && <GoldStatsBar records={records} />}
           {module.id === 'mod_nhatro' && <RentSettingsBar />}
           {selectedRecordIds.size > 0 && (
             <BatchToolbar
               selectedCount={selectedRecordIds.size}
-              module={module}
+              module={effectiveModule || module}
               onDelete={handleDeleteSelected}
               onEditField={handleBatchEditField}
               onEditCategory={handleBatchEditCategory}
@@ -228,7 +237,7 @@ export function ModuleView() {
             />
           )}
           <RecordTable
-            module={module}
+            module={effectiveModule || module}
             records={records}
             onEdit={handleEdit}
             selectedIds={selectedRecordIds}

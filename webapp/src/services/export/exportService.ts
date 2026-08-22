@@ -21,7 +21,9 @@ export function exportMultiSheetCSV(data: FinanceData): void {
     );
     if (records.length === 0) continue;
 
-    const fields = mod.fields.filter((f) => f.isVisible).sort((a, b) => a.sortOrder - b.sortOrder);
+    // For filter modules (no fields), use Chi tiêu fields
+    const effectiveFields = mod.fields.length > 0 ? mod.fields : (data.modules.find(m => m.id === 'mod_chitieu')?.fields || []);
+    const fields = effectiveFields.filter((f) => f.isVisible).sort((a, b) => a.sortOrder - b.sortOrder);
     const headers = ['Ngày', ...fields.map((f) => f.fieldLabel), 'Danh mục', 'Module liên kết'];
 
     const rows = records.map((r) => {
@@ -135,6 +137,13 @@ export function importCSVToModule(
   const mod = data.modules.find((m) => m.id === moduleId);
   if (!mod) return { updatedData: data, result: { success: false, recordsImported: 0, errors: ['Module not found'] } };
 
+  // For filter modules (no fields), use Chi tiêu fields and set linkedModuleId
+  const isFilterModule = !mod.fields || mod.fields.length === 0;
+  const chiTieu = data.modules.find(m => m.id === 'mod_chitieu');
+  const effectiveFields = isFilterModule ? (chiTieu?.fields || []) : mod.fields;
+  const effectiveModuleId = isFilterModule ? 'mod_chitieu' : moduleId;
+  const linkedModuleId = isFilterModule ? moduleId : undefined;
+
   const now = new Date().toISOString();
   const newRecords: DataRecord[] = [];
   const errors: string[] = [];
@@ -146,7 +155,7 @@ export function importCSVToModule(
 
     const values: Record<string, unknown> = {};
     for (const [colIdx, fieldName] of Object.entries(columnMapping)) {
-      const field = mod.fields.find((f) => f.fieldName === fieldName);
+      const field = effectiveFields.find((f) => f.fieldName === fieldName);
       if (!field) continue;
       const cellValue = row[Number(colIdx)] || '';
       const fieldId = field.id;
@@ -161,7 +170,8 @@ export function importCSVToModule(
 
     newRecords.push({
       id: `rec_${Date.now()}_${i}`,
-      moduleId,
+      moduleId: effectiveModuleId,
+      linkedModuleId,
       values: values as DataRecord['values'],
       tags: [],
       images: [],

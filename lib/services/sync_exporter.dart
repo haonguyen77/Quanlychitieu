@@ -59,7 +59,7 @@ class SyncExporter {
       'version': '1.0.0',
       'lastModified': now,
       'deviceId': deviceId,
-      'modules': _buildModulesWithCategories(categories),
+      'modules': await _buildModulesWithCategories(categories, records),
       'accounts': accounts,
       'records': records,
     };
@@ -100,8 +100,12 @@ class SyncExporter {
     }).toList();
   }
 
-  /// Build modules array with categories nested
-  List<Map<String, dynamic>> _buildModulesWithCategories(List<Map<String, dynamic>> categories) {
+  /// Build modules array with categories nested.
+  /// Dynamically collects module IDs from app_data + records to support user-created modules.
+  Future<List<Map<String, dynamic>>> _buildModulesWithCategories(
+    List<Map<String, dynamic>> categories,
+    List<Map<String, dynamic>> records,
+  ) async {
     // Group categories by moduleId
     final Map<String, List<Map<String, dynamic>>> grouped = {};
     for (final cat in categories) {
@@ -109,11 +113,48 @@ class SyncExporter {
       grouped.putIfAbsent(modId, () => []).add(cat);
     }
 
-    // Build module entries (minimal — EXT merge engine will preserve its own module definitions)
-    final moduleIds = ['mod_chitieu', 'mod_shopee', 'mod_vang', 'mod_nhatro', 'mod_creditcard', 'mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory'];
-    return moduleIds.map((id) => {
+    // Collect all known module IDs dynamically
+    final Set<String> moduleIds = {};
+
+    // Source 1: app_data modules (synced module definitions from EXT)
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final appDataRow = await db.query('app_data', where: "key = 'modules'");
+      if (appDataRow.isNotEmpty) {
+        final value = appDataRow.first['value'] as String?;
+        if (value != null) {
+          final List<dynamic> modules = jsonDecode(value) as List<dynamic>;
+          for (final m in modules) {
+            if (m is Map<String, dynamic> && m['id'] != null) {
+              moduleIds.add(m['id'] as String);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Source 2: modules table
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final moduleRows = await db.query('modules');
+      for (final row in moduleRows) {
+        if (row['id'] != null) moduleIds.add(row['id'] as String);
+      }
+    } catch (_) {}
+
+    // Source 3: from records moduleId (catch-all for orphaned records)
+    for (final rec in records) {
+      final modId = rec['moduleId'] as String?;
+      if (modId != null && modId.isNotEmpty) moduleIds.add(modId);
+    }
+
+    // Source 4: core defaults (always include to avoid data loss)
+    moduleIds.addAll(['mod_chitieu', 'mod_shopee', 'mod_vang', 'mod_nhatro', 'mod_creditcard', 'mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory']);
+
+    // Build minimal module entries with categories
+    return moduleIds.map((id) => <String, dynamic>{
       'id': id,
-      'categories': grouped[id] ?? [],
+      'categories': grouped[id] ?? <Map<String, dynamic>>[],
     }).toList();
   }
 }

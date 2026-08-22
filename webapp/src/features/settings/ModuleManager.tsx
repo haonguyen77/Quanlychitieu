@@ -33,10 +33,17 @@ export function ModuleManager() {
       const modules = data.modules.map((m) => m.id === mod.id ? { ...m, ...mod, updatedAt: now } : m);
       setData({ ...data, modules, lastModified: now });
     } else {
-      // Create
+      // Create — check duplicate name
+      const trimmedName = (mod.name || 'Module mới').trim();
+      if (data.modules.some(m => m.name.toLowerCase() === trimmedName.toLowerCase())) {
+        if (!confirm(`Module "${trimmedName}" đã tồn tại. Vẫn tạo thêm?`)) {
+          setEditingModule(null);
+          return;
+        }
+      }
       const newModule: ModuleDefinition = {
         id: `mod_${uuidv4().slice(0, 8)}`,
-        name: mod.name || 'Module mới',
+        name: trimmedName,
         icon: mod.icon || 'box',
         color: mod.color || '#607D8B',
         description: mod.description || '',
@@ -49,16 +56,43 @@ export function ModuleManager() {
         createdAt: now,
         updatedAt: now,
       };
-      setData({ ...data, modules: [...data.modules, newModule], lastModified: now });
+      // Auto-add menu item for the new module
+      const newMenuItem = {
+        id: `menu_${newModule.id}`,
+        label: newModule.name,
+        icon: newModule.icon,
+        type: 'module' as const,
+        targetId: newModule.id,
+        sortOrder: data.menu.length > 0 ? Math.max(...data.menu.map(m => m.sortOrder)) + 1 : data.modules.length + 1,
+        isVisible: true,
+      };
+      // Insert before settings/trash items
+      const menuCopy = [...data.menu];
+      const settingsIdx = menuCopy.findIndex(m => m.type === 'settings');
+      if (settingsIdx >= 0) {
+        menuCopy.splice(settingsIdx, 0, newMenuItem);
+      } else {
+        menuCopy.push(newMenuItem);
+      }
+      setData({ ...data, modules: [...data.modules, newModule], menu: menuCopy, lastModified: now });
     }
     setEditingModule(null);
   };
 
+  const SYSTEM_MODULES = ['mod_chitieu', 'mod_shopee', 'mod_vang', 'mod_nhatro', 'mod_creditcard', 'mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory'];
+
   const deleteModule = (moduleId: string) => {
-    if (!confirm('Xóa module này? Dữ liệu liên quan sẽ bị mất!')) return;
+    if (SYSTEM_MODULES.includes(moduleId)) {
+      alert('Không thể xóa module hệ thống.');
+      return;
+    }
+    if (!confirm('Xóa module này? Giao dịch Chi tiêu đã gắn module này sẽ vẫn còn.')) return;
+    const now = new Date().toISOString();
     const modules = data.modules.filter((m) => m.id !== moduleId);
-    const records = data.records.filter((r) => r.moduleId !== moduleId);
-    setData({ ...data, modules, records, lastModified: new Date().toISOString() });
+    const menu = data.menu.filter((m) => m.targetId !== moduleId);
+    // Do NOT delete or modify records — they belong to mod_chitieu
+    // The linkedModuleId on records becomes orphaned but harmless
+    setData({ ...data, modules, menu, lastModified: now });
   };
 
   // ─── Field CRUD ───────────────────────────────────────────────

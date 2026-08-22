@@ -77,12 +77,11 @@ class _ModulesTabScreenState extends State<ModulesTabScreen> {
                   // Only show active modules in navigation
                   final activeModules = provider.modules.where((m) => m.isActive).toList();
                   if (activeModules.isEmpty) return const Center(child: Text('Tất cả module đã tắt.\nVào Cài đặt → Quản lý Module để bật lại.'));
-                  // Custom sort order
+                  // Custom sort order: use module.sortOrder, then name as tiebreaker
                   final sorted = List.of(activeModules)..sort((a, b) {
-                    const order = ['mod_chitieu', 'mod_shopee', 'mod_vang', 'mod_nhatro', 'mod_creditcard', 'mod_ruou'];
-                    final ai = order.indexOf(a.id);
-                    final bi = order.indexOf(b.id);
-                    return (ai == -1 ? 99 : ai).compareTo(bi == -1 ? 99 : bi);
+                    final orderCmp = a.sortOrder.compareTo(b.sortOrder);
+                    if (orderCmp != 0) return orderCmp;
+                    return a.name.compareTo(b.name);
                   });
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

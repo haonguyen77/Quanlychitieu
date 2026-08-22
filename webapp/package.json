@@ -1,7 +1,7 @@
 {
   "name": "qlct-webapp",
-  "version": "1.0.0",
-  "description": "Quản lý chi tiêu - Progressive Web App",
+  "version": "1.2.0",
+  "description": "Quản lý chi tiêu - Progressive Web App. Author: Hao Nguyen.",
   "type": "module",
   "scripts": {
     "dev": "vite",

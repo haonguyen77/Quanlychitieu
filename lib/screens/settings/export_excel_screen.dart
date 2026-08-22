@@ -252,7 +252,8 @@ class _ExportExcelScreenState extends State<ExportExcelScreen> {
     List<dynamic> whereArgs = [_startDate.toIso8601String(), _endDate.add(const Duration(days: 1)).toIso8601String()];
 
     if (moduleId != null) {
-      where += ' AND module_id = ?';
+      where += ' AND (module_id = ? OR linked_module_id = ?)';
+      whereArgs.add(moduleId);
       whereArgs.add(moduleId);
     }
 

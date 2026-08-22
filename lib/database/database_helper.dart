@@ -731,6 +731,68 @@ class DatabaseHelper {
             'updated_at': updatedAt,
           }, conflictAlgorithm: ConflictAlgorithm.replace);
           break;
+
+        default:
+          // Generic handler for user-created/dynamic modules
+          // Store in transactions table with best-effort field extraction
+          String title = findStr('title');
+          if (title.isEmpty) title = findStr('name');
+          if (title.isEmpty) title = findStr('order_name');
+          if (title.isEmpty) {
+            // Try first non-empty string value as title
+            for (final entry in values.entries) {
+              if (entry.value is String && (entry.value as String).isNotEmpty && !entry.key.endsWith('_note') && !entry.key.endsWith('_date')) {
+                title = entry.value as String;
+                break;
+              }
+            }
+          }
+          if (title.isEmpty) title = effectiveModule;
+
+          double amount = findNum('amount');
+          if (amount == 0) amount = findNum('total_amount');
+          if (amount == 0) amount = findNum('total');
+          if (amount == 0) amount = findNum('price');
+
+          final typeStr = findStr('type');
+          int type = 0;
+          if (typeStr == '1' || typeStr == 'sell') type = 1;
+
+          String date = findStr('date');
+          if (date.isEmpty) date = findStr('order_date');
+          if (date.isEmpty) date = createdAt.substring(0, 10);
+
+          await txn.insert('transactions', {
+            'id': id,
+            'type': type,
+            'amount': amount,
+            'title': title,
+            'note': findStr('note').isNotEmpty ? findStr('note') : null,
+            'category_id': r['categoryId'],
+            'account_id': findStr('account').isNotEmpty ? _mapAccount(findStr('account')) : null,
+            'module_id': effectiveModule,
+            'linked_module_id': linkedModuleId,
+            'date': date,
+            'tags': findStr('tags').isNotEmpty ? findStr('tags') : null,
+            'is_deleted': isDeleted ? 1 : 0,
+            'deleted_at': r['deletedAt'],
+            'created_at': createdAt,
+            'updated_at': updatedAt,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+          // Also ensure module exists in modules table
+          await txn.insert('modules', {
+            'id': effectiveModule,
+            'name': effectiveModule.replaceFirst('mod_', '').replaceAll('_', ' '),
+            'icon': 'other',
+            'color': '#607D8B',
+            'sort_order': 99,
+            'is_default': 0,
+            'is_active': 1,
+            'created_at': createdAt,
+            'updated_at': updatedAt,
+          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+          break;
       }
       } catch (e) {
         debugPrint('[IMPORT-LEGACY] Error importing record $id (module=$effectiveModule): $e');

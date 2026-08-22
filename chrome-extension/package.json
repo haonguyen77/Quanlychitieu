@@ -1,7 +1,7 @@
 {
   "name": "personal-data-platform",
-  "version": "1.0.0",
-  "description": "Chrome Extension - Personal Data Management Platform (Metadata-Driven)",
+  "version": "1.2.0",
+  "description": "Chrome Extension - Personal Data Management Platform (Metadata-Driven). Author: Hao Nguyen.",
   "type": "module",
   "scripts": {
     "dev": "vite",

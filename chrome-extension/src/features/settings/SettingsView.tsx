@@ -272,49 +272,38 @@ export function SettingsView() {
               const XLSX = (window as any).__xlsx || import('xlsx').then(m => { (window as any).__xlsx = m; return m; });
               Promise.resolve(XLSX).then((xlsx: any) => {
                 const wb = xlsx.utils.book_new();
-                const sheetDefs = [
-                  { name: 'Chi tiêu', moduleId: 'mod_chitieu', columns: [
-                    { key: 'mod_chitieu_date', label: 'Ngày' }, { key: 'mod_chitieu_title', label: 'Tên giao dịch' },
-                    { key: 'mod_chitieu_amount', label: 'Số tiền', type: 'n' }, { key: 'mod_chitieu_type', label: 'Loại' },
-                    { key: 'mod_chitieu_account', label: 'Tài khoản' }, { key: 'mod_chitieu_beneficiary', label: 'Người nhận' },
-                    { key: 'mod_chitieu_quantity', label: 'Số lượng', type: 'n' }, { key: 'mod_chitieu_warranty_months', label: 'Tháng BH', type: 'n' },
-                    { key: 'mod_chitieu_warranty_date', label: 'Hạn BH' }, { key: 'mod_chitieu_note', label: 'Ghi chú' },
-                  ]},
-                  { name: 'Shopee', moduleId: 'mod_shopee', columns: [
-                    { key: 'mod_shopee_date', label: 'Ngày' }, { key: 'mod_shopee_order_name', label: 'Tên đơn' },
-                    { key: 'mod_shopee_amount', label: 'Số tiền', type: 'n' }, { key: 'mod_shopee_status', label: 'Trạng thái' },
-                    { key: 'mod_shopee_category', label: 'Phân loại' }, { key: 'mod_shopee_note', label: 'Ghi chú' },
-                  ]},
-                  { name: 'Vàng', moduleId: 'mod_vang', columns: [
-                    { key: 'mod_vang_date', label: 'Ngày' }, { key: 'mod_vang_type', label: 'Loại GD' },
-                    { key: 'mod_vang_gold_type', label: 'Loại vàng' }, { key: 'mod_vang_quantity', label: 'Số lượng', type: 'n' },
-                    { key: 'mod_vang_price_per_unit', label: 'Giá/chỉ', type: 'n' }, { key: 'mod_vang_total_amount', label: 'Tổng tiền', type: 'n' },
-                    { key: 'mod_vang_note', label: 'Ghi chú' },
-                  ]},
-                  { name: 'Nhà trọ', moduleId: 'mod_nhatro', columns: [
-                    { key: 'mod_nhatro_month', label: 'Tháng' }, { key: 'mod_nhatro_room_name', label: 'Phòng' },
-                    { key: 'mod_nhatro_tenant_name', label: 'Người thuê' }, { key: 'mod_nhatro_rent_amount', label: 'Tiền phòng', type: 'n' },
-                    { key: 'mod_nhatro_electricity', label: 'Điện', type: 'n' }, { key: 'mod_nhatro_water', label: 'Nước', type: 'n' },
-                    { key: 'mod_nhatro_internet', label: 'Internet', type: 'n' }, { key: 'mod_nhatro_total', label: 'Tổng', type: 'n' },
-                    { key: 'mod_nhatro_status', label: 'Trạng thái' }, { key: 'mod_nhatro_note', label: 'Ghi chú' },
-                  ]},
-                  { name: 'Thẻ tín dụng', moduleId: 'mod_creditcard', columns: [
-                    { key: 'mod_creditcard_card_name', label: 'Tên thẻ' }, { key: 'mod_creditcard_bank_name', label: 'Ngân hàng' },
-                    { key: 'mod_creditcard_last4', label: '4 số cuối' }, { key: 'mod_creditcard_credit_limit', label: 'Hạn mức', type: 'n' },
-                    { key: 'mod_creditcard_is_installment', label: 'Trả góp' }, { key: 'mod_creditcard_installment_months', label: 'Số tháng', type: 'n' },
-                    { key: 'mod_creditcard_installment_amount', label: 'Tiền/tháng', type: 'n' }, { key: 'mod_creditcard_installment_remaining', label: 'Còn lại', type: 'n' },
-                    { key: 'mod_creditcard_note', label: 'Ghi chú' },
-                  ]},
-                ];
-                for (const sheet of sheetDefs) {
-                  const records = data.records.filter((r: any) => r.moduleId === sheet.moduleId && !r.isDeleted);
-                  const headers = sheet.columns.map((c) => c.label);
-                  const rows = records.map((r: any) => sheet.columns.map((c) => { const v = r.values[c.key]; if (v == null) return ''; if (c.type === 'n') return Number(v) || 0; return String(v); }));
+                // Dynamic sheet generation from all active modules
+                const chiTieuModule = data.modules.find((m: any) => m.id === 'mod_chitieu');
+                for (const mod of data.modules.filter((m: any) => m.isActive && m.isVisible !== false)) {
+                  // Get records for this module (by moduleId OR linkedModuleId)
+                  const records = data.records.filter((r: any) =>
+                    (r.moduleId === mod.id || r.linkedModuleId === mod.id) && !r.isDeleted
+                  );
+                  if (records.length === 0) continue;
+
+                  // For filter modules (no fields), use Chi tiêu fields
+                  const effectiveFields = (mod.fields && mod.fields.length > 0) ? mod.fields : (chiTieuModule?.fields || []);
+                  const visibleFields = effectiveFields.filter((f: any) => f.isVisible).sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+
+                  const headers = visibleFields.map((f: any) => f.fieldLabel);
+                  const rows = records.map((r: any) => visibleFields.map((f: any) => {
+                    const v = r.values[f.id] ?? r.values[`${mod.id}_${f.fieldName}`] ?? r.values[`mod_chitieu_${f.fieldName}`] ?? '';
+                    if (f.fieldType === 'money' || f.fieldType === 'number') return Number(v) || 0;
+                    // Resolve dropdown labels
+                    if (f.fieldType === 'dropdown' && f.options) {
+                      const opt = f.options.find((o: any) => o.value === String(v));
+                      return opt?.label || String(v);
+                    }
+                    return String(v);
+                  }));
+
                   const ws = xlsx.utils.aoa_to_sheet([headers, ...rows]);
                   ws['!freeze'] = { xSplit: 0, ySplit: 1 };
                   if (ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] };
                   ws['!cols'] = headers.map((h: string, i: number) => { let max = h.length; for (const row of rows) { const c = String(row[i] ?? ''); if (c.length > max) max = c.length; } return { wch: Math.min(Math.max(max + 2, 8), 40) }; });
-                  xlsx.utils.book_append_sheet(wb, ws, sheet.name);
+                  // Sheet name max 31 chars, no special chars
+                  const sheetName = mod.name.slice(0, 31).replace(/[[\]*?/\\]/g, '');
+                  xlsx.utils.book_append_sheet(wb, ws, sheetName);
                 }
                 const wbout = xlsx.write(wb, { bookType: 'xlsx', type: 'array' });
                 const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -336,8 +325,34 @@ export function SettingsView() {
                 const mapping: Record<number, string> = {};
                 const headerMap: Record<string, string> = { 'ngày': 'date', 'tên giao dịch': 'title', 'số tiền': 'amount', 'loại': 'type', 'tài khoản': 'account', 'ghi chú': 'note' };
                 rows[0].forEach((h, i) => { const m = headerMap[h.toLowerCase()]; if (m) mapping[i] = m; });
-                const { updatedData, result } = importCSVToModule(data, 'mod_chitieu', rows, mapping);
-                if (result.success) { setData(updatedData); alert(`Đã import ${result.recordsImported} bản ghi`); }
+                // Try to detect target module from file name or default to mod_chitieu
+                const fileName = file.name.toLowerCase().replace(/\.(csv|xlsx)$/, '').trim();
+                let targetModule = data.modules.find((m: any) => m.name.toLowerCase() === fileName);
+                let workingData = data;
+                // If module not found and name isn't "chi tiêu", auto-create filter module
+                if (!targetModule && fileName && fileName !== 'chi tiêu' && fileName !== 'tất cả') {
+                  const newModId = `mod_${Date.now().toString(36)}`;
+                  const newMod = {
+                    id: newModId,
+                    name: fileName.charAt(0).toUpperCase() + fileName.slice(1),
+                    icon: 'box',
+                    color: '#607D8B',
+                    sortOrder: workingData.modules.length,
+                    isDefault: false,
+                    isActive: true,
+                    isVisible: true,
+                    fields: [],
+                    categories: [],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  };
+                  const newMenuItem = { id: `menu_${newModId}`, label: newMod.name, icon: 'box', type: 'module' as const, targetId: newModId, sortOrder: workingData.menu.length, isVisible: true };
+                  workingData = { ...workingData, modules: [...workingData.modules, newMod as any], menu: [...workingData.menu, newMenuItem] };
+                  targetModule = newMod as any;
+                }
+                const targetModuleId = targetModule?.id || 'mod_chitieu';
+                const { updatedData, result } = importCSVToModule(workingData, targetModuleId, rows, mapping);
+                if (result.success) { setData(updatedData); alert(`Đã import ${result.recordsImported} bản ghi vào ${targetModule?.name || 'Chi tiêu'}`); }
                 else alert(`Lỗi: ${result.errors.join(', ')}`);
               };
               input.click();

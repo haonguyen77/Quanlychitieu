@@ -230,6 +230,33 @@ export function DashboardView() {
   // ─── Top 5 categories ─────────────────────────────────────────────────────
   const top5Categories = useMemo(() => categoryBreakdown.slice(0, 5), [categoryBreakdown]);
 
+  // ─── Module Breakdown (per linkedModuleId) ────────────────────────────────
+  const moduleBreakdown = useMemo(() => {
+    if (!data) return [];
+    const modMap = new Map<string, number>();
+    for (const r of data.records) {
+      if (r.moduleId !== 'mod_chitieu' || r.isDeleted) continue;
+      const dk = Object.keys(r.values).find((x) => x.endsWith('_date'));
+      const d = dk ? String(r.values[dk] ?? '') : '';
+      if (dateFrom && d < dateFrom) continue;
+      if (dateTo && d > dateTo) continue;
+      const tk = Object.keys(r.values).find((x) => x.endsWith('_type'));
+      if (tk && r.values[tk] === '1') continue; // skip income
+      const ak = Object.keys(r.values).find((x) => x.endsWith('_amount'));
+      const amt = ak ? Math.abs(Number(r.values[ak] ?? 0)) : 0;
+      const modId = r.linkedModuleId || '_none';
+      modMap.set(modId, (modMap.get(modId) ?? 0) + amt);
+    }
+    const total = Array.from(modMap.values()).reduce((s, v) => s + v, 0);
+    return Array.from(modMap.entries())
+      .map(([id, amt]) => {
+        const mod = id === '_none' ? null : data.modules.find(m => m.id === id);
+        return { id, name: mod?.name || 'Chi tiêu chung', color: mod?.color || '#607D8B', amount: amt, percent: total > 0 ? (amt / total) * 100 : 0 };
+      })
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8);
+  }, [data, dateFrom, dateTo]);
+
   // ─── Comparison ───────────────────────────────────────────────────────────
   const comparison = useMemo(() => {
     if (!data) return { total1: 0, total2: 0, diff: 0, diffPct: 0, cats: [] as { id: string; name: string; color: string; amt1: number; amt2: number }[] };
@@ -483,6 +510,27 @@ export function DashboardView() {
               {top5Categories.length === 0 && <p className="text-xs text-center py-4 text-[var(--color-text-secondary)]">Chua co du lieu</p>}
             </div>
           </div>
+
+          {/* Module Breakdown */}
+          {moduleBreakdown.length > 1 && (
+            <div className="card p-4">
+              <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">Chi tiêu theo module</h3>
+              <div className="space-y-2">
+                {moduleBreakdown.map((mod, i) => {
+                  const maxAmt = moduleBreakdown[0]?.amount || 1;
+                  return (
+                    <div key={mod.id} className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: mod.color }}>{i + 1}</span>
+                      <span className="text-xs text-[var(--color-text)] w-20 truncate">{mod.name}</span>
+                      <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(mod.amount / maxAmt) * 100}%`, backgroundColor: mod.color }} /></div>
+                      <span className="text-xs tabular-nums text-[var(--color-text)]">{fmtShort(mod.amount)}</span>
+                      <span className="text-[10px] text-[var(--color-text-secondary)] w-8 text-right">{mod.percent.toFixed(0)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Yearly Chart */}
           <div className="card p-4">

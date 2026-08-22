@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/module_provider.dart';
+import '../../utils/icon_helper.dart';
+import '../../utils/color_helper.dart';
 import '../categories/categories_screen.dart';
 import '../accounts/accounts_screen.dart';
 import '../transactions/trash_screen.dart';
@@ -11,6 +13,7 @@ import 'backup_restore_screen.dart';
 import 'import_screen.dart';
 import 'export_excel_screen.dart';
 import 'security_settings_screen.dart';
+import 'module_manager_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -91,6 +94,27 @@ class SettingsScreen extends StatelessWidget {
               _buildSectionTitle('2. QUẢN LÝ MODULE'),
               const SizedBox(height: 8),
               _buildModuleSection(context),
+              const SizedBox(height: 8),
+              // Module Manager link
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModuleManagerScreen())),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings_applications, size: 18, color: _green),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text('Quản lý Module nâng cao', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+                      Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
+                    ],
+                  ),
+                ),
+              ),
 
               const SizedBox(height: 20),
 
@@ -305,8 +329,8 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildModuleToggle(BuildContext context, dynamic module, ModuleProvider provider) {
-    final iconData = _getModuleIcon(module.id);
-    final color = _getModuleColor(module.id);
+    final iconData = _getModuleIcon(module.id, module.icon);
+    final color = _getModuleColor(module.id, module.color);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -341,7 +365,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  IconData _getModuleIcon(String moduleId) {
+  IconData _getModuleIcon(String moduleId, [String? iconName]) {
     switch (moduleId) {
       case 'mod_chitieu': return Icons.shopping_cart_rounded;
       case 'mod_shopee': return Icons.shopping_bag_rounded;
@@ -352,11 +376,11 @@ class SettingsScreen extends StatelessWidget {
       case 'mod_ruou_products': return Icons.inventory_2_rounded;
       case 'mod_ruou_customers': return Icons.people_rounded;
       case 'mod_ruou_inventory': return Icons.warehouse_rounded;
-      default: return Icons.extension_rounded;
+      default: return IconHelper.getIcon(iconName ?? 'other');
     }
   }
 
-  Color _getModuleColor(String moduleId) {
+  Color _getModuleColor(String moduleId, [String? colorHex]) {
     switch (moduleId) {
       case 'mod_chitieu': return _green;
       case 'mod_shopee': return const Color(0xFFEE4D2D);
@@ -367,7 +391,7 @@ class SettingsScreen extends StatelessWidget {
       case 'mod_ruou_products': return const Color(0xFF8E24AA);
       case 'mod_ruou_customers': return const Color(0xFF5C6BC0);
       case 'mod_ruou_inventory': return const Color(0xFF00897B);
-      default: return Colors.grey;
+      default: return ColorHelper.getColor(colorHex ?? '#607D8B');
     }
   }
 
