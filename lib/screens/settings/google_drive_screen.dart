@@ -121,19 +121,28 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     if (await crypto.isEnabled()) {
       final pin = await _promptPin('Nhập mã PIN', 'Nhập mã PIN mã hóa để đồng bộ dữ liệu.');
       if (pin == null) return false;
-      // Try local verify first (fast), then fallback to envelope decrypt (proof of correctness)
-      var ok = await crypto.verifyPin(pin);
-      if (!ok && _user != null) {
-        // Local hash may be stale — try actual envelope decrypt as proof
+
+      // 1) Verify against the LOCAL token first — offline & deterministic, so a
+      //    transient network/token error can never be mistaken for a wrong PIN.
+      if (await crypto.verifyPin(pin)) {
+        if (mounted) setState(() => _encEnabled = true);
+        return true;
+      }
+
+      // 2) Local token failed (e.g. PIN changed on another device). Try the
+      //    remote envelope as the authoritative source and refresh the token.
+      if (_user != null) {
         final raw = await SyncService.instance.fetchRemoteRaw(_user!);
         if (raw != null && crypto.isEncryptedEnvelope(raw)) {
           final data = await crypto.establishFromEnvelope(pin, raw);
-          ok = data != null;
+          if (data != null) {
+            if (mounted) setState(() => _encEnabled = true);
+            return true;
+          }
         }
       }
-      if (!ok) { _setResult('Mã PIN không đúng', 'error'); return false; }
-      if (mounted) setState(() => _encEnabled = true);
-      return true;
+      _setResult('Mã PIN không đúng', 'error');
+      return false;
     }
 
     // Fresh device → Drive may hold an encrypted envelope. Establish key from it.

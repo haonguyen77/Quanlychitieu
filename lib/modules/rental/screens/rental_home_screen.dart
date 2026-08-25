@@ -24,7 +24,7 @@ class _RentalHomeScreenState extends State<RentalHomeScreen> {
   static const _lightBg = Color(0xFFF0FDF4);
 
   // ─── State ──────────────────────────────────────────────────────────────
-  _FilterPeriod _currentPeriod = _FilterPeriod.year;
+  _FilterPeriod _currentPeriod = _FilterPeriod.all;
   DateTime _referenceDate = DateTime.now();
   DateTime? _customFromDate;
   DateTime? _customToDate;

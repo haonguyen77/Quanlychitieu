@@ -14,23 +14,13 @@ class CategoriesScreen extends StatefulWidget {
   State<CategoriesScreen> createState() => _CategoriesScreenState();
 }
 
-class _CategoriesScreenState extends State<CategoriesScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
+class _CategoriesScreenState extends State<CategoriesScreen> {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CategoryProvider>().loadCategories();
     });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   @override
@@ -38,13 +28,6 @@ class _CategoriesScreenState extends State<CategoriesScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Danh mục'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Chi tiêu'),
-            Tab(text: 'Thu nhập'),
-          ],
-        ),
       ),
       body: Consumer<CategoryProvider>(
         builder: (context, provider, child) {
@@ -52,30 +35,18 @@ class _CategoriesScreenState extends State<CategoriesScreen>
             return const Center(child: CircularProgressIndicator());
           }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _CategoryList(
-                categories: provider.expenseCategories,
-                type: AppConstants.typeExpense,
-              ),
-              _CategoryList(
-                categories: provider.incomeCategories,
-                type: AppConstants.typeIncome,
-              ),
-            ],
+          return _CategoryList(
+            categories: provider.expenseCategories,
+            type: AppConstants.typeExpense,
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final type = _tabController.index == 0
-              ? AppConstants.typeExpense
-              : AppConstants.typeIncome;
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => AddCategoryScreen(type: type),
+              builder: (context) => const AddCategoryScreen(type: AppConstants.typeExpense),
             ),
           );
         },

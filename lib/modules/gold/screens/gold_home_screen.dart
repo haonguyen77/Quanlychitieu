@@ -26,7 +26,7 @@ class _GoldHomeScreenState extends State<GoldHomeScreen> {
   static const _lightBg = Color(0xFFFFFBEB);
 
   // ─── State ──────────────────────────────────────────────────────────────
-  _FilterPeriod _currentPeriod = _FilterPeriod.year;
+  _FilterPeriod _currentPeriod = _FilterPeriod.all;
   DateTime _referenceDate = DateTime.now();
   DateTime? _customFromDate;
   DateTime? _customToDate;

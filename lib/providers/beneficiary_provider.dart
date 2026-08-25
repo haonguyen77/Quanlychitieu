@@ -16,9 +16,16 @@ class BeneficiaryProvider extends ChangeNotifier {
   List<Beneficiary> get activeBeneficiaries => _activeBeneficiaries;
   bool get isLoading => _isLoading;
 
+  /// Standard default recipients (previously hardcoded in Add-expense).
+  static const _defaultNames = ['Ba', 'Mẹ', 'Vợ', 'Con', 'Anh', 'Chị', 'Chồng', 'Mình'];
+
   Future<void> loadBeneficiaries() async {
     _isLoading = true;
     notifyListeners();
+
+    // Seed the standard defaults once so the config list and the Add-expense
+    // dropdown share the same options.
+    await _seedDefaults();
 
     // Auto-sync beneficiaries from transactions on first load
     await _syncFromTransactions();
@@ -28,6 +35,32 @@ class BeneficiaryProvider extends ChangeNotifier {
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  /// Insert the standard default recipient names if they don't already exist.
+  Future<void> _seedDefaults() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final existing = await db.rawQuery('SELECT name FROM beneficiaries');
+      final existingNames =
+          existing.map((r) => (r['name'] as String).toLowerCase()).toSet();
+      final now = DateTime.now().toIso8601String();
+      for (int i = 0; i < _defaultNames.length; i++) {
+        final name = _defaultNames[i];
+        if (existingNames.contains(name.toLowerCase())) continue;
+        await db.insert('beneficiaries', {
+          'id': _uuid.v4(),
+          'name': name,
+          'is_active': 1,
+          'sort_order': i,
+          'created_at': now,
+          'updated_at': now,
+        });
+        existingNames.add(name.toLowerCase());
+      }
+    } catch (e) {
+      debugPrint('[BeneficiaryProvider] Seed defaults error: $e');
+    }
   }
 
   /// Sync beneficiary names from transactions table into beneficiaries table.

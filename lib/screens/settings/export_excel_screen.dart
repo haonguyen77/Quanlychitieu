@@ -22,9 +22,14 @@ class ExportExcelScreen extends StatefulWidget {
 
 class _ExportExcelScreenState extends State<ExportExcelScreen> {
   bool _isExporting = false;
+  bool _exportAll = false;
   String? _lastExportPath;
   DateTime _startDate = DateTime(DateTime.now().year, 1, 1);
   DateTime _endDate = DateTime.now();
+
+  // Effective range used by the queries. When "All" is on, cover everything.
+  DateTime get _effStart => _exportAll ? DateTime(1970, 1, 1) : _startDate;
+  DateTime get _effEnd => _exportAll ? DateTime(2999, 12, 31) : _endDate;
 
   @override
   Widget build(BuildContext context) {
@@ -42,32 +47,44 @@ class _ExportExcelScreenState extends State<ExportExcelScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Khoảng thời gian', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('Khoảng thời gian', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                        ),
+                        // "All" toggle — export every record regardless of date.
+                        FilterChip(
+                          label: const Text('All'),
+                          selected: _exportAll,
+                          onSelected: (v) => setState(() => _exportAll = v),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: InkWell(
-                            onTap: () async {
+                            onTap: _exportAll ? null : () async {
                               final picked = await showDatePicker(context: context, initialDate: _startDate, firstDate: DateTime(2020), lastDate: DateTime.now());
                               if (picked != null) setState(() => _startDate = picked);
                             },
                             child: InputDecorator(
                               decoration: const InputDecoration(labelText: 'Từ ngày', isDense: true, border: OutlineInputBorder()),
-                              child: Text(Formatters.date(_startDate)),
+                              child: Text(_exportAll ? 'Tất cả' : Formatters.date(_startDate)),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: InkWell(
-                            onTap: () async {
+                            onTap: _exportAll ? null : () async {
                               final picked = await showDatePicker(context: context, initialDate: _endDate, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 1)));
                               if (picked != null) setState(() => _endDate = picked);
                             },
                             child: InputDecorator(
                               decoration: const InputDecoration(labelText: 'Đến ngày', isDense: true, border: OutlineInputBorder()),
-                              child: Text(Formatters.date(_endDate)),
+                              child: Text(_exportAll ? 'Tất cả' : Formatters.date(_endDate)),
                             ),
                           ),
                         ),
@@ -249,7 +266,7 @@ class _ExportExcelScreenState extends State<ExportExcelScreen> {
 
     // Query
     String where = 'date >= ? AND date <= ? AND is_deleted = 0';
-    List<dynamic> whereArgs = [_startDate.toIso8601String(), _endDate.add(const Duration(days: 1)).toIso8601String()];
+    List<dynamic> whereArgs = [_effStart.toIso8601String(), _effEnd.add(const Duration(days: 1)).toIso8601String()];
 
     if (moduleId != null) {
       where += ' AND (module_id = ? OR linked_module_id = ?)';
@@ -305,7 +322,7 @@ class _ExportExcelScreenState extends State<ExportExcelScreen> {
       JOIN credit_cards cc ON cct.card_id = cc.id
       WHERE cct.date >= ? AND cct.date <= ?
       ORDER BY cct.date DESC
-    ''', [_startDate.toIso8601String(), _endDate.add(const Duration(days: 1)).toIso8601String()]);
+    ''', [_effStart.toIso8601String(), _effEnd.add(const Duration(days: 1)).toIso8601String()]);
 
     for (int row = 0; row < results.length; row++) {
       final t = results[row];
@@ -353,7 +370,7 @@ class _ExportExcelScreenState extends State<ExportExcelScreen> {
       LEFT JOIN wine_variant_options vo ON pv.variant_option_id = vo.id
       WHERE so.date >= ? AND so.date <= ?
       ORDER BY so.date DESC
-    ''', [_startDate.toIso8601String(), _endDate.add(const Duration(days: 1)).toIso8601String()]);
+    ''', [_effStart.toIso8601String(), _effEnd.add(const Duration(days: 1)).toIso8601String()]);
 
     for (int row = 0; row < orders.length; row++) {
       final o = orders[row];

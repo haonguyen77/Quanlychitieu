@@ -77,6 +77,60 @@ class _WineHomeScreenState extends State<WineHomeScreen> {
     final cityCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
 
+    // Existing customers → source of ward/city suggestions.
+    final customers = context.read<WineDataProvider>().customers;
+    List<String> distinct(String key) {
+      final set = <String>{};
+      for (final c in customers) {
+        final v = ((c[key] as String?) ?? '').trim();
+        if (v.isNotEmpty) set.add(v);
+      }
+      return set.toList();
+    }
+
+    Widget autocompleteField({required TextEditingController controller, required String label, required IconData icon, required List<String> suggestions}) {
+      InputDecoration deco() => InputDecoration(
+            labelText: label,
+            labelStyle: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            prefixIcon: Container(margin: const EdgeInsets.only(left: 12, right: 8), child: Icon(icon, size: 18, color: _purple)),
+            prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            filled: true,
+            fillColor: _purple.withOpacity(0.05),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: _purple, width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          );
+      return RawAutocomplete<String>(
+        textEditingController: controller,
+        focusNode: FocusNode(),
+        optionsBuilder: (value) {
+          final q = value.text.trim().toLowerCase();
+          if (q.isEmpty) return const Iterable<String>.empty();
+          return suggestions.where((s) => s.toLowerCase().contains(q)).take(6);
+        },
+        onSelected: (v) => controller.text = v,
+        fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) => TextField(
+          controller: textCtrl, focusNode: focusNode, style: const TextStyle(fontSize: 14), decoration: deco()),
+        optionsViewBuilder: (context, onSelected, options) => Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200, maxWidth: 200),
+              child: ListView.builder(
+                padding: EdgeInsets.zero, shrinkWrap: true, itemCount: options.length,
+                itemBuilder: (context, i) {
+                  final opt = options.elementAt(i);
+                  return ListTile(dense: true, title: Text(opt, style: const TextStyle(fontSize: 14)), onTap: () => onSelected(opt));
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget styledField({required TextEditingController controller, required String label, required IconData icon, TextInputType? keyboardType}) {
       return TextField(
         controller: controller,
@@ -114,9 +168,9 @@ class _WineHomeScreenState extends State<WineHomeScreen> {
               styledField(controller: addrCtrl, label: 'Địa chỉ', icon: Icons.location_on_outlined),
               const SizedBox(height: 12),
               Row(children: [
-                Expanded(child: styledField(controller: districtCtrl, label: 'Phường/Xã', icon: Icons.map_outlined)),
+                Expanded(child: autocompleteField(controller: districtCtrl, label: 'Phường/Xã', icon: Icons.map_outlined, suggestions: distinct('district'))),
                 const SizedBox(width: 10),
-                Expanded(child: styledField(controller: cityCtrl, label: 'Thành phố', icon: Icons.location_city_outlined)),
+                Expanded(child: autocompleteField(controller: cityCtrl, label: 'Thành phố', icon: Icons.location_city_outlined, suggestions: distinct('city'))),
               ]),
               const SizedBox(height: 12),
               styledField(controller: noteCtrl, label: 'Ghi chú', icon: Icons.notes_outlined),
@@ -151,6 +205,66 @@ class _WineHomeScreenState extends State<WineHomeScreen> {
     final stockCtrl = TextEditingController();
     final colorCtrl = TextEditingController();
 
+    // Products → source of SKU suggestions (auto-fill product name on select).
+    final products = context.read<WineDataProvider>().products;
+
+    Widget skuAutocomplete() {
+      InputDecoration deco() => InputDecoration(
+            labelText: 'SKU *',
+            labelStyle: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            prefixIcon: Container(margin: const EdgeInsets.only(left: 12, right: 8), child: const Icon(Icons.qr_code_outlined, size: 18, color: _purple)),
+            prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            filled: true,
+            fillColor: _purple.withOpacity(0.05),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: _purple, width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          );
+      return RawAutocomplete<Map<String, dynamic>>(
+        textEditingController: skuCtrl,
+        focusNode: FocusNode(),
+        displayStringForOption: (p) => (p['sku'] as String?) ?? '',
+        optionsBuilder: (value) {
+          final q = value.text.trim().toLowerCase();
+          if (q.isEmpty) return const Iterable<Map<String, dynamic>>.empty();
+          return products.where((p) {
+            final sku = ((p['sku'] as String?) ?? '').toLowerCase();
+            final name = ((p['product_name'] as String?) ?? (p['short_name'] as String?) ?? '').toLowerCase();
+            return sku.contains(q) || name.contains(q);
+          }).take(8);
+        },
+        onSelected: (p) {
+          skuCtrl.text = (p['sku'] as String?) ?? '';
+          nameCtrl.text = (p['product_name'] as String?) ?? (p['short_name'] as String?) ?? '';
+        },
+        fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) => TextField(
+          controller: textCtrl, focusNode: focusNode, style: const TextStyle(fontSize: 14), decoration: deco()),
+        optionsViewBuilder: (context, onSelected, options) => Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220, maxWidth: 280),
+              child: ListView.builder(
+                padding: EdgeInsets.zero, shrinkWrap: true, itemCount: options.length,
+                itemBuilder: (context, i) {
+                  final p = options.elementAt(i);
+                  final sku = (p['sku'] as String?) ?? '';
+                  final name = (p['product_name'] as String?) ?? (p['short_name'] as String?) ?? '';
+                  return ListTile(
+                    dense: true,
+                    title: Text('$sku - $name', style: const TextStyle(fontSize: 13)),
+                    onTap: () => onSelected(p),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget styledField({required TextEditingController controller, required String label, required IconData icon, TextInputType? keyboardType}) {
       return TextField(
         controller: controller,
@@ -181,7 +295,7 @@ class _WineHomeScreenState extends State<WineHomeScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Thêm tồn kho', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF101B4D))),
               const SizedBox(height: 20),
-              styledField(controller: skuCtrl, label: 'SKU *', icon: Icons.qr_code_outlined),
+              skuAutocomplete(),
               const SizedBox(height: 14),
               styledField(controller: nameCtrl, label: 'Tên sản phẩm *', icon: Icons.inventory_2_outlined),
               const SizedBox(height: 14),

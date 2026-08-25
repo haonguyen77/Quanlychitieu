@@ -1,0 +1,87 @@
+Resolving dependencies...
+Downloading packages...
+  _discoveryapis_commons 1.0.7 (1.0.8 available)
+  archive 3.6.1 (4.2.0 available)
+  cli_util 0.4.2 (0.6.0 available)
+  code_assets 1.2.1 (2.0.0 available)
+  dbus 0.7.14 (0.7.15 available)
+  file_picker 8.3.7 (12.0.0 available)
+  fl_chart 0.65.0 (1.2.0 available)
+  flutter_lints 3.0.2 (6.0.0 available)
+  flutter_local_notifications 17.2.4 (22.3.0 available)
+  flutter_local_notifications_linux 4.0.1 (8.0.1 available)
+  flutter_local_notifications_platform_interface 7.2.0 (12.2.0 available)
+  flutter_slidable 3.1.2 (4.0.3 available)
+  google_sign_in 6.3.0 (7.2.0 available)
+  google_sign_in_android 6.2.1 (7.2.16 available)
+  google_sign_in_ios 5.9.0 (6.3.1 available)
+  google_sign_in_platform_interface 2.5.0 (3.1.0 available)
+  google_sign_in_web 0.12.4+4 (1.1.3 available)
+  googleapis 13.2.0 (17.0.0 available)
+  googleapis_auth 1.6.0 (2.3.3 available)
+  hooks 2.0.2 (2.2.0 available)
+  image 4.3.0 (4.9.2 available)
+  image_picker_android 0.8.13+17 (0.8.13+19 available)
+  intl 0.18.1 (0.20.3 available)
+  jni 1.0.2 (1.0.3 available)
+  lints 3.0.0 (6.1.0 available)
+  local_auth 2.3.0 (3.0.2 available)
+  local_auth_android 1.0.56 (2.0.9 available)
+  local_auth_darwin 1.6.1 (2.0.3 available)
+  local_auth_windows 1.0.11 (2.0.1 available)
+  matcher 0.12.18 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.17.0 (1.19.0 available)
+  objective_c 9.5.0 (9.6.0 available)
+  open_file 3.5.11 (4.0.0 available)
+  open_file_linux 0.0.5 (1.1.0 available)
+  open_file_web 0.0.4 (1.1.0 available)
+  open_file_windows 0.0.3 (1.1.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  share_plus 12.0.2 (13.3.0 available)
+  share_plus_platform_interface 6.1.0 (7.2.0 available)
+  shared_preferences_android 2.4.23 (2.4.27 available)
+  sqflite 2.4.2+1 (2.4.3 available)
+  sqflite_android 2.4.2+3 (2.4.3 available)
+  sqflite_common 2.5.8 (2.5.11 available)
+  sqflite_darwin 2.4.2 (2.4.3+1 available)
+  sqflite_platform_interface 2.4.0 (2.4.1 available)
+  synchronized 3.4.0+1 (3.4.1+2 available)
+  test_api 0.7.8 (0.7.13 available)
+  timezone 0.9.4 (0.11.1 available)
+  url_launcher_android 6.3.30 (6.3.32 available)
+  vector_math 2.2.0 (2.4.2 available)
+  vm_service 15.2.0 (15.3.0 available)
+  win32 5.15.0 (6.4.0 available)
+  xml 6.6.1 (7.0.1 available)
+Got dependencies!
+54 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing 7 items...                                            
+
+warning - Unused import: '../../../../utils/formatters.dart' - lib\modules\wine\screens\sales\wine_order_form_screen.dart:7:8 - unused_import
+   info - Don't use 'BuildContext's across async gaps - lib\modules\wine\screens\sales\wine_order_form_screen.dart:176:13 - use_build_context_synchronously
+   info - Use 'const' with the constructor to improve performance - lib\modules\wine\screens\sales\wine_order_form_screen.dart:344:95 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\wine\screens\sales\wine_order_form_screen.dart:345:102 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\wine\screens\sales\wine_order_form_screen.dart:381:93 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\wine\screens\sales\wine_order_form_screen.dart:382:100 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\wine\screens\sales\wine_order_form_screen.dart:472:91 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\wine\screens\sales\wine_order_form_screen.dart:473:98 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\wine\screens\sales\wine_order_form_screen.dart:491:114 - prefer_const_constructors
+warning - The value of the local variable 'currentValue' isn't used - lib\modules\wine\screens\sales\wine_order_form_screen.dart:583:11 - unused_local_variable
+   info - Don't use 'BuildContext's across async gaps - lib\modules\wine\screens\wine_home_screen.dart:61:13 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\modules\wine\screens\wine_home_screen.dart:68:13 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\expense\expense_screen.dart:167:25 - use_build_context_synchronously
+   info - Use 'const' with the constructor to improve performance - lib\screens\expense\expense_screen.dart:378:95 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\expense\expense_screen.dart:379:102 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\modules\modules_tab_screen.dart:133:28 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\screens\modules\modules_tab_screen.dart:135:33 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\screens\modules\modules_tab_screen.dart:136:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\modules\modules_tab_screen.dart:138:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\modules\modules_tab_screen.dart:138:54 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings\google_drive_screen.dart:439:11 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\screens\settings\google_drive_screen.dart:439:25 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings\google_drive_screen.dart:440:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\screens\settings\google_drive_screen.dart:672:31 - prefer_const_constructors
+
+24 issues found. (ran in 6.7s)

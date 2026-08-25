@@ -20,12 +20,16 @@ import 'database/database_helper.dart';
 import 'services/notification_service.dart';
 import 'services/auto_sync.dart';
 import 'services/usage_frequency_service.dart';
+import 'services/crypto_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('vi', null);
   await DatabaseHelper.instance.database;
   await NotificationService.instance.init();
+
+  // Load the saved encryption PIN (if any) so syncing doesn't prompt every launch.
+  await CryptoService.instance.autoUnlock();
 
   // Initialize auto-sync (will sync on app open if signed in)
   AutoSync.instance.init();

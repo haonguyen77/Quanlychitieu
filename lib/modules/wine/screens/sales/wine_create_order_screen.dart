@@ -34,7 +34,7 @@ class _WineCreateOrderScreenState extends State<WineCreateOrderScreen> {
   final _addressController = TextEditingController();
   final _wardController = TextEditingController();
   final _cityController = TextEditingController();
-  final _shippingFeeController = TextEditingController(text: '0');
+  final _shippingFeeController = TextEditingController();
   final _note1Controller = TextEditingController();
   final _note2Controller = TextEditingController();
 
@@ -61,7 +61,7 @@ class _WineCreateOrderScreenState extends State<WineCreateOrderScreen> {
       _addressController.text = addrParts.isNotEmpty ? addrParts[0].trim() : '';
       _wardController.text = addrParts.length > 1 ? addrParts[1].trim() : '';
       _cityController.text = addrParts.length > 2 ? addrParts.sublist(2).join(',').trim() : '';
-      _shippingFeeController.text = o.shippingFee > 0 ? MoneyInputFormatter.format(o.shippingFee) : '0';
+      _shippingFeeController.text = o.shippingFee > 0 ? MoneyInputFormatter.format(o.shippingFee) : '';
       _note1Controller.text = o.note1 ?? '';
       _note2Controller.text = o.note2 ?? '';
       if (o.images != null && o.images!.isNotEmpty) _orderImages.addAll(o.imageList);
@@ -212,8 +212,8 @@ class _WineCreateOrderScreenState extends State<WineCreateOrderScreen> {
                   _selectedCustomerId = match.id;
                   _customerPhoneController.text = match.phone ?? '';
                   _addressController.text = match.address ?? '';
-                  _wardController.text = '';
-                  _cityController.text = '';
+                  _wardController.text = match.district ?? '';
+                  _cityController.text = match.city ?? '';
                 });
               }
             },
@@ -233,8 +233,8 @@ class _WineCreateOrderScreenState extends State<WineCreateOrderScreen> {
                   _selectedCustomerId = match.id;
                   _customerNameController.text = match.name;
                   _addressController.text = match.address ?? '';
-                  _wardController.text = '';
-                  _cityController.text = '';
+                  _wardController.text = match.district ?? '';
+                  _cityController.text = match.city ?? '';
                 });
               }
             },
@@ -248,11 +248,31 @@ class _WineCreateOrderScreenState extends State<WineCreateOrderScreen> {
             suggestions: customers.where((c) => c.address != null && c.address!.isNotEmpty).map((c) => c.address!).toSet().toList(),
           ),
           const SizedBox(height: 8),
-          // Phường + Thành phố
+          // Phường + Thành phố (with autocomplete from existing customers)
           Row(children: [
-            Expanded(child: _inputField(hint: 'Phường/Xã...', controller: _wardController)),
+            Expanded(
+              child: _autocompleteField(
+                hint: 'Phường/Xã...',
+                controller: _wardController,
+                suggestions: customers
+                    .where((c) => c.district != null && c.district!.isNotEmpty)
+                    .map((c) => c.district!)
+                    .toSet()
+                    .toList(),
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _inputField(hint: 'Thành phố...', controller: _cityController)),
+            Expanded(
+              child: _autocompleteField(
+                hint: 'Thành phố...',
+                controller: _cityController,
+                suggestions: customers
+                    .where((c) => c.city != null && c.city!.isNotEmpty)
+                    .map((c) => c.city!)
+                    .toSet()
+                    .toList(),
+              ),
+            ),
           ]),
         ]);
       },
@@ -574,28 +594,9 @@ class _WineCreateOrderScreenState extends State<WineCreateOrderScreen> {
           const Text('Phí ship:', style: TextStyle(fontSize: 14)),
           const Spacer(),
           SizedBox(
-            width: 100,
-            child: TextField(
-              controller: _shippingFeeController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [MoneyInputFormatter()],
-              textAlign: TextAlign.right,
-              decoration: InputDecoration(
-                isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                filled: true, fillColor: Colors.white,
-              ),
-              style: const TextStyle(fontSize: 14),
-              onTap: () {
-                if (_shippingFeeController.text == '0') {
-                  _shippingFeeController.clear();
-                }
-              },
-              onChanged: (_) => setState(() {}),
-            ),
+            width: 130,
+            child: _moneyInputWithSuggest(controller: _shippingFeeController),
           ),
-          const SizedBox(width: 4),
-          const Text('đ', style: TextStyle(fontSize: 13)),
         ]),
         const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -645,7 +646,7 @@ class _WineCreateOrderScreenState extends State<WineCreateOrderScreen> {
       _addressController.clear();
       _wardController.clear();
       _cityController.clear();
-      _shippingFeeController.text = '0';
+      _shippingFeeController.clear();
       _note1Controller.clear();
       _note2Controller.clear();
       _orderImages.clear();

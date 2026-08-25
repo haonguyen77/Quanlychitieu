@@ -7,6 +7,7 @@ import '../../providers/module_provider.dart';
 import '../../utils/icon_helper.dart';
 import '../../utils/color_helper.dart';
 import '../../services/auto_sync.dart';
+import '../../database/database_helper.dart';
 
 /// System module IDs that cannot be deleted
 const _systemModuleIds = [

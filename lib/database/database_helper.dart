@@ -417,10 +417,26 @@ class DatabaseHelper {
     await txn.delete('wine_customers');
     await txn.delete('wine_sales_orders');
     await txn.delete('wine_sales_order_items');
+    // Rebuild wine stock from synced inventory records each import to avoid
+    // duplicated stock-in batches.
+    await txn.delete('wine_stock_in');
+    await txn.delete('wine_stock_in_items');
 
     // Ensure variant infrastructure
     await txn.insert('wine_variant_types', {'id': 'wvt_color', 'name': 'Màu sắc', 'sort_order': 0, 'is_active': 1, 'created_at': now}, conflictAlgorithm: ConflictAlgorithm.replace);
     await txn.insert('wine_variant_options', {'id': 'wvo_none', 'variant_type_id': 'wvt_color', 'name': 'Mặc định', 'sort_order': 0, 'is_active': 1, 'created_at': now}, conflictAlgorithm: ConflictAlgorithm.replace);
+
+    // Single stock-in receipt that holds all synced inventory snapshots.
+    // Wine stock (current_stock) is computed from wine_stock_in_items, so we
+    // project each mod_ruou_inventory record into an item under this receipt.
+    const stockInId = 'si_sync_inventory';
+    await txn.insert('wine_stock_in', {
+      'id': stockInId,
+      'date': now.substring(0, 10),
+      'note': 'Đồng bộ tồn kho',
+      'created_at': now,
+      'updated_at': now,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
 
     // --- MODULES & CATEGORIES ---
     final modules = data['modules'] as List<dynamic>? ?? [];
@@ -550,6 +566,9 @@ class DatabaseHelper {
           if (date.isEmpty) date = findStr('month');
           if (date.isEmpty) date = now.substring(0, 10);
 
+          final accVal = findStr('account');
+          final accountId = accVal.isNotEmpty ? await _mapAccount(txn, accVal) : null;
+
           await txn.insert('transactions', {
             'id': id,
             'type': type,
@@ -557,7 +576,7 @@ class DatabaseHelper {
             'title': title,
             'note': findStr('note').isNotEmpty ? findStr('note') : null,
             'category_id': r['categoryId'],
-            'account_id': findStr('account').isNotEmpty ? _mapAccount(findStr('account')) : null,
+            'account_id': accountId,
             'module_id': effectiveModule,
             'linked_module_id': linkedModuleId,
             'date': date,
@@ -732,6 +751,53 @@ class DatabaseHelper {
           }, conflictAlgorithm: ConflictAlgorithm.replace);
           break;
 
+        case 'mod_ruou_inventory':
+          // → wine_stock_in_items (stock is computed from these). Skip deleted.
+          if (isDeleted) break;
+          final invSku = findStr('sku');
+          final invStock = findNum('stock').toInt();
+          if (invSku.isEmpty || invStock <= 0) break;
+          // Resolve the product (already imported in the first pass) by SKU,
+          // then attach stock to its default variant (pv_<productId>), which is
+          // the same variant orders deduct from.
+          final prodRows = await txn.query('wine_products',
+              where: 'sku = ?', whereArgs: [invSku], limit: 1);
+          String invVariantId;
+          if (prodRows.isNotEmpty) {
+            invVariantId = 'pv_${prodRows.first['id']}';
+          } else {
+            // Product not found (inventory synced without a product record):
+            // create a minimal product + default variant so stock still shows.
+            final newProductId = 'prod_inv_$id';
+            await txn.insert('wine_products', {
+              'id': newProductId,
+              'sku': invSku,
+              'name': findStr('product_name').isNotEmpty ? findStr('product_name') : invSku,
+              'is_active': 1,
+              'created_at': createdAt,
+              'updated_at': updatedAt,
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
+            invVariantId = 'pv_$newProductId';
+          }
+          // Ensure the variant exists.
+          await txn.insert('wine_product_variants', {
+            'id': invVariantId,
+            'product_id': invVariantId.substring(3),
+            'variant_option_id': 'wvo_none',
+            'is_active': 1,
+            'created_at': createdAt,
+          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+          await txn.insert('wine_stock_in_items', {
+            'id': 'sii_$id',
+            'stock_in_id': 'si_sync_inventory',
+            'product_variant_id': invVariantId,
+            'quantity': invStock,
+            'remaining_quantity': invStock,
+            'note': findStr('color').isNotEmpty ? findStr('color') : null,
+            'created_at': createdAt,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          break;
+
         default:
           // Generic handler for user-created/dynamic modules
           // Store in transactions table with best-effort field extraction
@@ -762,6 +828,9 @@ class DatabaseHelper {
           if (date.isEmpty) date = findStr('order_date');
           if (date.isEmpty) date = createdAt.substring(0, 10);
 
+          final accVal = findStr('account');
+          final accountId = accVal.isNotEmpty ? await _mapAccount(txn, accVal) : null;
+
           await txn.insert('transactions', {
             'id': id,
             'type': type,
@@ -769,7 +838,7 @@ class DatabaseHelper {
             'title': title,
             'note': findStr('note').isNotEmpty ? findStr('note') : null,
             'category_id': r['categoryId'],
-            'account_id': findStr('account').isNotEmpty ? _mapAccount(findStr('account')) : null,
+            'account_id': accountId,
             'module_id': effectiveModule,
             'linked_module_id': linkedModuleId,
             'date': date,
@@ -810,7 +879,7 @@ class DatabaseHelper {
   }
 
   /// Map account value from EXT format to app account ID
-  String? _mapAccount(String value) {
+  Future<String?> _mapAccount(dynamic txn, String value) async {
     if (value.isEmpty) return null;
     if (value.startsWith('credit_card_')) return 'acc_cc_${value.replaceFirst('credit_card_', '')}';
     switch (value) {
@@ -821,8 +890,17 @@ class DatabaseHelper {
       case 'vpbank': return 'acc_vpbank';
       case 'zalopay': return 'acc_zalopay';
       case 'credit_card': return 'acc_credit';
-      default: return null;
     }
+    // Not a known slug → the value is likely a real account id (UUID) or name
+    // coming from WebApp/Extension. Match it against the synced accounts table
+    // so the account resolves to its proper name (e.g. "Tpbank").
+    try {
+      final byId = await txn.query('accounts', where: 'id = ?', whereArgs: [value], limit: 1);
+      if (byId.isNotEmpty) return byId.first['id'] as String;
+      final byName = await txn.query('accounts', where: 'name = ?', whereArgs: [value], limit: 1);
+      if (byName.isNotEmpty) return byName.first['id'] as String;
+    } catch (_) {}
+    return null;
   }
 
   /// Export database back to finance.json format — exact mirror of EXT

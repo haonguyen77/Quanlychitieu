@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:math';
+import 'package:uuid/uuid.dart';
 import '../../providers/module_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../models/app_module.dart';
 import '../../models/transaction.dart';
+import '../../services/auto_sync.dart';
+import '../../database/database_helper.dart';
 import '../../utils/formatters.dart';
 import '../../utils/icon_helper.dart';
 import '../../utils/color_helper.dart';
@@ -37,6 +41,78 @@ class _ModulesTabScreenState extends State<ModulesTabScreen> {
     });
   }
 
+  /// Add a new MODULE the Shopee way: the user just types a name, we assign a
+  /// random color + default icon, and it immediately shows up here (Danh mục),
+  /// in Settings → Quản lý Module (toggle on/off), and as a choice when adding
+  /// an expense. The user can change the color/icon later in Quản lý Module.
+  Future<void> _showAddCategoryDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thêm danh mục'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: 'Tên danh mục',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Thêm'),
+          ),
+        ],
+      ),
+    );
+
+    if (name == null || name.isEmpty || !mounted) return;
+
+    // Random color (Shopee-style) + default icon. Editable later in Quản lý Module.
+    final randomColor = ColorHelper.availableColors[
+        Random().nextInt(ColorHelper.availableColors.length)];
+    final provider = context.read<ModuleProvider>();
+    final maxSort = provider.modules.fold<int>(
+        0, (m, e) => e.sortOrder > m ? e.sortOrder : m);
+    final module = AppModule(
+      id: 'mod_${const Uuid().v4().substring(0, 8)}',
+      name: name,
+      icon: 'other',
+      color: ColorHelper.toHex(randomColor),
+      sortOrder: maxSort + 1,
+      isDefault: false,
+      isActive: true,
+    );
+
+    await provider.addModule(module);
+    // Persist the whole module list back to app_data.modules (source of truth),
+    // so it survives reload and is included in sync.
+    final modulesJson = provider.modules.map((m) => <String, dynamic>{
+      'id': m.id,
+      'name': m.name,
+      'icon': m.icon,
+      'color': m.color,
+      'sortOrder': m.sortOrder,
+      'isDefault': m.isDefault,
+      'isActive': m.isActive,
+      'isVisible': m.isActive,
+    }).toList();
+    await DatabaseHelper.instance.setAppData('modules', modulesJson);
+    AutoSync.instance.notifyDataChanged();
+
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã thêm module "$name"')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,9 +129,7 @@ class _ModulesTabScreenState extends State<ModulesTabScreen> {
                   const Text('Danh mục', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F1F4D))),
                   const Spacer(),
                   GestureDetector(
-                    onTap: () {
-                      // TODO: Add category
-                    },
+                    onTap: _showAddCategoryDialog,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

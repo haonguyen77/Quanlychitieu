@@ -22,18 +22,24 @@ class ModuleProvider extends ChangeNotifier {
     try {
       final modulesJson = await DatabaseHelper.instance.getAppData('modules');
       if (modulesJson != null && modulesJson is List) {
-        _modules = modulesJson.map<AppModule>((m) {
-          final map = m as Map<String, dynamic>;
-          return AppModule(
-            id: map['id'] as String? ?? '',
-            name: map['name'] as String? ?? '',
-            icon: map['icon'] as String? ?? 'other',
-            color: map['color'] as String? ?? '#607D8B',
-            sortOrder: map['sortOrder'] as int? ?? 0,
-            isDefault: map['isDefault'] as bool? ?? false,
-            isActive: map['isActive'] as bool? ?? true,
-          );
-        }).toList();
+        _modules = modulesJson
+            .map<AppModule>((m) {
+              final map = m as Map<String, dynamic>;
+              return AppModule(
+                id: map['id'] as String? ?? '',
+                name: map['name'] as String? ?? '',
+                icon: map['icon'] as String? ?? 'other',
+                color: map['color'] as String? ?? '#607D8B',
+                sortOrder: map['sortOrder'] as int? ?? 0,
+                isDefault: map['isDefault'] as bool? ?? false,
+                isActive: map['isActive'] as bool? ?? true,
+              );
+            })
+            // Wine sub-modules (SP rượu, KH rượu, Kho rượu) are internal to the
+            // Rượu module and must stay hidden from the top-level module list
+            // (both Danh mục navigation and Quản lý Module settings).
+            .where((m) => !_hiddenSubModuleIds.contains(m.id))
+            .toList();
       } else {
         // Fallback defaults
         _modules = _defaultModules();
@@ -109,6 +115,13 @@ class ModuleProvider extends ChangeNotifier {
   Future<void> deleteField(String fieldId) async {
     // No-op in new architecture
   }
+
+  /// Wine sub-modules that must never appear as top-level modules.
+  static const _hiddenSubModuleIds = {
+    'mod_ruou_products',   // SP rượu
+    'mod_ruou_customers',  // KH rượu
+    'mod_ruou_inventory',  // Kho rượu
+  };
 
   List<AppModule> _defaultModules() {
     final now = DateTime.now();

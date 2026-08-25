@@ -115,6 +115,71 @@ class _WineCustomersScreenState extends State<WineCustomersScreen> {
     const purpleLight = Color(0xFFF3EAFF);
     const navy = Color(0xFF101B4D);
 
+    // Existing customers → source of ward/city suggestions.
+    final allCustomers = context.read<WineDataProvider>().customers;
+
+    InputDecoration fieldDecoration(String label, IconData icon) => InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          prefixIcon: Container(margin: const EdgeInsets.only(left: 12, right: 8), child: Icon(icon, size: 18, color: purple)),
+          prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          filled: true,
+          fillColor: purpleLight.withOpacity(0.3),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: purple, width: 1.5)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        );
+
+    Widget autocompleteField({
+      required TextEditingController controller,
+      required String label,
+      required IconData icon,
+      required List<String> suggestions,
+    }) {
+      return RawAutocomplete<String>(
+        textEditingController: controller,
+        focusNode: FocusNode(),
+        optionsBuilder: (value) {
+          if (value.text.isEmpty) return const Iterable<String>.empty();
+          final q = value.text.toLowerCase();
+          return suggestions.where((s) => s.toLowerCase().contains(q)).take(5);
+        },
+        fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
+          return TextField(
+            controller: textController,
+            focusNode: focusNode,
+            style: const TextStyle(fontSize: 14),
+            decoration: fieldDecoration(label, icon),
+          );
+        },
+        optionsViewBuilder: (context, onSelected, options) {
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200, maxWidth: 200),
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final option = options.elementAt(index);
+                    return ListTile(
+                      dense: true,
+                      title: Text(option, style: const TextStyle(fontSize: 14)),
+                      onTap: () => onSelected(option),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     Widget styledField({required TextEditingController controller, required String label, required IconData icon, TextInputType? keyboardType}) {
       return TextField(
         controller: controller,
@@ -159,9 +224,31 @@ class _WineCustomersScreenState extends State<WineCustomersScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(child: styledField(controller: districtCtrl, label: 'Phường/Xã', icon: Icons.map_outlined)),
+                    Expanded(
+                      child: autocompleteField(
+                        controller: districtCtrl,
+                        label: 'Phường/Xã',
+                        icon: Icons.map_outlined,
+                        suggestions: allCustomers
+                            .map((c) => (c['district'] as String?) ?? '')
+                            .where((s) => s.isNotEmpty)
+                            .toSet()
+                            .toList(),
+                      ),
+                    ),
                     const SizedBox(width: 10),
-                    Expanded(child: styledField(controller: cityCtrl, label: 'Thành phố', icon: Icons.location_city_outlined)),
+                    Expanded(
+                      child: autocompleteField(
+                        controller: cityCtrl,
+                        label: 'Thành phố',
+                        icon: Icons.location_city_outlined,
+                        suggestions: allCustomers
+                            .map((c) => (c['city'] as String?) ?? '')
+                            .where((s) => s.isNotEmpty)
+                            .toSet()
+                            .toList(),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),

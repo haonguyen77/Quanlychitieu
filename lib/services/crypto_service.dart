@@ -27,6 +27,9 @@ class CryptoService {
 
   static const String _enabledKey = 'pdp_enc_enabled';
   static const String _verifyKey = 'pdp_enc_verify';
+  // Stored PIN so the user doesn't have to re-enter it every app launch.
+  // (User opted for simple on-device storage; not high-security.)
+  static const String _pinKey = 'pdp_enc_pin';
   static const int iterations = 310000;
   static const int envelopeVersion = 1;
 
@@ -151,6 +154,25 @@ class CryptoService {
 
   // ── PIN lifecycle ─────────────────────────────────────────────────────────
 
+  /// Load the stored PIN into memory (if any) so the key is ready without
+  /// prompting. Call once at app start. Offline & instant (no Drive fetch).
+  Future<bool> autoUnlock() async {
+    if (_pin != null) return true;
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool(_enabledKey) ?? false)) return false;
+    final saved = prefs.getString(_pinKey);
+    if (saved == null || saved.isEmpty) return false;
+    _pin = saved;
+    _keyCache.clear();
+    _sessionSalt = _randomBytes(16);
+    return true;
+  }
+
+  Future<void> _storePin(String pin) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pinKey, pin);
+  }
+
   /// Establish a brand-new PIN on this device and enable encryption.
   Future<void> setupPin(String pin) async {
     final verifySalt = _randomBytes(16);
@@ -165,6 +187,7 @@ class CryptoService {
       }),
     );
     await prefs.setBool(_enabledKey, true);
+    await prefs.setString(_pinKey, pin);
     _pin = pin;
     _keyCache.clear();
     _sessionSalt = _randomBytes(16);
@@ -184,6 +207,7 @@ class CryptoService {
         _pin = pin;
         _keyCache.clear();
         _sessionSalt = _randomBytes(16);
+        await _storePin(pin);
         return true;
       }
       return false;
@@ -216,6 +240,7 @@ class CryptoService {
       }),
     );
     await prefs.setBool(_enabledKey, true);
+    await prefs.setString(_pinKey, pin);
     _sessionSalt = _randomBytes(16);
     return data;
   }
@@ -228,6 +253,7 @@ class CryptoService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_enabledKey);
     await prefs.remove(_verifyKey);
+    await prefs.remove(_pinKey);
   }
 
   Future<bool> changePin(String oldPin, String newPin) async {

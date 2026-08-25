@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/transaction.dart';
+import '../../models/account.dart';
 import '../../providers/transaction_provider.dart';
+import '../../providers/account_provider.dart';
 import '../../repositories/transaction_repository.dart';
 import '../../utils/formatters.dart';
 import '../../utils/transaction_styles.dart';
+import '../../utils/icon_helper.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../transactions/transaction_detail_screen.dart';
 
@@ -160,12 +163,19 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     setState(() => _isLoading = true);
     // Show ALL modules (Chi tiêu + Vàng + Nhà trọ + Shopee) — same as EXT behavior
     final results = await _repository.getByDateRange(_startDate, _endDate);
+    // Load accounts so the list can show each account's real color + icon.
+    final accProvider = context.read<AccountProvider>();
+    await accProvider.loadAccounts();
+    final accById = {for (final a in accProvider.accounts) a.id: a};
     if (!mounted) return;
     setState(() {
       _transactions = results;
+      _accountsById = accById;
       _isLoading = false;
     });
   }
+
+  Map<String, Account> _accountsById = {};
 
   double get _totalExpense => _displayedTransactions.where((t) => t.type == 0 && !t.isDeleted).fold(0.0, (s, t) => s + t.amount);
   double get _totalIncome => _displayedTransactions.where((t) => t.type == 1 && !t.isDeleted).fold(0.0, (s, t) => s + t.amount);
@@ -556,6 +566,17 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     );
   }
 
+  /// Hide raw UUID-like values that can leak in when an account can't be
+  /// resolved to a real name (e.g. deleted/unsynced account).
+  static final _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+  String _accountLabel(String? name) {
+    if (name == null) return '';
+    if (_uuidPattern.hasMatch(name.trim())) return '';
+    return name;
+  }
+
   IconData _moduleIcon(String? moduleName) {
     switch (moduleName?.toLowerCase()) {
       case 'shopee': return Icons.shopping_cart;
@@ -605,8 +626,15 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   Widget _buildTxnCard(Transaction t) {
     final cat = TransactionStyles.categoryByName(t.categoryName);
-    final accountColor = TransactionStyles.accountColorByName(t.accountName);
-    final accountIcon = TransactionStyles.accountIconByName(t.accountName);
+    // Prefer the real account's color + icon (set in Phương thức thanh toán).
+    // Fall back to the name-based defaults only when the account isn't found.
+    final account = t.accountId != null ? _accountsById[t.accountId] : null;
+    final accountColor = account != null
+        ? TransactionStyles.parseColor(account.color)
+        : TransactionStyles.accountColorByName(t.accountName);
+    final accountIcon = account != null
+        ? IconHelper.getIcon(account.icon)
+        : TransactionStyles.accountIconByName(t.accountName);
     final moduleColor = TransactionStyles.moduleColorByName(t.moduleName);
 
     return Dismissible(
@@ -666,7 +694,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       children: [
                         Icon(accountIcon, size: 14, color: accountColor),
                         const SizedBox(width: 4),
-                        Flexible(child: Text(t.accountName ?? '', style: TextStyle(fontSize: 12, color: accountColor), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        Flexible(child: Text(_accountLabel(t.accountName), style: TextStyle(fontSize: 12, color: accountColor), maxLines: 1, overflow: TextOverflow.ellipsis)),
                         Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text('|', style: TextStyle(fontSize: 12, color: Colors.grey[300]))),
                         Icon(_moduleIcon(t.moduleName), size: 15, color: moduleColor),
                       ],

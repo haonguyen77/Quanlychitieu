@@ -26,7 +26,7 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
   final _addressCtrl = TextEditingController();
   final _wardCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
-  final _shipFeeCtrl = TextEditingController(text: '0');
+  final _shipFeeCtrl = TextEditingController();
   final _note1Ctrl = TextEditingController();
   final _note2Ctrl = TextEditingController();
 
@@ -40,9 +40,14 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
   void initState() {
     super.initState();
     WineColorService.instance.getColors(); // Pre-load colors
-    if (_isEditing) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadOrder());
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Load customers + products so autocomplete/suggestions have data.
+      final provider = context.read<WineDataProvider>();
+      await provider.loadCustomers();
+      await provider.loadProducts();
+      if (mounted) setState(() {});
+      if (_isEditing) await _loadOrder();
+    });
   }
 
   Future<void> _loadOrder() async {
@@ -62,7 +67,9 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
       _note1Ctrl.text = order['note1'] as String? ?? '';
       _note2Ctrl.text = order['note2'] as String? ?? '';
       final shipFee = order['ship_fee'];
-      _shipFeeCtrl.text = shipFee != null && shipFee != 0 ? shipFee.toString() : '0';
+      _shipFeeCtrl.text = shipFee != null && shipFee != 0
+          ? NumberFormat('#,###', 'vi_VN').format((shipFee as num).toInt())
+          : '';
       try { _date = DateTime.parse(order['order_date'] as String); } catch (_) {}
 
       // Parse product lines
@@ -203,14 +210,29 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
             IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => setState(() => _date = _date.add(const Duration(days: 1)))),
           ]),
           const SizedBox(height: 12),
-          // Customer info
-          _field(Icons.person, 'Tên khách hàng...', _nameCtrl),
-          _field(Icons.phone, 'Số điện thoại...', _phoneCtrl),
-          _field(Icons.location_on, 'Nhập địa chỉ...', _addressCtrl),
+          // Customer info (autocomplete from existing customers)
+          _customerAutocomplete(
+            icon: Icons.person,
+            hint: 'Tên khách hàng...',
+            controller: _nameCtrl,
+            field: 'customer_name',
+          ),
+          _customerAutocomplete(
+            icon: Icons.phone,
+            hint: 'Số điện thoại...',
+            controller: _phoneCtrl,
+            field: 'customer_phone',
+          ),
+          _customerAutocomplete(
+            icon: Icons.location_on,
+            hint: 'Nhập địa chỉ...',
+            controller: _addressCtrl,
+            field: 'customer_address',
+          ),
           Row(children: [
-            Expanded(child: _field(null, 'Phường/Xã...', _wardCtrl)),
+            Expanded(child: _plainAutocomplete('Phường/Xã...', _wardCtrl, 'customer_district')),
             const SizedBox(width: 8),
-            Expanded(child: _field(null, 'Thành phố...', _cityCtrl)),
+            Expanded(child: _plainAutocomplete('Thành phố...', _cityCtrl, 'customer_city')),
           ]),
           const SizedBox(height: 16),
           // Products
@@ -233,11 +255,10 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
           Row(children: [
             const Text('Phí ship:'),
             const Spacer(),
-            SizedBox(width: 100, child: TextField(
-              controller: _shipFeeCtrl, keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(suffixText: 'đ', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6)),
-              textAlign: TextAlign.right,
+            SizedBox(width: 130, child: _moneySuggestField(
+              label: 'Phí ship',
+              controller: _shipFeeCtrl,
+              onValue: (_) => setState(() {}),
             )),
           ]),
           const SizedBox(height: 8),
@@ -268,6 +289,174 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
             )),
           ]),
         ]),
+      ),
+    );
+  }
+
+  void _fillFromCustomer(Map<String, dynamic> c) {
+    setState(() {
+      _nameCtrl.text = (c['full_name'] as String?) ?? _nameCtrl.text;
+      _phoneCtrl.text = (c['phone'] as String?) ?? '';
+      _addressCtrl.text = (c['address'] as String?) ?? '';
+      _wardCtrl.text = (c['district'] as String?) ?? '';
+      _cityCtrl.text = (c['city'] as String?) ?? '';
+    });
+  }
+
+  /// Autocomplete a customer field (name/phone/address). Selecting an option
+  /// fills all the other customer fields from the matched customer record.
+  Widget _customerAutocomplete({
+    required IconData icon,
+    required String hint,
+    required TextEditingController controller,
+    required String field, // 'customer_name' | 'customer_phone' | 'customer_address'
+  }) {
+    final key = field == 'customer_name'
+        ? 'full_name'
+        : field == 'customer_phone'
+            ? 'phone'
+            : 'address';
+    final customers = context.watch<WineDataProvider>().customers;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: RawAutocomplete<Map<String, dynamic>>(
+        textEditingController: controller,
+        focusNode: FocusNode(),
+        displayStringForOption: (c) => (c[key] as String?) ?? '',
+        optionsBuilder: (value) {
+          final q = value.text.trim().toLowerCase();
+          if (q.isEmpty) return const Iterable<Map<String, dynamic>>.empty();
+          final seen = <String>{};
+          return customers.where((c) {
+            final v = ((c[key] as String?) ?? '').toLowerCase();
+            if (v.isEmpty || !v.contains(q)) return false;
+            return seen.add(v); // dedupe by displayed value
+          }).take(6);
+        },
+        onSelected: _fillFromCustomer,
+        fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) {
+          return TextField(
+            controller: textCtrl,
+            focusNode: focusNode,
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, size: 20, color: Colors.grey[500]),
+              hintText: hint,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+          );
+        },
+        optionsViewBuilder: (context, onSelected, options) => _optionsList<Map<String, dynamic>>(
+          options, (c) => '${(c[key] as String?) ?? ''}  ·  ${(c['phone'] as String?) ?? ''}', onSelected),
+      ),
+    );
+  }
+
+  /// Plain autocomplete over distinct string values of a customer field
+  /// (used for ward/city — just suggests, no auto-fill of other fields).
+  Widget _plainAutocomplete(String hint, TextEditingController controller, String field) {
+    final key = field == 'customer_district' ? 'district' : 'city';
+    final customers = context.watch<WineDataProvider>().customers;
+    return RawAutocomplete<String>(
+      textEditingController: controller,
+      focusNode: FocusNode(),
+      optionsBuilder: (value) {
+        final q = value.text.trim().toLowerCase();
+        if (q.isEmpty) return const Iterable<String>.empty();
+        final set = <String>{};
+        for (final c in customers) {
+          final v = ((c[key] as String?) ?? '').trim();
+          if (v.isNotEmpty && v.toLowerCase().contains(q)) set.add(v);
+        }
+        return set.take(6);
+      },
+      onSelected: (v) => controller.text = v,
+      fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) {
+        return TextField(
+          controller: textCtrl,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            hintText: hint,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) =>
+          _optionsList<String>(options, (s) => s, onSelected),
+    );
+  }
+
+  /// A money input that suggests common amounts while typing (e.g. type "35"
+  /// → suggests 35.000 / 350.000 / 3.500.000). Works with an external
+  /// [controller] (ship fee) or an internal one seeded from [initialValue].
+  Widget _moneySuggestField({
+    required String label,
+    TextEditingController? controller,
+    double? initialValue,
+    required void Function(double) onValue,
+  }) {
+    final nf = NumberFormat('#,###', 'vi_VN');
+    final ctrl = controller ??
+        TextEditingController(text: (initialValue ?? 0) > 0 ? nf.format(initialValue!.toInt()) : '');
+    double parse(String s) => double.tryParse(s.replaceAll('.', '').replaceAll(',', '')) ?? 0;
+    return RawAutocomplete<int>(
+      textEditingController: ctrl,
+      focusNode: FocusNode(),
+      optionsBuilder: (value) {
+        final raw = value.text.replaceAll(RegExp(r'[^0-9]'), '');
+        if (raw.isEmpty || raw.length > 4) return const Iterable<int>.empty();
+        final n = int.tryParse(raw) ?? 0;
+        if (n <= 0) return const Iterable<int>.empty();
+        return [n * 1000, n * 10000, n * 100000, n * 1000000];
+      },
+      onSelected: (v) {
+        ctrl.text = nf.format(v);
+        onValue(v.toDouble());
+      },
+      fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) {
+        return TextField(
+          controller: textCtrl,
+          focusNode: focusNode,
+          keyboardType: TextInputType.number,
+          onChanged: (v) => onValue(parse(v)),
+          decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            suffixText: 'đ',
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) =>
+          _optionsList<int>(options, (v) => '${nf.format(v)} đ', onSelected),
+    );
+  }
+
+  Widget _optionsList<T>(Iterable<T> options, String Function(T) label, void Function(T) onSelected) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: 220, maxWidth: MediaQuery.of(context).size.width - 48),
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            itemCount: options.length,
+            itemBuilder: (context, i) {
+              final opt = options.elementAt(i);
+              return ListTile(
+                dense: true,
+                title: Text(label(opt), style: const TextStyle(fontSize: 13)),
+                onTap: () => onSelected(opt),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -330,11 +519,10 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
             decoration: const InputDecoration(labelText: 'SL', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6)),
           )),
           const SizedBox(width: 8),
-          Expanded(child: TextField(
-            keyboardType: TextInputType.number,
-            controller: TextEditingController(text: line.price > 0 ? '${line.price.toInt()}' : ''),
-            onChanged: (v) => setState(() => line.price = double.tryParse(v.replaceAll('.', '').replaceAll(',', '')) ?? 0),
-            decoration: const InputDecoration(labelText: 'Đơn giá', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6), suffixText: 'đ'),
+          Expanded(child: _moneySuggestField(
+            label: 'Đơn giá',
+            initialValue: line.price,
+            onValue: (val) => setState(() => line.price = val),
           )),
           const SizedBox(width: 8),
           SizedBox(width: 80, child: _buildColorDropdown(line)),

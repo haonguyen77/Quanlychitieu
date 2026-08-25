@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../providers/module_provider.dart';
-import '../../utils/icon_helper.dart';
-import '../../utils/color_helper.dart';
 import '../categories/categories_screen.dart';
 import '../accounts/accounts_screen.dart';
 import '../transactions/trash_screen.dart';
@@ -93,27 +89,18 @@ class SettingsScreen extends StatelessWidget {
               // 2. QUẢN LÝ MODULE
               _buildSectionTitle('2. QUẢN LÝ MODULE'),
               const SizedBox(height: 8),
-              _buildModuleSection(context),
-              const SizedBox(height: 8),
-              // Module Manager link
-              GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModuleManagerScreen())),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[200]!),
+              _buildCard(
+                children: [
+                  _buildNavItem(
+                    context,
+                    icon: Icons.widgets_rounded,
+                    iconColor: _green,
+                    iconBgColor: _green.withOpacity(0.1),
+                    title: 'Quản lý Module',
+                    subtitle: 'Bật / tắt các module hiển thị',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModuleManagerScreen())),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.settings_applications, size: 18, color: _green),
-                      const SizedBox(width: 10),
-                      const Expanded(child: Text('Quản lý Module nâng cao', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-                      Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
-                    ],
-                  ),
-                ),
+                ],
               ),
 
               const SizedBox(height: 20),
@@ -274,125 +261,6 @@ class SettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.only(left: 70),
       child: Divider(height: 1, color: Colors.grey[100]),
     );
-  }
-
-  // ─── Module Section (Grid 2 columns with switches) ─────────────────────────
-
-  Widget _buildModuleSection(BuildContext context) {
-    return Consumer<ModuleProvider>(
-      builder: (context, provider, child) {
-        final modules = provider.modules;
-        if (modules.isEmpty) {
-          // Trigger load
-          WidgetsBinding.instance.addPostFrameCallback((_) => provider.loadModules());
-          return _buildCard(children: [
-            const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
-          ]);
-        }
-
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Grid 2 columns
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 2.8,
-                ),
-                itemCount: modules.length,
-                itemBuilder: (context, index) {
-                  final module = modules[index];
-                  return _buildModuleToggle(context, module, provider);
-                },
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Tắt module sẽ ẩn khỏi menu nhưng dữ liệu vẫn được giữ nguyên.',
-                style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildModuleToggle(BuildContext context, dynamic module, ModuleProvider provider) {
-    final iconData = _getModuleIcon(module.id, module.icon);
-    final color = _getModuleColor(module.id, module.color);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: module.isActive ? color.withOpacity(0.05) : Colors.grey[50],
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: module.isActive ? color.withOpacity(0.2) : Colors.grey[200]!, width: 1),
-      ),
-      child: Row(
-        children: [
-          Icon(iconData, size: 18, color: module.isActive ? color : Colors.grey[400]),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              module.name,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: module.isActive ? _darkText : Colors.grey[500]),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Transform.scale(
-            scale: 0.7,
-            child: Switch(
-              value: module.isActive,
-              onChanged: (_) => provider.toggleModule(module.id),
-              activeColor: _green,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getModuleIcon(String moduleId, [String? iconName]) {
-    switch (moduleId) {
-      case 'mod_chitieu': return Icons.shopping_cart_rounded;
-      case 'mod_shopee': return Icons.shopping_bag_rounded;
-      case 'mod_vang': return Icons.diamond_rounded;
-      case 'mod_nhatro': return Icons.home_rounded;
-      case 'mod_creditcard': return Icons.credit_card_rounded;
-      case 'mod_ruou': return Icons.liquor_rounded;
-      case 'mod_ruou_products': return Icons.inventory_2_rounded;
-      case 'mod_ruou_customers': return Icons.people_rounded;
-      case 'mod_ruou_inventory': return Icons.warehouse_rounded;
-      default: return IconHelper.getIcon(iconName ?? 'other');
-    }
-  }
-
-  Color _getModuleColor(String moduleId, [String? colorHex]) {
-    switch (moduleId) {
-      case 'mod_chitieu': return _green;
-      case 'mod_shopee': return const Color(0xFFEE4D2D);
-      case 'mod_vang': return const Color(0xFFFFB300);
-      case 'mod_nhatro': return const Color(0xFF1565C0);
-      case 'mod_creditcard': return const Color(0xFF37474F);
-      case 'mod_ruou': return const Color(0xFF6A1B9A);
-      case 'mod_ruou_products': return const Color(0xFF8E24AA);
-      case 'mod_ruou_customers': return const Color(0xFF5C6BC0);
-      case 'mod_ruou_inventory': return const Color(0xFF00897B);
-      default: return ColorHelper.getColor(colorHex ?? '#607D8B');
-    }
   }
 
   // ─── Import/Export Bottom Sheet ────────────────────────────────────────────

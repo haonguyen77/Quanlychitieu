@@ -12,6 +12,7 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/account_provider.dart';
 import '../../providers/module_provider.dart';
+import '../../providers/beneficiary_provider.dart';
 import '../../repositories/transaction_repository.dart';
 import '../../services/usage_frequency_service.dart';
 import '../../utils/formatters.dart';
@@ -38,6 +39,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
+  final _amountFocusNode = FocusNode();
   final _noteController = TextEditingController();
   final _eventController = TextEditingController();
   final _beneficiaryController = TextEditingController();
@@ -93,18 +95,36 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     } else {
       _selectedAccountId = widget.preSelectedAccountId ?? 'acc_cash';
       _selectedCategoryId = 'cat_muasam';
+      // Default amount is 0 so the user doesn't have to type it first.
+      _amountController.text = '0';
     }
+
+    // When the amount field gains focus and its value is the default "0",
+    // select all text so typing overwrites it (no need to delete the 0).
+    _amountFocusNode.addListener(() {
+      if (_amountFocusNode.hasFocus) {
+        final raw = _amountController.text.replaceAll('.', '').replaceAll(',', '');
+        if (raw == '0') {
+          _amountController.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: _amountController.text.length,
+          );
+        }
+      }
+    });
   }
 
   Future<void> _loadData() async {
     final catProvider = context.read<CategoryProvider>();
     final accProvider = context.read<AccountProvider>();
     final modProvider = context.read<ModuleProvider>();
+    final benProvider = context.read<BeneficiaryProvider>();
 
     await Future.wait([
       catProvider.loadCategories(),
       accProvider.loadAccounts(),
       modProvider.loadModules(),
+      benProvider.loadBeneficiaries(),
     ]);
 
     if (!isEditing && modProvider.modules.isNotEmpty) {
@@ -118,6 +138,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void dispose() {
     _titleController.dispose();
     _amountController.dispose();
+    _amountFocusNode.dispose();
     _noteController.dispose();
     _eventController.dispose();
     _beneficiaryController.dispose();
@@ -540,6 +561,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               const SizedBox(height: 6),
               TextFormField(
                 controller: _amountController,
+                focusNode: _amountFocusNode,
                 keyboardType: TextInputType.number,
                 inputFormatters: [_ThousandsSeparatorFormatter()],
                 decoration: InputDecoration(
@@ -1082,32 +1104,42 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   // ─── Beneficiary Field (Người nhận) ──────────────────────────────────────
 
   Widget _buildBeneficiaryField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Người nhận', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey[800])),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: _beneficiaryController.text.isNotEmpty && _beneficiaryOptions.contains(_beneficiaryController.text)
-              ? _beneficiaryController.text
-              : null,
-          decoration: InputDecoration(
-            hintText: 'Chọn người nhận',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[300]!)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[300]!)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            filled: false,
-          ),
-          items: _beneficiaryOptions.map((name) {
-            return DropdownMenuItem(value: name, child: Text(name));
-          }).toList(),
-          onChanged: (value) {
-            setState(() {
-              _beneficiaryController.text = value ?? '';
-            });
-          },
-        ),
-      ],
+    return Consumer<BeneficiaryProvider>(
+      builder: (context, provider, _) {
+        // Names configured in Settings (Cấu hình → Người nhận).
+        final names = provider.activeBeneficiaries.map((b) => b.name).toList();
+        // Keep the current value selectable even if it's not in the configured
+        // list (e.g. editing an older transaction).
+        final current = _beneficiaryController.text.trim();
+        if (current.isNotEmpty && !names.contains(current)) {
+          names.insert(0, current);
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Người nhận', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey[800])),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              initialValue: current.isNotEmpty && names.contains(current) ? current : null,
+              decoration: InputDecoration(
+                hintText: 'Chọn người nhận',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[300]!)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[300]!)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                filled: false,
+              ),
+              items: names.map((name) {
+                return DropdownMenuItem(value: name, child: Text(name));
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _beneficiaryController.text = value ?? '';
+                });
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1143,9 +1175,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   // ─── Expanded Section ───────────────────────────────────────────────────
-
-  // Default beneficiary options (configured in Settings)
-  static const _beneficiaryOptions = ['Ba', 'Mẹ', 'Vợ', 'Con', 'Anh', 'Chị', 'Chồng', 'Mình'];
 
   Widget _buildExpandedSection() {
     return Column(

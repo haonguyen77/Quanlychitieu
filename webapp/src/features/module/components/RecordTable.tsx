@@ -905,6 +905,7 @@ function CellDisplay({ value, field }: { value: unknown; field: FieldDefinition 
     if (field.fieldName === 'account' && strVal) {
       const acc = data?.accounts?.find((a) => a.id === strVal || a.name === strVal);
       if (acc) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: (acc.color || '#64748b') + '15', color: acc.color || '#64748b' }}>{acc.name}</span>;
+      // Unknown account id → don't display a raw UUID.
       if (isUuidLike(strVal)) return <span className="text-[var(--color-text-secondary)]">—</span>;
     }
     // Fallback for beneficiary field with known values

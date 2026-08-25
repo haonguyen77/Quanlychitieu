@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart' hide Category;
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -28,7 +29,10 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
   final _uuid = const Uuid();
 
   String _selectedIcon = 'other';
-  String _selectedColor = '#2196F3';
+  // Random color by default (Shopee-style) for new categories.
+  String _selectedColor = ColorHelper.toHex(
+    ColorHelper.availableColors[Random().nextInt(ColorHelper.availableColors.length)],
+  );
   bool _isLoading = false;
 
   bool get isEditing => widget.editCategory != null;

@@ -49,8 +49,10 @@ class CryptoService {
   private keyCache = new Map<string, CryptoKey>();
 
   constructor() {
-    // Restore PIN from sessionStorage (survives reload within same tab)
-    try { this._pin = sessionStorage.getItem(SESSION_PIN_KEY); } catch { /* */ }
+    // Restore PIN from localStorage (persists across tab close/reopen) so the
+    // user doesn't have to re-enter it every time. Falls back to the old
+    // sessionStorage value for backward compatibility.
+    try { this._pin = localStorage.getItem(SESSION_PIN_KEY) ?? sessionStorage.getItem(SESSION_PIN_KEY); } catch { /* */ }
   }
 
   isEnabled(): boolean {
@@ -95,7 +97,8 @@ class CryptoService {
   private holdPin(pin: string): void {
     this._pin = pin;
     this.keyCache.clear();
-    try { sessionStorage.setItem(SESSION_PIN_KEY, pin); } catch { /* */ }
+    // Persist across sessions so the PIN is remembered on this device.
+    try { localStorage.setItem(SESSION_PIN_KEY, pin); } catch { /* */ }
   }
 
   // ── Encrypt / Decrypt ───────────────────────────────────────────────────────
@@ -175,6 +178,7 @@ class CryptoService {
     this.keyCache.clear();
     localStorage.removeItem(ENABLED_KEY);
     localStorage.removeItem(VERIFY_KEY);
+    try { localStorage.removeItem(SESSION_PIN_KEY); } catch { /* */ }
     try { sessionStorage.removeItem(SESSION_PIN_KEY); } catch { /* */ }
   }
 
