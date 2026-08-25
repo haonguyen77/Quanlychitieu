@@ -8,6 +8,11 @@ import { ContextMenu } from '@/shared/components/ui/ContextMenu';
 import { ColumnFilter, type ColumnFilterValue } from '@/shared/components/ui/ColumnFilter';
 import type { ModuleDefinition, DataRecord, FieldDefinition } from '@/types';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuidLike(v: string): boolean {
+  return UUID_RE.test(v.trim());
+}
+
 interface RecordTableProps {
   module: ModuleDefinition;
   records: DataRecord[];
@@ -893,6 +898,15 @@ function CellDisplay({ value, field }: { value: unknown; field: FieldDefinition 
     }
     const opt = field.options.find((o) => o.value === value);
     if (opt) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: (opt.color || '#64748b') + '15', color: opt.color || '#64748b' }}>{opt.label}</span>;
+    // Fallback for account: the value may be an account id (e.g. a UUID from a
+    // newly added payment method) not present in this field's options yet.
+    // Resolve it against the shared accounts list so it shows the real name
+    // (e.g. "Tpbank") instead of leaking the raw id.
+    if (field.fieldName === 'account' && strVal) {
+      const acc = data?.accounts?.find((a) => a.id === strVal || a.name === strVal);
+      if (acc) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: (acc.color || '#64748b') + '15', color: acc.color || '#64748b' }}>{acc.name}</span>;
+      if (isUuidLike(strVal)) return <span className="text-[var(--color-text-secondary)]">—</span>;
+    }
     // Fallback for beneficiary field with known values
     if (field.fieldName === 'beneficiary' && strVal) {
       const benLabels: Record<string, string> = { ba: 'Ba', me: 'Mẹ', vo: 'Vợ', con: 'Con', anh: 'Anh', chi: 'Chị', chong: 'Chồng', banthan: 'Mình' };
