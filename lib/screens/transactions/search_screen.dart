@@ -5,9 +5,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/account_provider.dart';
 import '../../providers/module_provider.dart';
 import '../../models/transaction.dart';
-import '../../models/category.dart';
 import '../../utils/formatters.dart';
-import 'add_transaction_screen.dart';
 import 'transaction_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {

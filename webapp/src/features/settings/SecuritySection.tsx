@@ -3,7 +3,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { cryptoService } from '@/services/crypto/cryptoService';
 import { passcodeService } from '@/services/passcode/passcodeService';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
-import { Lock, ShieldCheck, KeyRound } from 'lucide-react';
+import { ShieldCheck, KeyRound } from 'lucide-react';
 
 /**
  * SecuritySection (desktop WebApp Settings) — 2 independent sections:

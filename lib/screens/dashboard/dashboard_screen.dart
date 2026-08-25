@@ -12,7 +12,6 @@ import '../../modules/credit_card/models/credit_card.dart';
 import '../../modules/credit_card/screens/credit_card_screen.dart';
 import '../../modules/rental/providers/rental_provider.dart';
 import '../../modules/rental/screens/rental_home_screen.dart';
-import '../../utils/formatters.dart';
 import '../../utils/transaction_styles.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../settings/recurring_reminder_screen.dart';

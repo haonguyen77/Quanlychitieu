@@ -8,9 +8,6 @@ export function TrashView({ moduleFilter }: { moduleFilter?: string[] }) {
   const { restoreRecord, deleteRecord } = useRecordStore();
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
-  const CHITIEU_MODULES = ['mod_chitieu', 'mod_shopee', 'mod_vang', 'mod_nhatro', 'mod_creditcard'];
-  const WINE_MODULES = ['mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory'];
-
   const deletedRecords = useMemo(() => {
     if (!data) return [];
     let records = data.records.filter((r) => r.isDeleted);

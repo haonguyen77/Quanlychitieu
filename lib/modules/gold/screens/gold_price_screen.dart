@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/gold_provider.dart';
-import '../models/gold_models.dart';
 import '../../../utils/formatters.dart';
 
 class GoldPriceScreen extends StatefulWidget {

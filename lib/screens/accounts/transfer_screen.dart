@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../models/account.dart';
 import '../../providers/account_provider.dart';
 import '../../utils/formatters.dart';
 import '../../utils/icon_helper.dart';

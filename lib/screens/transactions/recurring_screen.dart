@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart' hide Category;
-import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../database/database_helper.dart';
-import '../../providers/category_provider.dart';
-import '../../providers/module_provider.dart';
-import '../../providers/account_provider.dart';
 import '../../utils/formatters.dart';
 
 class RecurringScreen extends StatefulWidget {

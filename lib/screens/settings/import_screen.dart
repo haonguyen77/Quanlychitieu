@@ -1,13 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:excel/excel.dart';
-import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
-import '../../providers/transaction_provider.dart';
 import '../../database/database_helper.dart';
-import '../../utils/formatters.dart';
 
 class ImportScreen extends StatefulWidget {
   const ImportScreen({super.key});
@@ -17,7 +14,6 @@ class ImportScreen extends StatefulWidget {
 }
 
 class _ImportScreenState extends State<ImportScreen> {
-  String? _filePath;
   String? _fileName;
   List<List<String>> _previewRows = [];
   List<String> _headers = [];
@@ -54,7 +50,6 @@ class _ImportScreenState extends State<ImportScreen> {
       if (file.path == null) return;
 
       setState(() {
-        _filePath = file.path;
         _fileName = file.name;
         _errorMessage = null;
         _showResults = false;

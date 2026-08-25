@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Icon } from '@/shared/components/ui/Icon';
 
 const REMINDER_CONFIG_KEY = 'pdp_expense_reminders';

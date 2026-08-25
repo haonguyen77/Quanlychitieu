@@ -9,7 +9,22 @@ import '../../../screens/transactions/transaction_detail_screen.dart';
 enum _FilterPeriod { week, month, year, all }
 
 class ShopeeHomeScreen extends StatefulWidget {
-  const ShopeeHomeScreen({super.key});
+  /// This screen doubles as the generic module screen. When opened for a custom
+  /// module, pass its id/title/icon/color; defaults keep the original Shopee UI.
+  final String moduleId;
+  final String title;
+  final String subtitle;
+  final IconData headerIcon;
+  final Color accentColor;
+
+  const ShopeeHomeScreen({
+    super.key,
+    this.moduleId = 'mod_shopee',
+    this.title = 'Mua sắm online',
+    this.subtitle = 'Chi tiêu mua sắm trên các sàn TMĐT',
+    this.headerIcon = Icons.shopping_bag,
+    this.accentColor = const Color(0xFFFF2D16),
+  });
 
   @override
   State<ShopeeHomeScreen> createState() => _ShopeeHomeScreenState();
@@ -17,7 +32,8 @@ class ShopeeHomeScreen extends StatefulWidget {
 
 class _ShopeeHomeScreenState extends State<ShopeeHomeScreen> {
   // ─── Colors ─────────────────────────────────────────────────────────────
-  static const _primaryRed = Color(0xFFFF2D16);
+  // Accent color comes from the module (defaults to Shopee red).
+  Color get _primaryRed => widget.accentColor;
   static const _navy = Color(0xFF101B4D);
   static const _blue = Color(0xFF1264F5);
   static const _green = Color(0xFF16A34A);
@@ -167,7 +183,7 @@ class _ShopeeHomeScreenState extends State<ShopeeHomeScreen> {
     setState(() => _isLoading = true);
     final provider = context.read<TransactionProvider>();
     final results = await provider.search(
-      moduleId: 'mod_shopee',
+      moduleId: widget.moduleId,
       startDate: _startDate,
       endDate: _endDate,
     );
@@ -270,7 +286,7 @@ class _ShopeeHomeScreenState extends State<ShopeeHomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const AddTransactionScreen(preSelectedModuleId: 'mod_shopee'),
+        builder: (_) => AddTransactionScreen(preSelectedModuleId: widget.moduleId),
       ),
     ).then((result) {
       if (result == true) _loadData();
@@ -349,19 +365,19 @@ class _ShopeeHomeScreenState extends State<ShopeeHomeScreen> {
               color: _lightBg,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.shopping_bag, color: _primaryRed, size: 22),
+            child: Icon(widget.headerIcon, color: _primaryRed, size: 22),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Mua sắm online',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _navy),
+                Text(
+                  widget.title,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _navy),
                 ),
                 Text(
-                  'Chi tiêu mua sắm trên các sàn TMĐT',
+                  widget.subtitle,
                   style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                 ),
               ],
@@ -407,7 +423,7 @@ class _ShopeeHomeScreenState extends State<ShopeeHomeScreen> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _primaryRed)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _primaryRed)),
               filled: true,
               fillColor: _lightBg,
             ),
@@ -604,16 +620,16 @@ class _ShopeeHomeScreenState extends State<ShopeeHomeScreen> {
               ),
             ),
             Container(width: 1, height: 50, color: _border.withOpacity(0.5)),
-            // Đơn hàng
+            // Đơn hàng (Shopee) / Giao dịch (module khác)
             Expanded(
               child: _StatCard(
                 icon: Icons.inventory_2_outlined,
                 iconBgColor: _blue.withOpacity(0.1),
                 iconColor: _blue,
-                label: 'Đơn hàng',
+                label: widget.moduleId == 'mod_shopee' ? 'Đơn hàng' : 'Giao dịch',
                 value: '$_orderCount',
                 valueColor: _blue,
-                subtitle: '$_orderCount đơn',
+                subtitle: widget.moduleId == 'mod_shopee' ? '$_orderCount đơn' : '$_orderCount giao dịch',
               ),
             ),
             Container(width: 1, height: 50, color: _border.withOpacity(0.5)),
@@ -735,9 +751,9 @@ class _ShopeeHomeScreenState extends State<ShopeeHomeScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _primaryRed,
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(8),
           topRight: Radius.circular(8),
         ),

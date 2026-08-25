@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/wine_data_provider.dart';
 import '../../services/wine_color_service.dart';
-import '../../../../utils/formatters.dart';
 
 /// Wine Order Create/Edit — reads/writes directly to records table.
 /// Matches EXT's WineOrderForm exactly: customer info, products, notes, ship fee.
@@ -30,16 +29,37 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
   final _note1Ctrl = TextEditingController();
   final _note2Ctrl = TextEditingController();
 
+  // Stable focus nodes (never recreate in build → keeps focus + autocomplete
+  // overlay alive while typing).
+  final _nameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _addressFocus = FocusNode();
+  final _wardFocus = FocusNode();
+  final _cityFocus = FocusNode();
+  final _shipFeeFocus = FocusNode();
+
   DateTime _date = DateTime.now();
   List<_ProductLine> _lines = [_ProductLine()];
 
+  // Inline customer suggestions (reliable: rendered directly in the tree, not
+  // via an overlay). _suggestField is which field is active ('name'|'phone'|
+  // 'address'|'ward'|'city'), _suggestions is the list to show under it.
+  String? _suggestField;
+  List<Map<String, dynamic>> _suggestions = [];
+
   bool get _isEditing => widget.editOrderId != null;
   Map<String, dynamic>? _editOrder;
+
+  void _rebuild() { if (mounted) setState(() {}); }
 
   @override
   void initState() {
     super.initState();
     WineColorService.instance.getColors(); // Pre-load colors
+    // Rebuild when money fields gain/lose focus so their suggestion chips
+    // show/hide correctly.
+    _shipFeeFocus.addListener(_rebuild);
+    for (final l in _lines) { l.priceFocus.addListener(_rebuild); }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // Load customers + products so autocomplete/suggestions have data.
       final provider = context.read<WineDataProvider>();
@@ -99,6 +119,7 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
         ));
       }
       if (_lines.isEmpty) _lines.add(_ProductLine());
+      for (final l in _lines) { l.priceFocus.addListener(_rebuild); }
     });
   }
 
@@ -107,6 +128,9 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
     _nameCtrl.dispose(); _phoneCtrl.dispose(); _addressCtrl.dispose();
     _wardCtrl.dispose(); _cityCtrl.dispose(); _shipFeeCtrl.dispose();
     _note1Ctrl.dispose(); _note2Ctrl.dispose();
+    _nameFocus.dispose(); _phoneFocus.dispose(); _addressFocus.dispose();
+    _wardFocus.dispose(); _cityFocus.dispose(); _shipFeeFocus.dispose();
+    for (final l in _lines) { l.priceCtrl.dispose(); l.qtyCtrl.dispose(); l.priceFocus.dispose(); }
     super.dispose();
   }
 
@@ -185,8 +209,8 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white, elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.close, color: _navy), onPressed: () => Navigator.pop(context)),
-        title: Text(_isEditing ? 'Sửa đơn hàng' : 'Tạo đơn hàng mới', style: const TextStyle(color: _navy, fontWeight: FontWeight.bold, fontSize: 16)),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: _navy), onPressed: () => Navigator.pop(context)),
+        title: Text(_isEditing ? 'Sửa đơn hàng' : 'Tạo đơn hàng mới', style: const TextStyle(color: _navy, fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -210,29 +234,33 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
             IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => setState(() => _date = _date.add(const Duration(days: 1)))),
           ]),
           const SizedBox(height: 12),
-          // Customer info (autocomplete from existing customers)
-          _customerAutocomplete(
-            icon: Icons.person,
-            hint: 'Tên khách hàng...',
-            controller: _nameCtrl,
-            field: 'customer_name',
+          // Customer info — suggest from existing customers (inline dropdown).
+          _suggestField_(
+            fkey: 'name', icon: Icons.person_outline, hint: 'Tên khách hàng...',
+            controller: _nameCtrl, focusNode: _nameFocus, matchKey: 'full_name',
           ),
-          _customerAutocomplete(
-            icon: Icons.phone,
-            hint: 'Số điện thoại...',
-            controller: _phoneCtrl,
-            field: 'customer_phone',
+          const SizedBox(height: 10),
+          _suggestField_(
+            fkey: 'phone', icon: Icons.phone_outlined, hint: 'Số điện thoại...',
+            controller: _phoneCtrl, focusNode: _phoneFocus, matchKey: 'phone',
+            keyboardType: TextInputType.phone,
           ),
-          _customerAutocomplete(
-            icon: Icons.location_on,
-            hint: 'Nhập địa chỉ...',
-            controller: _addressCtrl,
-            field: 'customer_address',
+          const SizedBox(height: 10),
+          _suggestField_(
+            fkey: 'address', icon: Icons.location_on_outlined, hint: 'Nhập địa chỉ...',
+            controller: _addressCtrl, focusNode: _addressFocus, matchKey: 'address',
           ),
-          Row(children: [
-            Expanded(child: _plainAutocomplete('Phường/Xã...', _wardCtrl, 'customer_district')),
+          const SizedBox(height: 10),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: _suggestField_(
+              fkey: 'ward', icon: Icons.map_outlined, hint: 'Phường/Xã...',
+              controller: _wardCtrl, focusNode: _wardFocus, matchKey: 'district', fillOnly: true,
+            )),
             const SizedBox(width: 8),
-            Expanded(child: _plainAutocomplete('Thành phố...', _cityCtrl, 'customer_city')),
+            Expanded(child: _suggestField_(
+              fkey: 'city', icon: Icons.location_city_outlined, hint: 'Thành phố...',
+              controller: _cityCtrl, focusNode: _cityFocus, matchKey: 'city', fillOnly: true,
+            )),
           ]),
           const SizedBox(height: 16),
           // Products
@@ -240,7 +268,11 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
             const Text('Sản phẩm', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _navy)),
             const Spacer(),
             TextButton.icon(
-              onPressed: () => setState(() => _lines.add(_ProductLine())),
+              onPressed: () => setState(() {
+                final line = _ProductLine();
+                line.priceFocus.addListener(_rebuild);
+                _lines.add(line);
+              }),
               icon: const Icon(Icons.add, size: 16), label: const Text('Thêm SP', style: TextStyle(fontSize: 12)),
             ),
           ]),
@@ -258,6 +290,7 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
             SizedBox(width: 130, child: _moneySuggestField(
               label: 'Phí ship',
               controller: _shipFeeCtrl,
+              focusNode: _shipFeeFocus,
               onValue: (_) => setState(() {}),
             )),
           ]),
@@ -281,11 +314,15 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
                 style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
               )),
             if (_isEditing) const SizedBox(width: 12),
-            Expanded(flex: 2, child: FilledButton.icon(
+            Expanded(flex: 2, child: FilledButton(
               onPressed: _save,
-              icon: const Icon(Icons.save, size: 18),
-              label: const Text('Lưu đơn'),
-              style: FilledButton.styleFrom(backgroundColor: _purple, minimumSize: const Size.fromHeight(48)),
+              style: FilledButton.styleFrom(
+                backgroundColor: _purple,
+                minimumSize: const Size.fromHeight(50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(_isEditing ? 'Lưu đơn hàng' : 'Tạo đơn hàng',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             )),
           ]),
         ]),
@@ -300,179 +337,207 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
       _addressCtrl.text = (c['address'] as String?) ?? '';
       _wardCtrl.text = (c['district'] as String?) ?? '';
       _cityCtrl.text = (c['city'] as String?) ?? '';
+      _suggestField = null;
+      _suggestions = [];
     });
+    FocusScope.of(context).unfocus();
   }
 
-  /// Autocomplete a customer field (name/phone/address). Selecting an option
-  /// fills all the other customer fields from the matched customer record.
-  Widget _customerAutocomplete({
+  void _onSuggestChanged(String fkey, String matchKey, String text, {required bool fillOnly}) {
+    final q = text.trim().toLowerCase();
+    if (q.isEmpty) {
+      setState(() { _suggestField = null; _suggestions = []; });
+      return;
+    }
+    final customers = context.read<WineDataProvider>().customers;
+    final seen = <String>{};
+    final matches = <Map<String, dynamic>>[];
+    for (final c in customers) {
+      final v = ((c[matchKey] as String?) ?? '').trim();
+      if (v.isEmpty || !v.toLowerCase().contains(q)) continue;
+      // Dedupe by the value shown for THIS field so we don't repeat the same
+      // name/phone/address.
+      if (seen.add(v.toLowerCase())) matches.add(c);
+      if (matches.length >= 6) break;
+    }
+    setState(() { _suggestField = fkey; _suggestions = matches; });
+  }
+
+  /// A customer field with an INLINE suggestion dropdown rendered directly in
+  /// the widget tree (no overlay) so it always shows. [fillOnly] = ward/city
+  /// (only set that field); otherwise selecting fills the whole customer.
+  Widget _suggestField_({
+    required String fkey,
     required IconData icon,
     required String hint,
     required TextEditingController controller,
-    required String field, // 'customer_name' | 'customer_phone' | 'customer_address'
+    required FocusNode focusNode,
+    required String matchKey,
+    TextInputType? keyboardType,
+    bool fillOnly = false,
   }) {
-    final key = field == 'customer_name'
-        ? 'full_name'
-        : field == 'customer_phone'
-            ? 'phone'
-            : 'address';
-    final customers = context.watch<WineDataProvider>().customers;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: RawAutocomplete<Map<String, dynamic>>(
-        textEditingController: controller,
-        focusNode: FocusNode(),
-        displayStringForOption: (c) => (c[key] as String?) ?? '',
-        optionsBuilder: (value) {
-          final q = value.text.trim().toLowerCase();
-          if (q.isEmpty) return const Iterable<Map<String, dynamic>>.empty();
-          final seen = <String>{};
-          return customers.where((c) {
-            final v = ((c[key] as String?) ?? '').toLowerCase();
-            if (v.isEmpty || !v.contains(q)) return false;
-            return seen.add(v); // dedupe by displayed value
-          }).take(6);
-        },
-        onSelected: _fillFromCustomer,
-        fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) {
-          return TextField(
-            controller: textCtrl,
-            focusNode: focusNode,
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon, size: 20, color: Colors.grey[500]),
-              hintText: hint,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-          );
-        },
-        optionsViewBuilder: (context, onSelected, options) => _optionsList<Map<String, dynamic>>(
-          options, (c) => '${(c[key] as String?) ?? ''}  ·  ${(c['phone'] as String?) ?? ''}', onSelected),
-      ),
-    );
-  }
-
-  /// Plain autocomplete over distinct string values of a customer field
-  /// (used for ward/city — just suggests, no auto-fill of other fields).
-  Widget _plainAutocomplete(String hint, TextEditingController controller, String field) {
-    final key = field == 'customer_district' ? 'district' : 'city';
-    final customers = context.watch<WineDataProvider>().customers;
-    return RawAutocomplete<String>(
-      textEditingController: controller,
-      focusNode: FocusNode(),
-      optionsBuilder: (value) {
-        final q = value.text.trim().toLowerCase();
-        if (q.isEmpty) return const Iterable<String>.empty();
-        final set = <String>{};
-        for (final c in customers) {
-          final v = ((c[key] as String?) ?? '').trim();
-          if (v.isNotEmpty && v.toLowerCase().contains(q)) set.add(v);
-        }
-        return set.take(6);
-      },
-      onSelected: (v) => controller.text = v,
-      fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) {
-        return TextField(
-          controller: textCtrl,
-          focusNode: focusNode,
-          decoration: InputDecoration(
-            hintText: hint,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    final showList = _suggestField == fkey && _suggestions.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _border),
           ),
-        );
-      },
-      optionsViewBuilder: (context, onSelected, options) =>
-          _optionsList<String>(options, (s) => s, onSelected),
+          child: Row(children: [
+            const SizedBox(width: 12),
+            Icon(icon, size: 18, color: Colors.grey[500]),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                keyboardType: keyboardType,
+                style: const TextStyle(fontSize: 14, color: _navy),
+                onChanged: (v) => _onSuggestChanged(fkey, matchKey, v, fillOnly: fillOnly),
+                decoration: InputDecoration(
+                  hintText: hint,
+                  hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            Icon(Icons.expand_more, size: 20, color: Colors.grey[400]),
+            const SizedBox(width: 8),
+          ]),
+        ),
+        if (showList)
+          Container(
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _border),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6)],
+            ),
+            child: Column(
+              children: _suggestions.map((c) {
+                // Show the value matching THIS field (name field → name, phone
+                // field → phone, address field → address). Selecting fills all.
+                final primary = (c[matchKey] as String?) ?? '';
+                // Small secondary line for context (name field also shows phone).
+                final sub = fkey == 'name'
+                    ? ((c['phone'] as String?) ?? '')
+                    : '';
+                return InkWell(
+                  onTap: () {
+                    if (fillOnly) {
+                      controller.text = (c[matchKey] as String?) ?? '';
+                      setState(() { _suggestField = null; _suggestions = []; });
+                      FocusScope.of(context).unfocus();
+                    } else {
+                      _fillFromCustomer(c);
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(primary, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                        if (sub.isNotEmpty)
+                          Text(sub, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
     );
   }
 
-  /// A money input that suggests common amounts while typing (e.g. type "35"
-  /// → suggests 35.000 / 350.000 / 3.500.000). Works with an external
-  /// [controller] (ship fee) or an internal one seeded from [initialValue].
+  /// Plain money field with quick-amount suggestion chips underneath (type a
+  /// few digits → tap a chip to multiply). No overlay, always visible.
   Widget _moneySuggestField({
     required String label,
-    TextEditingController? controller,
-    double? initialValue,
+    required TextEditingController controller,
+    required FocusNode focusNode,
     required void Function(double) onValue,
   }) {
     final nf = NumberFormat('#,###', 'vi_VN');
-    final ctrl = controller ??
-        TextEditingController(text: (initialValue ?? 0) > 0 ? nf.format(initialValue!.toInt()) : '');
     double parse(String s) => double.tryParse(s.replaceAll('.', '').replaceAll(',', '')) ?? 0;
-    return RawAutocomplete<int>(
-      textEditingController: ctrl,
-      focusNode: FocusNode(),
-      optionsBuilder: (value) {
-        final raw = value.text.replaceAll(RegExp(r'[^0-9]'), '');
-        if (raw.isEmpty || raw.length > 4) return const Iterable<int>.empty();
-        final n = int.tryParse(raw) ?? 0;
-        if (n <= 0) return const Iterable<int>.empty();
-        return [n * 1000, n * 10000, n * 100000, n * 1000000];
-      },
-      onSelected: (v) {
-        ctrl.text = nf.format(v);
-        onValue(v.toDouble());
-      },
-      fieldViewBuilder: (context, textCtrl, focusNode, onSubmit) {
-        return TextField(
-          controller: textCtrl,
+    final raw = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final n = int.tryParse(raw) ?? 0;
+    final showChips = focusNode.hasFocus && raw.isNotEmpty && raw.length <= 3 && n > 0;
+    final chips = showChips ? [n * 1000, n * 10000, n * 100000] : <int>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
           focusNode: focusNode,
           keyboardType: TextInputType.number,
-          onChanged: (v) => onValue(parse(v)),
+          onChanged: (v) => setState(() => onValue(parse(v))),
           decoration: InputDecoration(
             labelText: label,
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             suffixText: 'đ',
           ),
-        );
-      },
-      optionsViewBuilder: (context, onSelected, options) =>
-          _optionsList<int>(options, (v) => '${nf.format(v)} đ', onSelected),
-    );
-  }
-
-  Widget _optionsList<T>(Iterable<T> options, String Function(T) label, void Function(T) onSelected) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Material(
-        elevation: 4,
-        borderRadius: BorderRadius.circular(8),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: 220, maxWidth: MediaQuery.of(context).size.width - 48),
-          child: ListView.builder(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            itemCount: options.length,
-            itemBuilder: (context, i) {
-              final opt = options.elementAt(i);
-              return ListTile(
-                dense: true,
-                title: Text(label(opt), style: const TextStyle(fontSize: 13)),
-                onTap: () => onSelected(opt),
-              );
-            },
-          ),
         ),
-      ),
+        if (chips.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Wrap(
+              spacing: 6,
+              children: chips.map((v) => GestureDetector(
+                onTap: () => setState(() {
+                  controller.text = nf.format(v);
+                  onValue(v.toDouble());
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _purple.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text('${nf.format(v)}đ', style: const TextStyle(fontSize: 11, color: _purple)),
+                ),
+              )).toList(),
+            ),
+          ),
+      ],
     );
   }
 
   Widget _field(IconData? icon, String hint, TextEditingController ctrl) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: TextField(
-        controller: ctrl,
-        decoration: InputDecoration(
-          prefixIcon: icon != null ? Icon(icon, size: 20, color: Colors.grey[500]) : null,
-          hintText: hint,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
         ),
+        child: Row(children: [
+          if (icon != null) ...[
+            const SizedBox(width: 12),
+            Icon(icon, size: 18, color: Colors.grey[500]),
+          ],
+          Expanded(
+            child: TextField(
+              controller: ctrl,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: icon != null ? 8 : 12, vertical: 12),
+              ),
+            ),
+          ),
+        ]),
       ),
     );
   }
@@ -514,14 +579,15 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
         Row(children: [
           SizedBox(width: 60, child: TextField(
             keyboardType: TextInputType.number,
-            controller: TextEditingController(text: line.qty > 0 ? '${line.qty}' : ''),
+            controller: line.qtyCtrl,
             onChanged: (v) => setState(() => line.qty = int.tryParse(v) ?? 0),
             decoration: const InputDecoration(labelText: 'SL', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6)),
           )),
           const SizedBox(width: 8),
           Expanded(child: _moneySuggestField(
             label: 'Đơn giá',
-            initialValue: line.price,
+            controller: line.priceCtrl,
+            focusNode: line.priceFocus,
             onValue: (val) => setState(() => line.price = val),
           )),
           const SizedBox(width: 8),
@@ -579,9 +645,6 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
   // ─── Color Dropdown ───────────────────────────────────────────────────────
 
   Widget _buildColorDropdown(_ProductLine line) {
-    final colors = WineColorService.instance.getColorsSync();
-    final currentValue = line.color.isNotEmpty && colors.contains(line.color) ? line.color : null;
-
     return GestureDetector(
       onTap: () => _showColorPicker(line),
       child: Container(
@@ -792,6 +855,14 @@ class _ProductLine {
   int qty;
   double price;
   String color;
+  // Stable controllers + focus node so fields keep focus while typing.
+  final TextEditingController priceCtrl;
+  final TextEditingController qtyCtrl;
+  final FocusNode priceFocus = FocusNode();
 
-  _ProductLine({this.name = '', this.sku = '', this.qty = 1, this.price = 0, this.color = ''});
+  _ProductLine({this.name = '', this.sku = '', this.qty = 1, this.price = 0, this.color = ''})
+      : priceCtrl = TextEditingController(
+          text: price > 0 ? NumberFormat('#,###', 'vi_VN').format(price.toInt()) : '',
+        ),
+        qtyCtrl = TextEditingController(text: qty > 0 ? '$qty' : '');
 }

@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
-import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { TransactionDetailMobile } from './TransactionDetailMobile';
 import { MobileIcon } from './MobileIcon';
-import { getCategoryIconInfo, getAccountIconInfo, getModuleColor } from './mobileIconMap';
-import { getCategoryDisplay, getAccountDisplay, getModuleDisplay, getRecordField, formatMoney } from './mobileDataMapper';
+import { getCategoryDisplay, getAccountDisplay, getRecordField } from './mobileDataMapper';
 import { Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import type { DataRecord } from '@/types';
 

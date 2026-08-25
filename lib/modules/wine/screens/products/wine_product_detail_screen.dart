@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/wine_product_provider.dart';
-import '../../providers/wine_stock_provider.dart';
 import '../../models/wine_product.dart';
 import 'add_wine_product_screen.dart';
 

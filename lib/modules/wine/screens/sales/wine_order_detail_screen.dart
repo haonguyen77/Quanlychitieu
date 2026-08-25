@@ -50,7 +50,7 @@ class WineOrderDetailScreen extends StatelessWidget {
             icon: const Icon(Icons.edit_outlined, color: _purple, size: 22),
             tooltip: 'Sửa',
             onPressed: () async {
-              final result = await Navigator.push(context, MaterialPageRoute(
+              await Navigator.push(context, MaterialPageRoute(
                 builder: (_) => WineOrderFormScreen(editOrderId: order['id'] as String),
               ));
               if (context.mounted) Navigator.pop(context, true);

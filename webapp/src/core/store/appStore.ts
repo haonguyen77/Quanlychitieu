@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { FinanceData, ModuleDefinition, MenuItem, AppSettings, FieldDefinition } from '@/types';
 import { createDefaultFinanceData } from '@/core/defaults/defaultData';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
-import { cryptoService } from '@/services/crypto/cryptoService';
 import { syncService } from '@/services/sync/syncService';
 import { driveService } from '@/services/drive/driveService';
 

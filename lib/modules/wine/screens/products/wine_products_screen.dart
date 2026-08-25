@@ -102,42 +102,128 @@ class _WineProductsScreenState extends State<WineProductsScreen> {
     final nameCtrl = TextEditingController(text: existing?['product_name'] as String? ?? '');
     final skuCtrl = TextEditingController(text: existing?['sku'] as String? ?? '');
     final shortCtrl = TextEditingController(text: existing?['short_name'] as String? ?? '');
-    final volCtrl = TextEditingController(text: (existing?['volume_ml'] ?? '').toString());
+    final volCtrl = TextEditingController(text: existing?['volume_ml'] != null && existing?['volume_ml'] != 0
+        ? existing!['volume_ml'].toString() : '');
     String? wineType = existing?['wine_type'] as String?;
     String? bottleType = existing?['bottle_type'] as String?;
 
+    // Grey rounded field with a leading icon (matches the mockup).
+    Widget field({required TextEditingController c, required String hint, required IconData icon, TextInputType? kb, String? suffix}) {
+      return Container(
+        height: 52,
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: _border)),
+        child: Row(children: [
+          const SizedBox(width: 14),
+          Icon(icon, size: 18, color: Colors.grey[500]),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(
+            controller: c,
+            keyboardType: kb,
+            style: const TextStyle(fontSize: 14, color: _navy),
+            decoration: InputDecoration(
+              hintText: hint, hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
+              border: InputBorder.none, isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          )),
+          if (suffix != null) Padding(padding: const EdgeInsets.only(right: 14), child: Text(suffix, style: TextStyle(fontSize: 13, color: Colors.grey[500]))),
+        ]),
+      );
+    }
+
+    Widget dropdown({required String? value, required String hint, required IconData icon, required List<String> options, required ValueChanged<String?> onChanged}) {
+      return Container(
+        height: 52,
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: _border)),
+        child: Row(children: [
+          const SizedBox(width: 14),
+          Icon(icon, size: 18, color: Colors.grey[500]),
+          const SizedBox(width: 8),
+          Expanded(child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              hint: Text(hint, style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+              items: options.map((v) => DropdownMenuItem(value: v, child: Text(v, style: const TextStyle(fontSize: 14)))).toList(),
+              onChanged: onChanged,
+            ),
+          )),
+          const SizedBox(width: 12),
+        ]),
+      );
+    }
+
     return showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
-        title: Text(existing != null ? 'Sửa sản phẩm' : 'Thêm sản phẩm'),
-        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Tên sản phẩm *')),
-          TextField(controller: skuCtrl, decoration: const InputDecoration(labelText: 'SKU')),
-          TextField(controller: shortCtrl, decoration: const InputDecoration(labelText: 'Tên ngắn')),
-          TextField(controller: volCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Dung tích (ml)')),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(value: wineType, decoration: const InputDecoration(labelText: 'Loại rượu'),
-            items: ['gao', 'gao loai 2', 'nep', 'dauxanh', 'vangnep', 'dtht'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-            onChanged: (v) => setS(() => wineType = v)),
-          DropdownButtonFormField<String>(value: bottleType, decoration: const InputDecoration(labelText: 'Loại chai'),
-            items: ['pet', 'su', 'thuytinh'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-            onChanged: (v) => setS(() => bottleType = v)),
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
-          FilledButton(onPressed: () {
-            if (nameCtrl.text.trim().isEmpty) return;
-            Navigator.pop(ctx, {
-              'mod_ruou_products_product_name': nameCtrl.text.trim(),
-              'mod_ruou_products_sku': skuCtrl.text.trim(),
-              'mod_ruou_products_short_name': shortCtrl.text.trim(),
-              'mod_ruou_products_volume_ml': int.tryParse(volCtrl.text) ?? 0,
-              'mod_ruou_products_wine_type': wineType ?? '',
-              'mod_ruou_products_bottle_type': bottleType ?? '',
-              'mod_ruou_products_note': '',
-            });
-          }, child: const Text('Lưu')),
-        ],
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+            child: Row(children: [
+              IconButton(icon: const Icon(Icons.arrow_back, color: _navy), onPressed: () => Navigator.pop(ctx)),
+              Expanded(child: Text(existing != null ? 'Sửa sản phẩm' : 'Thêm sản phẩm',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _navy))),
+              const SizedBox(width: 48),
+            ]),
+          ),
+          Flexible(child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Column(children: [
+              field(c: nameCtrl, hint: 'Tên sản phẩm *', icon: Icons.wine_bar_outlined),
+              field(c: skuCtrl, hint: 'SKU *', icon: Icons.qr_code_outlined),
+              field(c: shortCtrl, hint: 'Tên ngắn (tùy chọn)', icon: Icons.short_text),
+              field(c: volCtrl, hint: 'Dung tích (ml)', icon: Icons.local_drink_outlined, kb: TextInputType.number, suffix: 'ml'),
+              dropdown(value: wineType, hint: 'Loại rượu', icon: Icons.liquor_outlined,
+                options: const ['gao', 'gao loai 2', 'nep', 'dauxanh', 'vangnep', 'dtht'],
+                onChanged: (v) => setS(() => wineType = v)),
+              dropdown(value: bottleType, hint: 'Loại chai', icon: Icons.wine_bar,
+                options: const ['pet', 'su', 'thuytinh'],
+                onChanged: (v) => setS(() => bottleType = v)),
+            ]),
+          )),
+          // Buttons
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Row(children: [
+              Expanded(child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  side: BorderSide(color: Colors.grey[300]!),
+                ),
+                child: Text('Hủy', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500)),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: FilledButton(
+                onPressed: () {
+                  if (nameCtrl.text.trim().isEmpty || skuCtrl.text.trim().isEmpty) return;
+                  Navigator.pop(ctx, {
+                    'mod_ruou_products_product_name': nameCtrl.text.trim(),
+                    'mod_ruou_products_sku': skuCtrl.text.trim(),
+                    'mod_ruou_products_short_name': shortCtrl.text.trim(),
+                    'mod_ruou_products_volume_ml': int.tryParse(volCtrl.text) ?? 0,
+                    'mod_ruou_products_wine_type': wineType ?? '',
+                    'mod_ruou_products_bottle_type': bottleType ?? '',
+                    'mod_ruou_products_note': '',
+                  });
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: _purple,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Lưu', style: TextStyle(fontWeight: FontWeight.w600)),
+              )),
+            ]),
+          ),
+        ]),
       )),
     );
   }

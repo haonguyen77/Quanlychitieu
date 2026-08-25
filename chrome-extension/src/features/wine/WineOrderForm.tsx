@@ -72,6 +72,7 @@ export function WineOrderForm({ record, onClose }: Props) {
   const [priceRow, setPriceRow] = useState(-1);
   const [priceIdx, setPriceIdx] = useState(0);
   const [showCustSugg, setShowCustSugg] = useState(false);
+  const [showShipSugg, setShowShipSugg] = useState(false);
   const productInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const priceInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -89,11 +90,12 @@ export function WineOrderForm({ record, onClose }: Props) {
   const filteredCustomers = useMemo(() => { if (!customerName) return []; const q=customerName.toLowerCase(); return customers.filter((c)=>c.name.toLowerCase().includes(q)||c.phone.includes(q)).slice(0,6); }, [customers, customerName]);
   const filteredProducts = suggestRow >= 0 ? getFiltered(rows[suggestRow]?.productName||'') : [];
   const curPriceSugg = priceRow >= 0 ? priceSugg(String(rows[priceRow]?.price||'')) : [];
+  const curShipSugg = priceSugg(String(shipFee||''));
 
   const totalGoods = rows.reduce((s, r) => s + r.price * r.quantity, 0);
   const totalPayment = totalGoods + shipFee;
 
-  const updateRow = (i: number, f: keyof GridRow, v: any) => { setRows((p) => { const u=[...p]; u[i]={...u[i],[f]:v}; while(u.length<2||u[u.length-1].productName) u.push(emptyRow()); return u; }); };
+  const updateRow = (i: number, f: keyof GridRow, v: any) => { setRows((p) => { const u=[...p]; u[i]={...u[i],[f]:v}; if(f==='productName'&&v&&(!u[i].quantity||u[i].quantity<=0)) u[i].quantity=1; while(u.length<2||u[u.length-1].productName) u.push(emptyRow()); return u; }); };
   const selectProduct = (i: number, p: typeof products[0]) => { setRows((prev) => { const u=[...prev]; u[i]={...u[i], productName:p.name, productSku:p.sku, quantity:u[i].quantity||1}; while(u[u.length-1].productName) u.push(emptyRow()); return u; }); setSuggestRow(-1); setSuggestIdx(0); setTimeout(()=>focusCell(i,'qty'),30); };
   const deleteRow = (i: number) => { setRows((p)=>{const u=p.filter((_,j)=>j!==i); while(u.length<2) u.push(emptyRow()); return u;}); };
 
@@ -275,7 +277,14 @@ export function WineOrderForm({ record, onClose }: Props) {
             <div className="flex justify-between text-[13px]"><span className="text-gray-600">Tổng hàng</span><span className="font-medium text-gray-900 tabular-nums">{fmt(totalGoods)}đ</span></div>
             <div className="flex justify-between items-center text-[13px]">
               <span className="text-gray-600">Phí ship</span>
-              <div className="flex items-center gap-1"><input type="text" className="w-[80px] px-2 py-0.5 text-[13px] text-right border border-gray-300 rounded bg-white outline-none tabular-nums text-gray-900" value={shipFee?fmt(shipFee):''} placeholder="0" onChange={(e)=>setShipFee(Number(e.target.value.replace(/[^0-9]/g,''))||0)}/><span className="text-[11px] text-gray-400">đ</span></div>
+              <div className="flex items-center gap-1 relative">
+                <input type="text" className="w-[80px] px-2 py-0.5 text-[13px] text-right border border-gray-300 rounded bg-white outline-none tabular-nums text-gray-900" value={shipFee?fmt(shipFee):''} placeholder="0"
+                  onChange={(e)=>{setShipFee(Number(e.target.value.replace(/[^0-9]/g,''))||0);setShowShipSugg(true);}}
+                  onFocus={()=>setShowShipSugg(true)} onBlur={()=>setTimeout(()=>setShowShipSugg(false),200)}
+                  onKeyDown={(e)=>{if((e.key==='Tab'||e.key==='Enter')&&showShipSugg&&curShipSugg.length>0){e.preventDefault();setShipFee(curShipSugg[0]);setShowShipSugg(false);}}}/>
+                <span className="text-[11px] text-gray-400">đ</span>
+                {showShipSugg&&curShipSugg.length>0&&(<div className="absolute z-50 bottom-full right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">{curShipSugg.map((s)=>(<button key={s} onMouseDown={()=>{setShipFee(s);setShowShipSugg(false);}} className="w-full text-right px-3 py-1.5 text-[13px] tabular-nums hover:bg-purple-50 text-gray-900 whitespace-nowrap">{fmt(s)}đ</button>))}</div>)}
+              </div>
             </div>
             <div className="border-t border-purple-200 pt-1.5 flex justify-between items-baseline">
               <span className="text-[13px] font-semibold text-purple-700">Tổng thanh toán</span>

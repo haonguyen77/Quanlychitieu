@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/app_module.dart';
 import '../../providers/module_provider.dart';
-import '../../utils/icon_helper.dart';
 import '../../utils/color_helper.dart';
 
 class ModuleFieldsScreen extends StatefulWidget {

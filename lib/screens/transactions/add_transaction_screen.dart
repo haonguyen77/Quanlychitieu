@@ -16,7 +16,8 @@ import '../../providers/beneficiary_provider.dart';
 import '../../repositories/transaction_repository.dart';
 import '../../services/usage_frequency_service.dart';
 import '../../utils/formatters.dart';
-import '../../utils/transaction_styles.dart';
+import '../../utils/color_helper.dart';
+import '../../utils/icon_helper.dart';
 import '../../app/constants.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -907,56 +908,54 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Widget _buildModuleSection() {
     return Consumer<ModuleProvider>(
       builder: (context, provider, child) {
-        final modules = provider.modules.where((m) => m.isActive).toList();
+        // Show ALL active modules (including user-created ones like "Tiết Kiệm").
+        // Exceptions hidden here: Thẻ tín dụng and Rượu (and its sub-modules)
+        // are managed in their own screens, not as plain expense targets.
+        const hiddenIds = {
+          'mod_creditcard',
+          'mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory',
+        };
+        final modules = provider.modules
+            .where((m) => m.isActive && !hiddenIds.contains(m.id))
+            .toList();
         // Sort by usage frequency (most-used first)
         final sorted = UsageFrequencyService.instance.sortByModuleFrequencySync(modules, (m) => m.id);
-        final mainModules = sorted.where((m) =>
-            m.id == 'mod_chitieu' ||
-            m.id == 'mod_shopee' ||
-            m.id == 'mod_vang' ||
-            m.id == 'mod_nhatro').toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Module *', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey[800])),
             const SizedBox(height: 10),
-            Row(
-              children: mainModules.map((module) {
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: sorted.map((module) {
                 final isSelected = _selectedModuleId == module.id;
-                final moduleColor = TransactionStyles.moduleColor(module.id);
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedModuleId = module.id),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected ? moduleColor.withOpacity(0.15) : moduleColor.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? moduleColor : moduleColor.withOpacity(0.4),
-                            width: isSelected ? 2 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(TransactionStyles.moduleIcon(module.icon), size: 14, color: moduleColor),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                module.name,
-                                style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500, color: moduleColor),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                          ],
-                        ),
+                // Prefer the module's own stored color/icon; fall back to the
+                // known-module styling for the built-in ones.
+                final moduleColor = ColorHelper.getColor(module.color);
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedModuleId = module.id),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? moduleColor.withOpacity(0.15) : moduleColor.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected ? moduleColor : moduleColor.withOpacity(0.4),
+                        width: isSelected ? 2 : 1,
                       ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(IconHelper.getIcon(module.icon), size: 14, color: moduleColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          module.name,
+                          style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500, color: moduleColor),
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -1446,17 +1445,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       case 'coffee': return Icons.coffee;
       case 'other': return Icons.more_horiz;
       default: return Icons.category;
-    }
-  }
-
-  IconData _getModuleIcon(String iconName) {
-    switch (iconName) {
-      case 'expense': return Icons.receipt_long;
-      case 'shopee': return Icons.shopping_cart;
-      case 'gold': return Icons.diamond;
-      case 'rent': return Icons.home;
-      case 'card': return Icons.credit_card;
-      default: return Icons.widgets;
     }
   }
 

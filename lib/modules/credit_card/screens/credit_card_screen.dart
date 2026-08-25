@@ -5,9 +5,7 @@ import '../../../models/transaction.dart';
 import '../../../providers/transaction_provider.dart';
 import '../../../screens/transactions/add_transaction_screen.dart';
 import '../../../utils/transaction_styles.dart';
-import '../models/credit_card.dart';
 import '../providers/credit_card_provider.dart';
-import 'add_credit_card_screen.dart';
 import 'manage_cards_screen.dart';
 import 'credit_card_payment_screen.dart';
 

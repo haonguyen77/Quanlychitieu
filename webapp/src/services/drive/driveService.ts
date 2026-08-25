@@ -8,6 +8,7 @@ const FOLDER_NAME = 'QLCT';
 const MIME_TYPE = 'application/json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const TOKEN_KEY = 'pdp_google_token';
+const TOKEN_EXP_KEY = 'pdp_google_token_exp';
 
 // Web OAuth Configuration
 const WEB_CLIENT_ID = '360333034797-h538fkb028uqgc0fphclipvdda85e1b6.apps.googleusercontent.com';
@@ -20,24 +21,88 @@ const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com
  */
 class DriveService {
   token: string | null = null;
+  private tokenExp = 0; // epoch ms when the access token expires (0 = unknown)
   lastError = '';
 
   constructor() {
-    try { this.token = localStorage.getItem(TOKEN_KEY); } catch { /* */ }
-  }
-
-  private save(token: string | null) {
-    this.token = token;
     try {
-      if (token) localStorage.setItem(TOKEN_KEY, token);
-      else localStorage.removeItem(TOKEN_KEY);
+      this.token = localStorage.getItem(TOKEN_KEY);
+      const exp = localStorage.getItem(TOKEN_EXP_KEY);
+      this.tokenExp = exp ? parseInt(exp, 10) || 0 : 0;
     } catch { /* */ }
   }
 
+  private save(token: string | null, expiresInSec?: number) {
+    this.token = token;
+    // Google access tokens last ~1h. Store expiry with a 5-min safety margin.
+    this.tokenExp = token ? Date.now() + ((expiresInSec ?? 3600) - 300) * 1000 : 0;
+    try {
+      if (token) { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(TOKEN_EXP_KEY, String(this.tokenExp)); }
+      else { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(TOKEN_EXP_KEY); }
+    } catch { /* */ }
+  }
+
+  /** True when we have no token, or the stored token is past its expiry. */
+  private get isTokenValid(): boolean {
+    return !!this.token && (this.tokenExp === 0 || Date.now() < this.tokenExp);
+  }
+
   async getToken(interactive = false): Promise<string | null> {
-    if (this.token) return this.token;
+    if (this.isTokenValid) return this.token;
+    // Token missing or expired — try a silent refresh first (no popup).
+    const silent = await this.silentLogin();
+    if (silent) return silent;
     if (!interactive) { this.lastError = 'Not authenticated'; return null; }
     return this.login();
+  }
+
+  /**
+   * Silent re-auth using a hidden iframe with prompt=none.
+   * If the user still has an active Google session and previously granted
+   * consent, Google returns a fresh access_token without any UI. Otherwise
+   * it errors (login_required/consent_required) and we resolve null so the
+   * caller can fall back to the interactive popup.
+   */
+  silentLogin(): Promise<string | null> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (val: string | null) => {
+        if (done) return; done = true;
+        window.removeEventListener('message', onMsg);
+        try { document.body.removeChild(iframe); } catch { /* */ }
+        clearTimeout(timer);
+        resolve(val);
+      };
+      const redirectUri = `${window.location.origin}/auth/callback`;
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(WEB_CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(SCOPES)}&prompt=none`;
+
+      const onMsg = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return;
+        const d = e.data as { source?: string; token?: string; expiresIn?: number } | null;
+        if (!d || d.source !== 'gauth') return;
+        if (d.token) { this.save(d.token, d.expiresIn); this.lastError = ''; finish(d.token); }
+        else finish(null);
+      };
+      window.addEventListener('message', onMsg);
+
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = authUrl;
+      document.body.appendChild(iframe);
+
+      // Fallback: parse the iframe URL directly if postMessage isn't used.
+      const timer = setTimeout(() => {
+        try {
+          const href = iframe.contentWindow?.location.href;
+          if (href && href.startsWith(window.location.origin)) {
+            const params = new URLSearchParams(new URL(href).hash.substring(1));
+            const token = params.get('access_token');
+            if (token) { this.save(token, Number(params.get('expires_in')) || undefined); this.lastError = ''; finish(token); return; }
+          }
+        } catch { /* cross-origin: session likely expired */ }
+        finish(null);
+      }, 4000);
+    });
   }
 
   /**
@@ -85,7 +150,7 @@ class DriveService {
             const token = params.get('access_token');
 
             if (token) {
-              this.save(token);
+              this.save(token, Number(params.get('expires_in')) || undefined);
               this.lastError = '';
               resolve(token);
             } else {

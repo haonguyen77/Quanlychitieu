@@ -351,7 +351,6 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
                   const { addRecord } = useRecordStore.getState();
                   const dateEl = document.getElementById('payment-date') as HTMLInputElement;
                   const noteEl = document.getElementById('payment-note') as HTMLInputElement;
-                  const sourceEl = document.getElementById('payment-source') as HTMLSelectElement;
                   addRecord('mod_chitieu', {
                     mod_chitieu_title: noteEl?.value || `Thanh toán thẻ`,
                     mod_chitieu_amount: amount,

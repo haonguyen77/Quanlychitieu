@@ -241,7 +241,6 @@ export function WineSettingsView({ onClearFilters: _onClearFilters }: Props) {
 
           let imported = 0;
           let failCount = 0;
-          const results: Array<{ status: string; error: string }> = [];
           // Track which original rows belong to which group for result mapping
           let rowIdx = 0;
           const rowResults = new Array(rows.length).fill(null);

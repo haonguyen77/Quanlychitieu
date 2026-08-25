@@ -13,7 +13,7 @@ import { RecurringMobile } from './RecurringMobile';
 import { SecurityMobile } from './SecurityMobile';
 import { MobileIcon } from './MobileIcon';
 import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
-import { Cloud, Bell, Shield, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette, BarChart3, PieChart, Repeat, Layers } from 'lucide-react';
+import { Cloud, Bell, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette, BarChart3, PieChart, Repeat, Layers } from 'lucide-react';
 
 /**
  * SettingsMobile — Full reproduction of Android settings_screen.dart.

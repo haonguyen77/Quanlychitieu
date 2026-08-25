@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import '../database/database_helper.dart';
 import '../models/transaction.dart';
-import '../models/activity_log.dart';
 
 class TransactionRepository {
   final _uuid = const Uuid();
@@ -551,6 +550,18 @@ class TransactionRepository {
       else if (accVal == 'acc_credit') accVal = 'credit_card';
       else if (accVal.startsWith('acc_cc_')) accVal = 'credit_card_${accVal.replaceFirst('acc_cc_', '')}';
       values['${prefix}account'] = accVal;
+    }
+
+    // Gold (Vàng): WebApp/EXT render columns "Số lượng (chỉ)" and "Giá/chỉ" from
+    // mod_vang_quantity and mod_vang_price_per_unit. The generic add screen only
+    // fills mod_chitieu_* fields, so mirror the gold-specific keys here.
+    // Rules (per product): số lượng chỉ = transaction quantity (min 1);
+    // giá/chỉ = số tiền / số chỉ.
+    if (moduleId == 'mod_vang') {
+      final chi = t.quantity > 0 ? t.quantity : 1;
+      values['mod_vang_quantity'] = chi;
+      values['mod_vang_price_per_unit'] = t.amount / chi;
+      values['mod_vang_total_amount'] = t.amount;
     }
 
     final tags = t.tags;

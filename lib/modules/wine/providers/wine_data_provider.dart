@@ -60,7 +60,37 @@ class WineDataProvider extends ChangeNotifier {
     final rows = await db.rawQuery(
       "SELECT * FROM records WHERE module_id = 'mod_ruou_customers' AND is_deleted = 0 ORDER BY updated_at DESC"
     );
-    _customers = rows.map(_parseRow).toList();
+    final fromRecords = rows.map(_parseRow).toList();
+
+    // Also pull from the legacy/derived `wine_customers` table (populated by
+    // sync import). Some customers may live only there. Merge + dedupe so
+    // autocomplete always has data regardless of where it was stored.
+    final merged = <String, Map<String, dynamic>>{};
+    String keyOf(Map<String, dynamic> c) =>
+        '${(c['phone'] ?? '').toString().trim()}|${(c['full_name'] ?? c['name'] ?? '').toString().trim().toLowerCase()}';
+    for (final c in fromRecords) {
+      merged[keyOf(c)] = c;
+    }
+    try {
+      final wc = await db.rawQuery(
+        "SELECT * FROM wine_customers WHERE is_active = 1 ORDER BY updated_at DESC"
+      );
+      for (final row in wc) {
+        // Normalize to the same shape the autocomplete expects (full_name, phone, ...).
+        final c = <String, dynamic>{
+          'id': row['id'],
+          'full_name': row['name'],
+          'phone': row['phone'],
+          'address': row['address'],
+          'district': row['district'],
+          'city': row['city'],
+          'note': row['note'],
+        };
+        merged.putIfAbsent(keyOf(c), () => c);
+      }
+    } catch (_) {}
+
+    _customers = merged.values.toList();
     notifyListeners();
   }
 
@@ -105,23 +135,6 @@ class WineDataProvider extends ChangeNotifier {
       'updated_at': now,
     });
     return id;
-  }
-
-  /// Update a record's values (merge). Sets updated_at = now.
-  Future<void> _updateRecord(String id, Map<String, dynamic> newValues) async {
-    final db = await _db.database;
-    final now = DateTime.now().toUtc().toIso8601String();
-    final existing = await db.query('records', where: 'id = ?', whereArgs: [id]);
-    if (existing.isEmpty) return;
-
-    Map<String, dynamic> existingValues = {};
-    try { existingValues = jsonDecode(existing.first['values_json'] as String? ?? '{}') as Map<String, dynamic>; } catch (_) {}
-    final merged = {...existingValues, ...newValues};
-
-    await db.update('records', {
-      'values_json': jsonEncode(merged),
-      'updated_at': now,
-    }, where: 'id = ?', whereArgs: [id]);
   }
 
   /// Replace a record's values entirely. Sets updated_at = now.

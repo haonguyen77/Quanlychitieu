@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../../database/database_helper.dart';
 
 enum _FilterPeriod { month, year, all }
@@ -19,7 +18,6 @@ class _WineReportsScreenState extends State<WineReportsScreen> {
   static const _green = Color(0xFF16A34A);
   static const _orange = Color(0xFFEA580C);
   static const _blue = Color(0xFF2563EB);
-  static const _red = Color(0xFFEF4444);
   static const _border = Color(0xFFE5E7EB);
 
   _FilterPeriod _currentPeriod = _FilterPeriod.month;

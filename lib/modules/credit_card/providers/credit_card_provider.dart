@@ -79,15 +79,12 @@ class CreditCardProvider extends ChangeNotifier {
     final db = await DatabaseHelper.instance.database;
     final accountId = 'acc_cc_$cardId';
 
-    String where = 'account_id = ? AND is_deleted = 0';
     List<dynamic> whereArgs = [accountId];
 
     if (startDate != null) {
-      where += ' AND date >= ?';
       whereArgs.add(startDate.toIso8601String());
     }
     if (endDate != null) {
-      where += ' AND date <= ?';
       whereArgs.add(endDate.toIso8601String());
     }
 

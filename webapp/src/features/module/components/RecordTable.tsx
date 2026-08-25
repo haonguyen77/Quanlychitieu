@@ -67,7 +67,7 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
 
   // Image preview state
   const [previewImages, setPreviewImages] = useState<string[]>([]);
-  const [previewIdx, setPreviewIdx] = useState(0);
+  const [previewIdx] = useState(0);
 
   // Column filter state
   const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterValue>>({});
@@ -282,7 +282,9 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
       if (aVal === null || aVal === undefined) return 1;
       if (bVal === null || bVal === undefined) return -1;
       const cmp = typeof aVal === 'number' && typeof bVal === 'number' ? aVal - bVal : String(aVal).localeCompare(String(bVal), 'vi', { numeric: true });
-      return sortDir === 'asc' ? cmp : -cmp;
+      if (cmp !== 0) return sortDir === 'asc' ? cmp : -cmp;
+      // Tie-break: most recently updated first (nhập/sửa sau lên trên) within same value
+      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
     });
   }, [records, sortField, sortDir, module.fields]);
 

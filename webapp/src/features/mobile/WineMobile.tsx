@@ -55,7 +55,6 @@ export function WineMobile() {
       });
   }, [data]);
 
-  const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
   const totalRevenue = orders.reduce((s, o) => s + o.amount, 0);
 
   return (

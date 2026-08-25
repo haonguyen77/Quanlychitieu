@@ -79,10 +79,15 @@ class _ModulesTabScreenState extends State<ModulesTabScreen> {
     final provider = context.read<ModuleProvider>();
     final maxSort = provider.modules.fold<int>(
         0, (m, e) => e.sortOrder > m ? e.sortOrder : m);
+    // Random icon from the available set (visible, not the subtle 3-dots).
+    final iconNames = IconHelper.allIconNames
+        .where((n) => n != 'other' && n != 'add' && n != 'income' && n != 'expense')
+        .toList();
+    final randomIcon = iconNames[Random().nextInt(iconNames.length)];
     final module = AppModule(
       id: 'mod_${const Uuid().v4().substring(0, 8)}',
       name: name,
-      icon: 'other',
+      icon: randomIcon,
       color: ColorHelper.toHex(randomColor),
       sortOrder: maxSort + 1,
       isDefault: false,
@@ -308,10 +313,16 @@ class _ModuleCard extends StatelessWidget {
       Navigator.push(context, MaterialPageRoute(builder: (_) => const CreditCardScreen()));
       return;
     }
-    // Nhà trọ, Vàng: only month/year
-    final monthYearOnly = module.id == 'mod_nhatro' || module.id == 'mod_vang';
+    // Custom / user-created modules → open the generic Shopee-style screen
+    // (card stats + grouped-by-date list + bottom nav + FAB).
     Navigator.push(context, MaterialPageRoute(
-        builder: (_) => ModuleTransactionsScreen(module: module, monthYearOnly: monthYearOnly)));
+        builder: (_) => ShopeeHomeScreen(
+              moduleId: module.id,
+              title: module.name,
+              subtitle: _getSubtitle(),
+              headerIcon: _getModuleIcon(),
+              accentColor: _getModuleColor(),
+            )));
   }
 }
 

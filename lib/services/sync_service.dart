@@ -292,6 +292,23 @@ class SyncService {
     final remoteAccounts = (remote['accounts'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     merged['accounts'] = _mergeById(localAccounts, remoteAccounts);
 
+    // Merge modules by id (union) so locally-created modules aren't wiped out
+    // by remote. Remote is base; add any local-only module (e.g. "Tiết Kiệm").
+    final localModules = (local['modules'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final remoteModules = (remote['modules'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    if (localModules.isNotEmpty || remoteModules.isNotEmpty) {
+      final byId = <String, Map<String, dynamic>>{};
+      for (final m in remoteModules) {
+        final id = m['id'] as String?;
+        if (id != null) byId[id] = m;
+      }
+      for (final m in localModules) {
+        final id = m['id'] as String?;
+        if (id != null && !byId.containsKey(id)) byId[id] = m; // add local-only
+      }
+      merged['modules'] = byId.values.toList();
+    }
+
     merged['lastModified'] = DateTime.now().toUtc().toIso8601String();
 
     return merged;

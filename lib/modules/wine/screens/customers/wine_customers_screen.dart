@@ -85,11 +85,6 @@ class _WineCustomersScreenState extends State<WineCustomersScreen> {
     );
   }
 
-  void _addCustomer() async {
-    final result = await _showForm(null);
-    if (result != null) await context.read<WineDataProvider>().addCustomer(result);
-  }
-
   void _openCustomerDetail(Map<String, dynamic> customer) async {
     await Navigator.push(context, MaterialPageRoute(
       builder: (_) => WineCustomerDetailScreen(customer: customer),

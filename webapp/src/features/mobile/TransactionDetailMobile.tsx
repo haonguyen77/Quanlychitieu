@@ -3,7 +3,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
 import { AddExpenseMobile } from './AddExpenseMobile';
-import { ArrowLeft, Edit, Trash2, Calendar, Wallet, Tag, Layers, FileText, User, MapPin, ShoppingBag, Shield, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Calendar, Wallet, Tag, Layers, FileText, User, ShoppingBag, Shield, TrendingUp, TrendingDown } from 'lucide-react';
 import type { DataRecord } from '@/types';
 
 interface Props { record: DataRecord; }

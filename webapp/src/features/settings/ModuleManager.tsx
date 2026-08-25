@@ -381,8 +381,6 @@ export function ModuleManager() {
               {(() => {
                 // Build combined list: real fields + virtual columns (Danh mục, Module)
                 // For modules with virtual columns (Vàng, Nhà trọ), only show fields visible in table
-                const isVirtualModule = selectedModule.id === 'mod_vang' || selectedModule.id === 'mod_nhatro';
-                
                 let realFields = [...selectedModule.fields];
                 
                 // Only show fields that are actually displayed in the table

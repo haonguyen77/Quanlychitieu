@@ -306,11 +306,4 @@ class _SyncScreenState extends State<SyncScreen> {
     );
   }
 
-  Widget _buildResultCard() {
-    return const SizedBox.shrink();
-  }
-
-  Widget _resultRow(String label, int count, {bool bold = false}) {
-    return const SizedBox.shrink();
-  }
 }

@@ -756,21 +756,6 @@ class _RentalHomeScreenState extends State<RentalHomeScreen> {
     );
   }
 
-  Widget _detailItem(IconData icon, Color iconColor, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          Icon(icon, size: 12, color: iconColor),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 9, color: Colors.grey[500])),
-        ]),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _navy), maxLines: 1, overflow: TextOverflow.ellipsis),
-      ],
-    );
-  }
-
   // ─── Bottom Navigation ──────────────────────────────────────────────────
 
   Widget _buildBottomNav() {

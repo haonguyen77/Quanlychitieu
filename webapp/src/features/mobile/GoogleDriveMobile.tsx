@@ -14,7 +14,7 @@ import { ArrowLeft, Cloud, CloudOff, RefreshCw, LogOut, User, Check } from 'luci
  */
 export function GoogleDriveMobile() {
   const { pop } = useMobileNav();
-  const { data, setData, isAuthenticated, userEmail, setAuth, clearAuth } = useAppStore();
+  const { data, setData, userEmail, setAuth, clearAuth } = useAppStore();
   const [isConnected, setIsConnected] = useState(!!driveService.token);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);

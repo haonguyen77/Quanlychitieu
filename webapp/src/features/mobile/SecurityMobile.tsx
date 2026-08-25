@@ -4,7 +4,7 @@ import { useMobileNav } from './MobileNavigation';
 import { cryptoService } from '@/services/crypto/cryptoService';
 import { passcodeService } from '@/services/passcode/passcodeService';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
-import { ArrowLeft, Lock, ShieldCheck, ShieldOff, KeyRound } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, KeyRound } from 'lucide-react';
 
 /**
  * SecurityMobile — 2 independent sections:

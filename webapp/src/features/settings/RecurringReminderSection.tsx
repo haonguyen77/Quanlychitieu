@@ -25,8 +25,6 @@ function saveReminders(list: RecurringReminder[]) {
   localStorage.setItem(RECURRING_KEY, JSON.stringify(list));
   // Also send to background with the expense reminder config for rescheduling
   try {
-    const reminderConfig = localStorage.getItem('pdp_expense_reminders');
-    const config = reminderConfig ? JSON.parse(reminderConfig) : null;
     // Web: no background service worker, reminders handled differently
   } catch { /* */ }
 }

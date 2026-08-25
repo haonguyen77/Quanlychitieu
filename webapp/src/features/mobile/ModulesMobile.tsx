@@ -5,7 +5,7 @@ import { WineMobile } from './WineMobile';
 import { CreditCardMobile } from './CreditCardMobile';
 import { ShopeeMobile } from './ShopeeMobile';
 import { MobileIcon } from './MobileIcon';
-import { getModuleIconInfo, getModuleColor, MODULE_ICONS } from './mobileIconMap';
+import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
 import { ChevronRight } from 'lucide-react';
 import type { ModuleDefinition } from '@/types';
 

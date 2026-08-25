@@ -102,11 +102,6 @@ class _WineInventoryScreenState extends State<WineInventoryScreen> {
     );
   }
 
-  void _addInventory() async {
-    final result = await _showForm(null);
-    if (result != null) await context.read<WineDataProvider>().addInventory(result);
-  }
-
   void _editInventory(Map<String, dynamic> inv) async {
     final result = await _showForm(inv);
     if (result != null) await context.read<WineDataProvider>().updateInventory(inv['id'] as String, result);
@@ -119,7 +114,6 @@ class _WineInventoryScreenState extends State<WineInventoryScreen> {
     final colorCtrl = TextEditingController(text: existing?['color'] as String? ?? '');
 
     const purple = Color(0xFF6C2BD9);
-    const purpleLight = Color(0xFFF3EAFF);
     const navy = Color(0xFF101B4D);
 
     return showDialog<Map<String, dynamic>>(
