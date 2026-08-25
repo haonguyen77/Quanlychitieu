@@ -75,6 +75,7 @@ export function WineOrderForm({ record, onClose }: Props) {
   const [showShipSugg, setShowShipSugg] = useState(false);
   const productInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const priceInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const shipInputRef = useRef<HTMLInputElement | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const products = useMemo(() => data ? data.records.filter((r) => r.moduleId === 'mod_ruou_products' && !r.isDeleted).map((r) => ({ id: r.id, name: String(r.values['mod_ruou_products_product_name']??''), sku: String(r.values['mod_ruou_products_sku']??''), shortName: String(r.values['mod_ruou_products_short_name']??'') })) : [], [data]);
@@ -277,13 +278,15 @@ export function WineOrderForm({ record, onClose }: Props) {
             <div className="flex justify-between text-[13px]"><span className="text-gray-600">Tổng hàng</span><span className="font-medium text-gray-900 tabular-nums">{fmt(totalGoods)}đ</span></div>
             <div className="flex justify-between items-center text-[13px]">
               <span className="text-gray-600">Phí ship</span>
-              <div className="flex items-center gap-1 relative">
-                <input type="text" className="w-[80px] px-2 py-0.5 text-[13px] text-right border border-gray-300 rounded bg-white outline-none tabular-nums text-gray-900" value={shipFee?fmt(shipFee):''} placeholder="0"
+              <div className="flex items-center gap-1">
+                <input ref={shipInputRef} type="text" className="w-[80px] px-2 py-0.5 text-[13px] text-right border border-gray-300 rounded bg-white outline-none tabular-nums text-gray-900" value={shipFee?fmt(shipFee):''} placeholder="0"
                   onChange={(e)=>{setShipFee(Number(e.target.value.replace(/[^0-9]/g,''))||0);setShowShipSugg(true);}}
                   onFocus={()=>setShowShipSugg(true)} onBlur={()=>setTimeout(()=>setShowShipSugg(false),200)}
                   onKeyDown={(e)=>{if((e.key==='Tab'||e.key==='Enter')&&showShipSugg&&curShipSugg.length>0){e.preventDefault();setShipFee(curShipSugg[0]);setShowShipSugg(false);}}}/>
                 <span className="text-[11px] text-gray-400">đ</span>
-                {showShipSugg&&curShipSugg.length>0&&(<div className="absolute z-50 bottom-full right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">{curShipSugg.map((s)=>(<button key={s} onMouseDown={()=>{setShipFee(s);setShowShipSugg(false);}} className="w-full text-right px-3 py-1.5 text-[13px] tabular-nums hover:bg-purple-50 text-gray-900 whitespace-nowrap">{fmt(s)}đ</button>))}</div>)}
+                <DropdownPortal anchorRef={shipInputRef} show={showShipSugg&&curShipSugg.length>0}>
+                  {curShipSugg.map((s)=>(<button key={s} onMouseDown={()=>{setShipFee(s);setShowShipSugg(false);}} className="w-full text-right px-3 py-1.5 text-[13px] tabular-nums hover:bg-purple-50 text-gray-900 whitespace-nowrap">{fmt(s)}đ</button>))}
+                </DropdownPortal>
               </div>
             </div>
             <div className="border-t border-purple-200 pt-1.5 flex justify-between items-baseline">
