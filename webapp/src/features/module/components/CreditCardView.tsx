@@ -488,15 +488,15 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
           <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-[var(--color-surface)]">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)]">Ngay</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)]">Ten giao dich</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-[var(--color-text-secondary)]">So tien</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)]">Loai</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)]">Danh muc</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)]">Trang thai</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)]">Ghi chu</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-[var(--color-text-secondary)]">Thao tac</th>
+                <tr className="text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-white border-r border-white/20">Ngay</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-white border-r border-white/20">Ten giao dich</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-white border-r border-white/20">So tien</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-white border-r border-white/20">Loai</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-white border-r border-white/20">Danh muc</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-white border-r border-white/20">Trang thai</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-white border-r border-white/20">Ghi chu</th>
+                  <th className="px-4 py-2 text-center text-xs font-medium text-white">Thao tac</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
