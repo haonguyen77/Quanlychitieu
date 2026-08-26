@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Icon } from '@/shared/components/ui/Icon';
 import { useRecordStore, type DatePreset } from '@/core/store/recordStore';
-import { useTableZoom, ZoomControls } from '@/shared/components/ui/TableZoom';
+import { useTableZoom, ZoomControls, useCompactMode } from '@/shared/components/ui/TableZoom';
 import type { ModuleDefinition, DataRecord } from '@/types';
 
 interface ChiTieuHeaderProps {
@@ -23,6 +23,7 @@ const presetLabels: Record<DatePreset, string> = {
 export function ChiTieuHeader({ module, records, onAdd, isGroupMode, onToggleGroup }: ChiTieuHeaderProps) {
   const { searchQuery, setSearchQuery, datePreset, dateFrom, dateTo, setDatePresetForModule, setDateRange } = useRecordStore();
   const { fontSize, zoomIn, zoomOut } = useTableZoom();
+  const { compact, toggle: toggleCompact } = useCompactMode(module.id);
 
   const stats = useMemo(() => {
     let income = 0;
@@ -133,9 +134,10 @@ export function ChiTieuHeader({ module, records, onAdd, isGroupMode, onToggleGro
           onClick={onToggleGroup}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
             isGroupMode
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-blue-400'
+              ? 'text-white'
+              : 'bg-white text-[var(--color-text-secondary)] border-[var(--color-border)]'
           }`}
+          style={isGroupMode ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)' } : undefined}
         >
           <Icon name="layers" size={13} />
           Group
@@ -149,9 +151,10 @@ export function ChiTieuHeader({ module, records, onAdd, isGroupMode, onToggleGro
               onClick={() => handlePresetChange(preset)}
               className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                 datePreset === preset
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-white text-[var(--color-text-secondary)] hover:bg-gray-50'
               }`}
+              style={datePreset === preset ? { backgroundColor: 'var(--color-primary)' } : undefined}
             >
               {presetLabels[preset]}
             </button>
@@ -205,13 +208,24 @@ export function ChiTieuHeader({ module, records, onAdd, isGroupMode, onToggleGro
 
         <div className="flex-1" />
 
+        {/* Expand / collapse columns */}
+        <button
+          onClick={toggleCompact}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)] text-[var(--color-text-secondary)] transition-colors"
+          title={compact ? 'Mở rộng cột' : 'Thu gọn cột'}
+        >
+          <Icon name={compact ? 'eye' : 'eye-off'} size={13} />
+          {compact ? 'Mở rộng' : 'Thu gọn'}
+        </button>
+
         {/* Zoom */}
         <ZoomControls fontSize={fontSize} onZoomIn={zoomIn} onZoomOut={zoomOut} />
 
         {/* Add button */}
         <button
           onClick={onAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md transition-colors shadow-sm"
+          style={{ backgroundColor: 'var(--color-primary)' }}
         >
           <Icon name="plus" size={15} />
           Thêm mới

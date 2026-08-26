@@ -65,7 +65,9 @@ class IndexedDBService {
       try {
         return await cryptoService.decryptData<FinanceData>(stored as EncryptedEnvelope);
       } catch {
-        return null;
+        // Decrypt failed — treat as LOCKED, never return null (returning null would
+        // let the caller overwrite the encrypted blob with empty data and lose it).
+        throw new LockedError();
       }
     }
     return stored as FinanceData;

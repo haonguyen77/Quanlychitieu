@@ -34,3 +34,23 @@ export function ZoomControls({ fontSize, onZoomIn, onZoomOut }: { fontSize: Font
     </div>
   );
 }
+
+// ── Compact/expand mode, per module (shared between header and table) ─────────
+const compactListeners = new Set<() => void>();
+function compactKey(moduleId: string) { return `pdp_compact_${moduleId}`; }
+function readCompact(moduleId: string): boolean {
+  const saved = localStorage.getItem(compactKey(moduleId));
+  return saved === null ? true : saved === '1'; // default: compact (thu gọn)
+}
+export function setCompactMode(moduleId: string, val: boolean) {
+  localStorage.setItem(compactKey(moduleId), val ? '1' : '0');
+  compactListeners.forEach((fn) => fn());
+}
+export function useCompactMode(moduleId: string) {
+  const compact = useSyncExternalStore(
+    (fn) => { compactListeners.add(fn); return () => compactListeners.delete(fn); },
+    () => readCompact(moduleId),
+  );
+  const toggle = () => setCompactMode(moduleId, !readCompact(moduleId));
+  return { compact, toggle };
+}

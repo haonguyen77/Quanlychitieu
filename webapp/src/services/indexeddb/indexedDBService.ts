@@ -67,8 +67,10 @@ class IndexedDBService {
       try {
         return await cryptoService.decryptData<FinanceData>(stored as EncryptedEnvelope);
       } catch {
-        // Decrypt failed (wrong key, corrupt data) — don't block the app.
-        return null;
+        // Decrypt failed (wrong PIN for this envelope, or corrupt). Treat as
+        // LOCKED — never return null here, otherwise the caller would overwrite
+        // the encrypted blob with fresh empty data and destroy it permanently.
+        throw new LockedError();
       }
     }
     return stored as FinanceData;

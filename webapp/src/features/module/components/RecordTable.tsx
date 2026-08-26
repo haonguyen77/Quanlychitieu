@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useRecordStore } from '@/core/store/recordStore';
 import { useAppStore } from '@/core/store/appStore';
 import { Icon } from '@/shared/components/ui/Icon';
-import { useTableZoom } from '@/shared/components/ui/TableZoom';
+import { useTableZoom, useCompactMode } from '@/shared/components/ui/TableZoom';
 import { formatCellValue } from '@/shared/components/table/cellFormatters';
 import { ContextMenu } from '@/shared/components/ui/ContextMenu';
 import { ColumnFilter, type ColumnFilterValue } from '@/shared/components/ui/ColumnFilter';
@@ -36,18 +36,8 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
   const { deleteRecord, addRecord } = useRecordStore();
   const { data } = useAppStore();
 
-  // Compact mode: saved per module in localStorage (DEFAULT: compact/thu gọn)
-  const [compactMode, setCompactMode] = useState(() => {
-    const saved = localStorage.getItem(`pdp_compact_${module.id}`);
-    if (saved === null) return true; // Default: compact (thu gọn)
-    return saved === '1';
-  });
-
-  const toggleCompact = () => {
-    const newVal = !compactMode;
-    setCompactMode(newVal);
-    localStorage.setItem(`pdp_compact_${module.id}`, newVal ? '1' : '0');
-  };
+  // Compact mode: shared per-module store (toggled from the header toolbar).
+  const { compact: compactMode } = useCompactMode(module.id);
   const { fontClass } = useTableZoom();
 
   const [sortField, setSortField] = useState<string | null>(() => {
@@ -493,13 +483,6 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
 
   return (
     <div className="flex-1 overflow-auto">
-      {/* Compact toggle */}
-      <div className="flex items-center justify-end px-4 py-1 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <button onClick={toggleCompact} className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-md border border-[var(--color-border)] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] transition-colors">
-          <Icon name={compactMode ? 'eye' : 'eye-off'} size={11} />
-          {compactMode ? 'Mo rong' : 'Thu gon'}
-        </button>
-      </div>
       {activeFilterCount > 0 && (
         <div className="px-4 py-1.5 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2">
           <Icon name="filter" size={12} className="text-amber-600" />

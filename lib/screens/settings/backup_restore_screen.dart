@@ -4,10 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart';
 import '../../database/database_helper.dart';
-import '../../app/constants.dart';
 
 class BackupRestoreScreen extends StatefulWidget {
   const BackupRestoreScreen({super.key});
@@ -221,9 +219,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Get current DB path
-      final dbPath = await getDatabasesPath();
-      final sourcePath = p.join(dbPath, AppConstants.dbName);
+      // Get current DB path (use the real DB filename from DatabaseHelper,
+      // not the legacy AppConstants.dbName which points to a different file).
+      final sourcePath = await DatabaseHelper.instance.getDatabasePath();
       final sourceFile = File(sourcePath);
 
       if (!await sourceFile.exists()) {
@@ -315,9 +313,8 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         return;
       }
 
-      // Get target DB path
-      final dbPath = await getDatabasesPath();
-      final targetPath = p.join(dbPath, AppConstants.dbName);
+      // Get target DB path (real DB filename from DatabaseHelper).
+      final targetPath = await DatabaseHelper.instance.getDatabasePath();
 
       // Close current DB
       await DatabaseHelper.instance.closeDB();

@@ -314,6 +314,22 @@ class SyncService {
       }
     }
 
+    // Merge menu: keep remote as base, add local-only menu items (by id and by
+    // targetId) so module menu entries created locally aren't lost after sync.
+    {
+      const localMenu = (local as unknown as { menu?: Array<{ id: string; targetId?: string }> }).menu || [];
+      const remoteMenu = (remote as unknown as { menu?: Array<{ id: string; targetId?: string }> }).menu || [];
+      const mergedMenu = [...remoteMenu];
+      const haveIds = new Set(remoteMenu.map((m) => m.id));
+      const haveTargets = new Set(remoteMenu.filter((m) => m.targetId).map((m) => m.targetId));
+      for (const item of localMenu) {
+        if (haveIds.has(item.id)) continue;
+        if (item.targetId && haveTargets.has(item.targetId)) continue;
+        mergedMenu.push(item);
+      }
+      (merged as unknown as { menu?: unknown }).menu = mergedMenu;
+    }
+
     merged.lastModified = new Date().toISOString();
     merged.deviceId = local.deviceId;
 

@@ -8,35 +8,62 @@ const FOLDER_NAME = 'QLCT';
 const MIME_TYPE = 'application/json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const TOKEN_KEY = 'pdp_google_token';
+const TOKEN_EXP_KEY = 'pdp_google_token_exp';
 
 /**
  * Google Drive Service
  * Uses launchWebAuthFlow for cross-browser support (Chrome + Edge).
- * Token persisted in localStorage.
+ * Token persisted in localStorage with expiry; refreshed silently
+ * (interactive:false) when possible so the user isn't prompted every time.
  */
 class DriveService {
   token: string | null = null;
+  private tokenExp = 0; // epoch ms when the access token expires (0 = unknown)
   lastError = '';
 
   constructor() {
-    try { this.token = localStorage.getItem(TOKEN_KEY); } catch { /* */ }
-  }
-
-  private save(token: string | null) {
-    this.token = token;
     try {
-      if (token) localStorage.setItem(TOKEN_KEY, token);
-      else localStorage.removeItem(TOKEN_KEY);
+      this.token = localStorage.getItem(TOKEN_KEY);
+      const exp = localStorage.getItem(TOKEN_EXP_KEY);
+      this.tokenExp = exp ? parseInt(exp, 10) || 0 : 0;
     } catch { /* */ }
   }
 
-  async getToken(interactive = false): Promise<string | null> {
-    if (this.token) return this.token;
-    if (!interactive) { this.lastError = 'Not authenticated'; return null; }
-    return this.login();
+  private save(token: string | null, expiresInSec?: number) {
+    this.token = token;
+    this.tokenExp = token ? Date.now() + ((expiresInSec ?? 3600) - 300) * 1000 : 0;
+    try {
+      if (token) { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(TOKEN_EXP_KEY, String(this.tokenExp)); }
+      else { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(TOKEN_EXP_KEY); }
+    } catch { /* */ }
   }
 
+  /** True when we have a token that hasn't passed its stored expiry. */
+  private get isTokenValid(): boolean {
+    return !!this.token && (this.tokenExp === 0 || Date.now() < this.tokenExp);
+  }
+
+  async getToken(interactive = false): Promise<string | null> {
+    if (this.isTokenValid) return this.token;
+    // Token missing/expired — try a silent refresh first (no popup).
+    const silent = await this.authFlow(false);
+    if (silent) return silent;
+    if (!interactive) { this.lastError = 'Not authenticated'; return null; }
+    return this.authFlow(true);
+  }
+
+  /** Interactive login (shows Google account chooser if needed). */
   async login(): Promise<string | null> {
+    return this.authFlow(true);
+  }
+
+  /** Silent login attempt: returns a fresh token without UI if the browser
+   * still has an active Google session, else null. */
+  async silentLogin(): Promise<string | null> {
+    return this.authFlow(false);
+  }
+
+  private authFlow(interactive: boolean): Promise<string | null> {
     return new Promise((resolve) => {
       if (typeof chrome === 'undefined' || !chrome.identity) {
         this.lastError = 'chrome.identity not available';
@@ -50,18 +77,21 @@ class DriveService {
 
       if (!clientId) { this.lastError = 'No client_id in manifest'; resolve(null); return; }
 
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${encodeURIComponent(scopes)}`;
+      // prompt=none for silent attempts so Google returns a token without UI
+      // when a session already exists (fails cleanly otherwise).
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${encodeURIComponent(scopes)}${interactive ? '' : '&prompt=none'}`;
 
-      chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true }, (responseUrl) => {
+      chrome.identity.launchWebAuthFlow({ url: authUrl, interactive }, (responseUrl) => {
         if (chrome.runtime.lastError || !responseUrl) {
           this.lastError = chrome.runtime.lastError?.message || 'Auth cancelled';
           resolve(null);
         } else {
           try {
             const hash = new URL(responseUrl).hash.substring(1);
-            const token = new URLSearchParams(hash).get('access_token');
+            const params = new URLSearchParams(hash);
+            const token = params.get('access_token');
             if (token) {
-              this.save(token);
+              this.save(token, Number(params.get('expires_in')) || undefined);
               this.lastError = '';
               resolve(token);
             } else {
@@ -90,9 +120,10 @@ class DriveService {
       headers: { ...options.headers, Authorization: `Bearer ${this.token}` },
     });
     if (response.status === 401 || response.status === 403) {
-      // Token expired or insufficient scopes - clear and re-login
+      // Token expired — clear, try SILENT refresh first (no popup), then popup.
       this.save(null);
-      const newToken = await this.login();
+      let newToken = await this.silentLogin();
+      if (!newToken) newToken = await this.login();
       if (!newToken) throw new Error('Re-authentication failed - insufficient scopes');
       return fetch(url, {
         ...options,

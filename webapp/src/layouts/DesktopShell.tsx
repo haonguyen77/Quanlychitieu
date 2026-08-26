@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { AppRail } from '@/shared/components/layout/AppRail';
 import { Sidebar } from '@/shared/components/layout/Sidebar';
@@ -9,6 +10,21 @@ import { ModuleManager } from '@/features/settings/ModuleManager';
 import { TrashView } from '@/features/trash/TrashView';
 import { WineApp } from '@/features/wine/WineApp';
 
+// Accent color per core module (matches the extension). User-created modules
+// fall back to their own module.color.
+const MODULE_PRIMARY: Record<string, string> = {
+  mod_chitieu: '#2563eb', mod_shopee: '#f05423', mod_vang: '#d97706',
+  mod_nhatro: '#16a34a', mod_creditcard: '#7c3aed',
+};
+const DEFAULT_PRIMARY = '#2563eb';
+function shade(hex: string, amt: number): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const adj = (v: number) => Math.max(0, Math.min(255, Math.round(v + v * amt)));
+  const r = adj(parseInt(m[1], 16)), g = adj(parseInt(m[2], 16)), b = adj(parseInt(m[3], 16));
+  return `#${[r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+}
+
 /**
  * DesktopShell — Mirrors EXT AppShell exactly.
  * AppRail (workspace switcher) + Sidebar + Main Content.
@@ -16,6 +32,20 @@ import { WineApp } from '@/features/wine/WineApp';
  */
 export function DesktopShell() {
   const { activeView, activeWorkspace, data } = useAppStore();
+  const activeModuleId = useAppStore((s) => s.activeModuleId);
+
+  // Set the app accent per active module (Chi tiêu blue, Shopee orange, ...).
+  useEffect(() => {
+    if (activeWorkspace !== 'chitieu') return; // wine workspace keeps its own theme
+    const root = document.documentElement;
+    let color = DEFAULT_PRIMARY;
+    if (activeView === 'module' && activeModuleId) {
+      const mod = data?.modules.find((m) => m.id === activeModuleId);
+      color = MODULE_PRIMARY[activeModuleId] || mod?.color || DEFAULT_PRIMARY;
+    }
+    root.style.setProperty('--color-primary', color);
+    root.style.setProperty('--color-primary-hover', shade(color, -0.15));
+  }, [activeWorkspace, activeView, activeModuleId, data]);
 
   // Show loading if data hasn't initialized yet
   if (!data) {

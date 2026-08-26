@@ -77,15 +77,11 @@ export function Sidebar() {
       {/* Header */}
       <div className="flex items-center gap-2 px-3 h-14 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-7 h-7 bg-[var(--color-primary)] rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
+          <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+            <PiggyLogo />
           </div>
           <span className="text-sm font-semibold text-[var(--color-text)] truncate">
-            Quản lý chi tiêu
+            Quản lý <span style={{ color: 'var(--color-primary)' }}>chi tiêu</span>
           </span>
         </div>
         <NotificationCenter />
@@ -104,12 +100,13 @@ export function Sidebar() {
               onClick={() => handleMenuClick(item)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 ${
                 isActive(item)
-                  ? 'bg-blue-600 text-white font-medium shadow-sm'
+                  ? 'text-white font-medium shadow-sm'
                   : 'text-[var(--color-text-secondary)] hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-[var(--color-text)]'
               }`}
+              style={isActive(item) ? { backgroundColor: 'var(--color-primary)' } : undefined}
               title={item.label}
             >
-              <Icon name={item.icon} size={18} color={isActive(item) ? '#ffffff' : undefined} />
+              <Icon name={item.icon} size={18} color={isActive(item) ? '#ffffff' : MENU_ICON_COLORS[item.icon] || undefined} />
               <span className="truncate text-sm">{item.label}</span>
             </button>
           );
@@ -137,3 +134,48 @@ export function Sidebar() {
     </aside>
   );
 }
+
+// Per-menu icon colors (for inactive items) to match the colorful sidebar look.
+const MENU_ICON_COLORS: Record<string, string> = {
+  'layout-dashboard': '#6366f1',
+  wallet: '#a855f7',
+  'shopping-cart': '#f05423',
+  'shopping-bag': '#f05423',
+  'credit-card': '#8b5cf6',
+  card: '#8b5cf6',
+  gem: '#f59e0b',
+  home: '#22c55e',
+  database: '#0ea5e9',
+  'trash-2': '#ef4444',
+  trash: '#ef4444',
+  settings: '#64748b',
+};
+
+/** Piggy-bank logo next to the app title. Uses the provided PNG when present,
+ * falling back to an inline SVG if the image is missing. */
+function PiggyLogo() {
+  return (
+    <>
+      <img
+        src="icons/piggy-logo.png"
+        alt=""
+        width={32}
+        height={32}
+        className="object-contain"
+        onError={(e) => {
+          const el = e.currentTarget;
+          el.style.display = 'none';
+          const fb = el.nextElementSibling as HTMLElement | null;
+          if (fb) fb.style.display = 'block';
+        }}
+      />
+      <svg width="20" height="20" viewBox="0 0 48 48" fill="none" aria-hidden="true" style={{ display: 'none' }}>
+        <ellipse cx="24" cy="27" rx="17" ry="13" fill="#f78da0" />
+        <ellipse cx="34" cy="24" rx="6" ry="5" fill="#f9a8b8" />
+        <circle cx="30" cy="21" r="1.5" fill="#3b2b2f" />
+        <rect x="20" y="9" width="8" height="4" rx="2" fill="#f9c74f" />
+      </svg>
+    </>
+  );
+}
+

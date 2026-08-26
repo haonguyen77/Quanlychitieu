@@ -23,6 +23,7 @@ interface AppState {
   isAuthenticated: boolean;
   userEmail: string | null;
   userAvatar: string | null;
+  needsPin: boolean; // encrypted local data present but locked — show PIN prompt
 
   // Sync
   isSyncing: boolean;
@@ -30,6 +31,8 @@ interface AppState {
 
   // Actions
   initializeApp: () => Promise<void>;
+  unlockWithPin: (pin: string) => Promise<boolean>;
+  syncFromDrive: () => Promise<void>;
   setData: (data: FinanceData) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   setActiveModule: (moduleId: string) => void;
@@ -60,6 +63,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeWorkspace: (localStorage.getItem('pdp_activeWorkspace') as 'chitieu' | 'ruou') || 'chitieu',
   activeWineView: (localStorage.getItem('pdp_activeWineView') as AppState['activeWineView']) || 'dashboard',
   isAuthenticated: false,
+  needsPin: false,
   userEmail: null,
   userAvatar: null,
   isSyncing: false,
@@ -72,17 +76,27 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       // Try to load from IndexedDB (offline-first). Key should already be loaded from IDB.
       let data: FinanceData | null;
+      let locked = false;
       try {
         data = await indexedDBService.loadData();
       } catch (e) {
-        // If data is encrypted but key not available, start with null (sync will handle)
+        // Data is encrypted but the key isn't available / doesn't match.
+        // DO NOT create+save default data here — that would overwrite and
+        // permanently destroy the encrypted blob. Show the PIN prompt instead.
         if ((e as Error)?.message === 'DATA_LOCKED' || (e as Error)?.name === 'LockedError') {
+          locked = true;
           data = null;
         } else { throw e; }
       }
 
+      if (locked) {
+        // Encrypted local data present but locked — ask for PIN, keep IndexedDB intact.
+        set({ isLoading: false, isAuthenticated: true, needsPin: true });
+        return;
+      }
+
       if (!data) {
-        // First time - create default data
+        // Truly first run (IndexedDB empty) — safe to seed default data.
         data = createDefaultFinanceData();
         await indexedDBService.saveData(data);
       }
@@ -112,6 +126,24 @@ export const useAppStore = create<AppState>((set, get) => ({
           ];
           (data as Record<string, unknown>).menu = defaultMenu;
           normalized = true;
+        }
+        // Backfill: add a menu item for any active module missing from the menu
+        // (e.g. modules created on the Flutter app, which only writes 'modules').
+        {
+          const menuArr = (data as Record<string, unknown>).menu as Array<{ id: string; type?: string; targetId?: string; sortOrder?: number }>;
+          if (Array.isArray(menuArr) && menuArr.length > 0) {
+            const linkedIds = new Set(menuArr.filter(m => m.type === 'module').map(m => m.targetId));
+            const insertIdx = menuArr.findIndex(m => m.type === 'report' || m.type === 'settings');
+            const wineIds = new Set(['mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory']);
+            const missing = data.modules.filter(m => m.isActive !== false && (m as { isVisible?: boolean }).isVisible !== false && !wineIds.has(m.id) && !linkedIds.has(m.id));
+            if (missing.length > 0) {
+              const baseSort = menuArr.reduce((mx, m) => Math.max(mx, m.sortOrder ?? 0), 0);
+              const newItems = missing.map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'box', type: 'module' as const, targetId: m.id, sortOrder: baseSort + 1 + i, isVisible: true }));
+              if (insertIdx >= 0) menuArr.splice(insertIdx, 0, ...newItems);
+              else menuArr.push(...newItems);
+              normalized = true;
+            }
+          }
         }
         for (const mod of data.modules) {
           if (!mod.fields) { mod.fields = []; normalized = true; }
@@ -553,31 +585,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeView: savedView || 'dashboard',
       });
 
-      // Background sync: attempt pull first (for fresh installs getting data from Drive)
-      // Only push if we have meaningful local data (not default empty data)
+      // Background sync on open. Get a token first (silent refresh, no popup)
+      // so an expired token doesn't force a login prompt every launch.
       const isDefaultData = data.records.length === 0 && data.modules.length <= 5;
-      if (isDefaultData && driveService.token) {
-        // Fresh install or empty data: try to pull from Drive
-        syncService.pull().then((result) => {
-          if (result.status === 'locked') {
-            // Drive holds encrypted data but no key — user will be prompted when they sync manually.
-            return;
-          }
+      (async () => {
+        const token = await driveService.getToken(false).catch(() => null);
+        if (!token) return;
+        try {
+          const result = isDefaultData ? await syncService.pull() : await syncService.fullSync();
           if (result.status === 'success' && result.data) {
             set({ data: result.data, activeModuleId: result.data.settings?.defaultModuleId || result.data.modules[0]?.id || null });
           }
-        }).catch(() => { /* ignore sync errors on startup */ });
-      } else if (driveService.token) {
-        // Existing data: do a full sync (pull + merge + push) instead of blind push
-        syncService.fullSync().then((result) => {
-          if (result.status === 'locked') {
-            return;
-          }
-          if (result.status === 'success' && result.data) {
-            set({ data: result.data, activeModuleId: result.data.settings?.defaultModuleId || result.data.modules[0]?.id || null });
-          }
-        }).catch(() => { /* ignore sync errors on startup */ });
-      }
+        } catch { /* ignore sync errors on startup */ }
+      })();
     } catch (error) {
       set({
         isLoading: false,
@@ -585,6 +605,52 @@ export const useAppStore = create<AppState>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to initialize',
       });
     }
+  },
+
+  // Verify the PIN, load the key, then decrypt & load the local (or Drive) data.
+  unlockWithPin: async (pin: string): Promise<boolean> => {
+    const ok = await cryptoService.verifyPin(pin);
+    if (!ok) return false;
+    try {
+      const data = await indexedDBService.loadData();
+      if (data) {
+        get().setData(data);
+        set({ needsPin: false, activeModuleId: data.settings?.defaultModuleId || data.modules[0]?.id || null });
+        // Pull latest from Drive in the background now that we can decrypt.
+        if (driveService.token) {
+          syncService.fullSync().then((r) => {
+            if (r.status === 'success' && r.data) get().setData(r.data);
+          }).catch(() => {});
+        }
+        return true;
+      }
+      // No local data but PIN is valid — try pulling from Drive.
+      if (driveService.token) {
+        const r = await syncService.pull();
+        if (r.status === 'success' && r.data) { get().setData(r.data); set({ needsPin: false }); return true; }
+      }
+      set({ needsPin: false });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  // Pull latest from Drive (used on tab focus/visibility). Silent token refresh,
+  // no popup; skips when locked (needs PIN) or already syncing.
+  syncFromDrive: async () => {
+    const s = get();
+    if (s.isSyncing || s.needsPin) return;
+    try {
+      const token = await driveService.getToken(false).catch(() => null);
+      if (!token) return;
+      set({ isSyncing: true });
+      const result = await syncService.fullSync();
+      if (result.status === 'success' && result.data) {
+        get().setData(result.data);
+      }
+    } catch { /* ignore */ }
+    finally { set({ isSyncing: false }); }
   },
 
   setData: (data) => {
@@ -606,6 +672,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         { id: 'menu_trash', label: 'Thùng rác', icon: 'trash-2', type: 'report', sortOrder: 99, isVisible: true },
         { id: 'menu_settings', label: 'Cài đặt', icon: 'settings', type: 'settings', sortOrder: 100, isVisible: true },
       ];
+    }
+    // Backfill menu items for active modules missing from the menu (e.g. created on the app).
+    {
+      const menuArr = (data as Record<string, unknown>).menu as Array<{ id: string; type?: string; targetId?: string; sortOrder?: number }>;
+      if (Array.isArray(menuArr) && menuArr.length > 0) {
+        const linkedIds = new Set(menuArr.filter(m => m.type === 'module').map(m => m.targetId));
+        const insertIdx = menuArr.findIndex(m => m.type === 'report' || m.type === 'settings');
+        const wineIds = new Set(['mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory']);
+        const missing = data.modules.filter(m => m.isActive !== false && (m as { isVisible?: boolean }).isVisible !== false && !wineIds.has(m.id) && !linkedIds.has(m.id));
+        if (missing.length > 0) {
+          const baseSort = menuArr.reduce((mx, m) => Math.max(mx, m.sortOrder ?? 0), 0);
+          const newItems = missing.map((m, i) => ({ id: `menu_${m.id}`, label: m.name, icon: m.icon || 'box', type: 'module' as const, targetId: m.id, sortOrder: baseSort + 1 + i, isVisible: true }));
+          if (insertIdx >= 0) menuArr.splice(insertIdx, 0, ...newItems);
+          else menuArr.push(...newItems);
+        }
+      }
     }
     for (const mod of data.modules) {
       if (!mod.fields) mod.fields = [];

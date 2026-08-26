@@ -9,7 +9,7 @@ import { Lock, Delete } from 'lucide-react';
  * Accepts 4-6 digits, confirmed with an explicit OK button (no forced auto-submit).
  */
 export function PinLock() {
-  const { unlockApp } = useAppStore();
+  const unlockWithPin = useAppStore((s) => s.unlockWithPin);
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -18,7 +18,7 @@ export function PinLock() {
     if (busy || pin.length < 4) return;
     setBusy(true);
     setError(false);
-    const ok = await unlockApp(pin);
+    const ok = await unlockWithPin(pin);
     setBusy(false);
     if (!ok) { setError(true); setPin(''); setTimeout(() => setError(false), 1800); }
   };

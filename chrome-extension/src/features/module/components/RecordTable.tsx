@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useRecordStore } from '@/core/store/recordStore';
 import { useAppStore } from '@/core/store/appStore';
 import { Icon } from '@/shared/components/ui/Icon';
-import { useTableZoom } from '@/shared/components/ui/TableZoom';
+import { useTableZoom, useCompactMode } from '@/shared/components/ui/TableZoom';
 import { formatCellValue } from '@/shared/components/table/cellFormatters';
 import { ContextMenu } from '@/shared/components/ui/ContextMenu';
 import { ColumnFilter, type ColumnFilterValue } from '@/shared/components/ui/ColumnFilter';
@@ -36,18 +36,8 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
   const { deleteRecord, addRecord } = useRecordStore();
   const { data } = useAppStore();
 
-  // Compact mode: saved per module in localStorage (DEFAULT: compact/thu gọn)
-  const [compactMode, setCompactMode] = useState(() => {
-    const saved = localStorage.getItem(`pdp_compact_${module.id}`);
-    if (saved === null) return true; // Default: compact (thu gọn)
-    return saved === '1';
-  });
-
-  const toggleCompact = () => {
-    const newVal = !compactMode;
-    setCompactMode(newVal);
-    localStorage.setItem(`pdp_compact_${module.id}`, newVal ? '1' : '0');
-  };
+  // Compact mode: shared per-module store (toggled from the header toolbar).
+  const { compact: compactMode } = useCompactMode(module.id);
   const { fontClass } = useTableZoom();
 
   const [sortField, setSortField] = useState<string | null>(() => {
@@ -493,13 +483,6 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
 
   return (
     <div className="flex-1 overflow-auto">
-      {/* Compact toggle */}
-      <div className="flex items-center justify-end px-4 py-1 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <button onClick={toggleCompact} className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-md border border-[var(--color-border)] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] transition-colors">
-          <Icon name={compactMode ? 'eye' : 'eye-off'} size={11} />
-          {compactMode ? 'Mo rong' : 'Thu gon'}
-        </button>
-      </div>
       {activeFilterCount > 0 && (
         <div className="px-4 py-1.5 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2">
           <Icon name="filter" size={12} className="text-amber-600" />
@@ -508,26 +491,26 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
         </div>
       )}
       <table className={`w-full ${fontClass}`} style={{ minWidth: `${displayColumns.length * 150 + 120}px` }}>
-        <thead className="sticky top-0 z-10 bg-[var(--color-surface)]">
+        <thead className="sticky top-0 z-10 text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
           <tr>
             {hasSelection && (
-              <th className="px-2 py-3 w-10 border-b border-[var(--color-border)]">
+              <th className="px-2 py-2 w-10 border-r border-white/20">
                 <input
                   type="checkbox"
-                  className="rounded border-[var(--color-border)] cursor-pointer"
+                  className="rounded border-white/60 cursor-pointer"
                   checked={paginatedRecords.length > 0 && selectedIds.size === paginatedRecords.length}
                   onChange={handleSelectAll}
                 />
               </th>
             )}
             {virtualColumns ? virtualColumns.map((vc) => (
-              <th key={vc.id} className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-[var(--color-border)] group/th" style={{ width: vc.width ? `${vc.width}px` : undefined }}>
+              <th key={vc.id} className="px-4 py-2 text-left text-xs font-medium text-white group/th border-r border-white/20 last:border-r-0" style={{ width: vc.width ? `${vc.width}px` : undefined }}>
                 <div className="flex items-center gap-1">
                   <span>{vc.label}</span>
                 </div>
               </th>
             )) : displayColumns.map((field) => (
-              <th key={field.id} className={`px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-[var(--color-border)] cursor-pointer hover:text-[var(--color-text)] select-none group/th whitespace-nowrap`} style={field.fieldName === '__category' ? { width: '130px', minWidth: '130px' } : field.fieldType === 'date' ? { width: '90px', minWidth: '90px' } : undefined} onClick={() => field.fieldName !== '__category' && field.fieldName !== '__module' && handleSort(field.id)}>
+              <th key={field.id} className={`px-4 py-2 text-left text-xs font-medium text-white cursor-pointer hover:text-white/80 select-none group/th whitespace-nowrap border-r border-white/20 last:border-r-0`} style={field.fieldName === '__category' ? { width: '130px', minWidth: '130px' } : field.fieldType === 'date' ? { width: '90px', minWidth: '90px' } : undefined} onClick={() => field.fieldName !== '__category' && field.fieldName !== '__module' && handleSort(field.id)}>
                 <div className="flex items-center gap-1">
                   <span>{field.fieldLabel}</span>
                   {sortField === field.id && <Icon name={sortDir === 'asc' ? 'chevron-up' : 'chevron-down'} size={12} />}
@@ -556,7 +539,7 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
                 </div>
               </th>
             ))}
-            <th className="px-4 py-3 w-20 text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-[var(--color-border)]">Thao tác</th>
+            <th className="px-4 py-2 w-20 text-xs font-medium text-white">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-border)] divide-opacity-50">

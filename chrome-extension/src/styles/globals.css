@@ -9,8 +9,8 @@
     --color-text: #1e293b;
     --color-text-secondary: #64748b;
     --color-border: #e2e8f0;
-    --color-primary: #3b82f6;
-    --color-primary-hover: #2563eb;
+    --color-primary: #f05423;
+    --color-primary-hover: #d63e12;
   }
 
   .dark {
@@ -19,8 +19,8 @@
     --color-text: #cdd6f4;
     --color-text-secondary: #a6adc8;
     --color-border: #313244;
-    --color-primary: #89b4fa;
-    --color-primary-hover: #74c7ec;
+    --color-primary: #f0703f;
+    --color-primary-hover: #f05423;
   }
 
   body {

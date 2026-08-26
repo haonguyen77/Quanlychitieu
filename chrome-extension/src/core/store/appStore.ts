@@ -7,6 +7,52 @@ import { syncService } from '@/services/sync/syncService';
 import { driveService } from '@/services/drive/driveService';
 import { syncNotificationsToBackground } from '@/services/notifications/notificationBridge';
 
+const WINE_MODULE_IDS = new Set(['mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory']);
+
+/**
+ * Ensure every active/visible module has exactly one menu item.
+ * De-dupes by both `menu_<id>` and targetId so it never creates a second entry
+ * for a module (fixes duplicate rows). Inserts before Quản lý/Thùng rác/Cài đặt
+ * so the module appears above them, not at the very bottom. Returns true if the
+ * menu changed. Mutates data.menu in place.
+ */
+function backfillModuleMenu(data: { menu?: unknown; modules: Array<{ id: string; name: string; icon?: string; isActive?: boolean; isVisible?: boolean }> }): boolean {
+  const menuArr = data.menu as Array<{ id: string; type?: string; targetId?: string; sortOrder?: number }> | undefined;
+  if (!Array.isArray(menuArr) || menuArr.length === 0) return false;
+  const haveIds = new Set(menuArr.map((m) => m.id));
+  const haveTargets = new Set(menuArr.filter((m) => m.type === 'module').map((m) => m.targetId));
+  const firstSpecialIdx = menuArr.findIndex((m) => m.type === 'report' || m.type === 'settings');
+  const insertIdx = firstSpecialIdx >= 0 ? firstSpecialIdx : menuArr.length;
+  // sortOrder just below the first special item so new modules sit above them.
+  const specialSort = firstSpecialIdx >= 0 ? (menuArr[firstSpecialIdx].sortOrder ?? 98) : 97;
+  const missing = data.modules.filter(
+    (m) => m.isActive !== false && m.isVisible !== false && !WINE_MODULE_IDS.has(m.id)
+      && !haveTargets.has(m.id) && !haveIds.has(`menu_${m.id}`)
+  );
+  if (missing.length === 0) return false;
+  const newItems = missing.map((m, i) => ({
+    id: `menu_${m.id}`, label: m.name, icon: normalizeMenuIcon(m.icon), type: 'module' as const,
+    targetId: m.id, sortOrder: specialSort - 0.5 + i * 0.01, isVisible: true,
+  }));
+  menuArr.splice(insertIdx, 0, ...newItems);
+  return true;
+}
+
+/** Map arbitrary icon names (e.g. from the Flutter app) to an icon that exists
+ * in the extension's icon set; fall back to a safe default. */
+function normalizeMenuIcon(icon?: string): string {
+  const ALIAS: Record<string, string> = {
+    food: 'utensils', coffee: 'utensils', shopping: 'shopping-bag', shopee: 'shopping-cart',
+    gold: 'gem', rent: 'home', bill: 'file-text', salary: 'wallet', investment: 'trending-up',
+    transport: 'car', health: 'heart', bank: 'building', cash: 'wallet', momo: 'smartphone',
+    savings: 'wallet', tietkiem: 'wallet', box: 'wallet', other: 'wallet',
+  };
+  const KNOWN = new Set(['wallet', 'shopping-cart', 'gem', 'home', 'wine', 'settings', 'layout-dashboard', 'card', 'credit-card', 'users', 'building', 'smartphone', 'utensils', 'car', 'shopping-bag', 'film', 'book', 'database', 'trash-2', 'star', 'heart', 'calendar', 'file-text', 'trending-up', 'trending-down']);
+  if (!icon) return 'wallet';
+  if (KNOWN.has(icon)) return icon;
+  return ALIAS[icon] || 'wallet';
+}
+
 interface AppState {
   // Data
   data: FinanceData | null;
@@ -25,6 +71,7 @@ interface AppState {
   isAuthenticated: boolean;
   userEmail: string | null;
   userAvatar: string | null;
+  needsPin: boolean; // encrypted local data present but locked — show PIN prompt
 
   // Sync
   isSyncing: boolean;
@@ -32,6 +79,8 @@ interface AppState {
 
   // Actions
   initializeApp: () => Promise<void>;
+  unlockWithPin: (pin: string) => Promise<boolean>;
+  syncFromDrive: () => Promise<void>;
   setData: (data: FinanceData) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   setActiveModule: (moduleId: string) => void;
@@ -62,6 +111,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeWorkspace: (localStorage.getItem('pdp_activeWorkspace') as 'chitieu' | 'ruou') || 'chitieu',
   activeWineView: (localStorage.getItem('pdp_activeWineView') as AppState['activeWineView']) || 'dashboard',
   isAuthenticated: false,
+  needsPin: false,
   userEmail: null,
   userAvatar: null,
   isSyncing: false,
@@ -74,16 +124,25 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       // Try to load from IndexedDB (offline-first). Key should already be loaded.
       let data: FinanceData | null;
+      let locked = false;
       try {
         data = await indexedDBService.loadData();
       } catch (e) {
+        // Encrypted local data but no/invalid key — DO NOT overwrite with empty
+        // default (that would destroy the encrypted blob). Prompt for PIN instead.
         if ((e as Error)?.message === 'DATA_LOCKED' || (e as Error)?.name === 'LockedError') {
+          locked = true;
           data = null;
         } else { throw e; }
       }
 
+      if (locked) {
+        set({ isLoading: false, isAuthenticated: true, needsPin: true });
+        return;
+      }
+
       if (!data) {
-        // First time - create default data
+        // Truly first run (IndexedDB empty) — safe to seed default data.
         data = createDefaultFinanceData();
         await indexedDBService.saveData(data);
       }
@@ -108,6 +167,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           ];
           normalized = true;
         }
+        // Backfill: add a menu item for any active module missing from the menu
+        // (e.g. modules created on the Flutter app, which only writes 'modules').
+        if (backfillModuleMenu(data as unknown as { menu?: unknown; modules: Array<{ id: string; name: string; icon?: string; isActive?: boolean; isVisible?: boolean }> })) normalized = true;
         for (const mod of data.modules) {
           if (!mod.fields) { mod.fields = []; normalized = true; }
           if (!mod.categories) { mod.categories = []; normalized = true; }
@@ -573,6 +635,50 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // Verify PIN, load key, then decrypt & load local (or Drive) data.
+  unlockWithPin: async (pin: string): Promise<boolean> => {
+    const ok = await cryptoService.verifyPin(pin);
+    if (!ok) return false;
+    try {
+      const data = await indexedDBService.loadData();
+      if (data) {
+        get().setData(data);
+        set({ needsPin: false, activeModuleId: data.settings?.defaultModuleId || data.modules[0]?.id || null });
+        if (driveService.token) {
+          syncService.fullSync().then((r) => {
+            if (r.status === 'success' && r.data) get().setData(r.data);
+          }).catch(() => {});
+        }
+        return true;
+      }
+      if (driveService.token) {
+        const r = await syncService.pull();
+        if (r.status === 'success' && r.data) { get().setData(r.data); set({ needsPin: false }); return true; }
+      }
+      set({ needsPin: false });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  // Pull latest from Drive (used on tab focus). Silent token refresh, no popup;
+  // skips when locked (needs PIN) or already syncing.
+  syncFromDrive: async () => {
+    const s = get();
+    if (s.isSyncing || s.needsPin) return;
+    try {
+      const token = await driveService.getToken(false).catch(() => null);
+      if (!token) return;
+      set({ isSyncing: true });
+      const result = await syncService.fullSync();
+      if (result.status === 'success' && result.data) {
+        get().setData(result.data);
+      }
+    } catch { /* ignore */ }
+    finally { set({ isSyncing: false }); }
+  },
+
   setData: (data) => {
     if (!data || !data.modules || !data.records) {
       console.error('[AppStore] setData rejected: data missing modules or records');
@@ -590,6 +696,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         { id: 'menu_settings', label: 'Cài đặt', icon: 'settings', type: 'settings', sortOrder: 100, isVisible: true },
       ];
     }
+    // Backfill menu items for active modules missing from the menu (e.g. created on the app).
+    backfillModuleMenu(data as unknown as { menu?: unknown; modules: Array<{ id: string; name: string; icon?: string; isActive?: boolean; isVisible?: boolean }> });
     for (const mod of data.modules) {
       if (!mod.fields) mod.fields = [];
       if (!mod.categories) mod.categories = [];
