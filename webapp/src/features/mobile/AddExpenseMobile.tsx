@@ -10,6 +10,8 @@ import { getCategories, getActiveAccounts, getActiveModules, getBeneficiaryOptio
 interface Props {
   onClose: () => void;
   editRecord?: { id: string; values: RecordValues; categoryId?: string; linkedModuleId?: string; moduleId?: string };
+  /** Preselect a module when opening the add form from a module screen. */
+  presetModuleId?: string;
 }
 
 /**
@@ -30,7 +32,7 @@ interface Props {
  * 13. Expanded: Event + Store + Warranty (months + end date)
  * 14. Save button
  */
-export function AddExpenseMobile({ onClose, editRecord }: Props) {
+export function AddExpenseMobile({ onClose, editRecord, presetModuleId }: Props) {
   const { data } = useAppStore();
   const { addRecord, updateRecord } = useRecordStore();
   const isEditing = !!editRecord;
@@ -48,7 +50,7 @@ export function AddExpenseMobile({ onClose, editRecord }: Props) {
   const [quantity, setQuantity] = useState(Number(getVal('quantity')) || 1);
   const [categoryId, setCategoryId] = useState(editRecord?.categoryId || '');
   const [accountId, setAccountId] = useState(getVal('account') || 'acc_cash');
-  const [moduleId, setModuleId] = useState(editRecord?.linkedModuleId || editRecord?.moduleId || 'mod_chitieu');
+  const [moduleId, setModuleId] = useState(editRecord?.linkedModuleId || editRecord?.moduleId || presetModuleId || 'mod_chitieu');
   const [date, setDate] = useState(getVal('date') || new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState(getVal('note'));
   const [beneficiary, setBeneficiary] = useState(getVal('beneficiary'));

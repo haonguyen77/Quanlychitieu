@@ -5,6 +5,9 @@ import { TransactionDetailMobile } from './TransactionDetailMobile';
 import { getRecordField } from './mobileDataMapper';
 import { ArrowLeft, Search, ShoppingCart, ChevronLeft, ChevronRight, SlidersHorizontal, Calendar, X } from 'lucide-react';
 import type { DataRecord } from '@/types';
+import { ModuleBottomNav } from './ModuleBottomNav';
+
+const NAVY = '#101B4D';
 
 type FilterPeriod = 'week' | 'month' | 'year' | 'all';
 
@@ -88,17 +91,17 @@ export function ShopeeMobile() {
     <div className="h-full flex flex-col bg-white">
       {/* Header */}
       <header className="flex items-center gap-2 px-2 py-2 border-b border-gray-100">
-        <button onClick={pop} className="w-10 h-10 flex items-center justify-center"><ArrowLeft size={22} className="text-gray-700" /></button>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#FBE9E7' }}><ShoppingCart size={18} color={RED} /></div>
+        <button onClick={pop} className="w-10 h-10 flex items-center justify-center"><ArrowLeft size={22} style={{ color: NAVY }} /></button>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#FFF7F5' }}><ShoppingCart size={18} color={RED} /></div>
         <div className="flex-1 min-w-0">
-          <p className="text-base font-bold" style={{ color: '#0F1F4D' }}>Mua sắm online</p>
+          <p className="text-base font-bold" style={{ color: NAVY }}>Mua sắm online</p>
           <p className="text-[11px] text-gray-500 truncate">Chi tiêu mua sắm trên các sàn TMĐT</p>
         </div>
         <button onClick={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} className="w-9 h-9 flex items-center justify-center">
-          {showSearch ? <X size={18} color="#0F1F4D" /> : <Search size={18} color="#0F1F4D" />}
+          {showSearch ? <X size={18} color={NAVY} /> : <Search size={18} color={NAVY} />}
         </button>
         <button onClick={() => setShowFilter(!showFilter)} className="w-9 h-9 flex items-center justify-center">
-          <SlidersHorizontal size={18} color={showFilter ? RED : '#0F1F4D'} />
+          <SlidersHorizontal size={18} color={showFilter ? RED : NAVY} />
         </button>
       </header>
 
@@ -186,6 +189,8 @@ export function ShopeeMobile() {
           </div>
         )}
       </div>
+
+      <ModuleBottomNav accentColor={RED} moduleId="mod_shopee" />
     </div>
   );
 }

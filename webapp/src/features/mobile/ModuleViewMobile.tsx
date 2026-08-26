@@ -5,10 +5,21 @@ import { TransactionDetailMobile } from './TransactionDetailMobile';
 import { showPrompt } from './mobileDialog';
 import { ArrowLeft, Search, TrendingDown, TrendingUp, Calendar, ChevronLeft, ChevronRight, ShoppingCart, Gem, Home, CreditCard, Wine, Package } from 'lucide-react';
 import type { ModuleDefinition, DataRecord } from '@/types';
+import { ModuleBottomNav } from './ModuleBottomNav';
 
 interface Props { module: ModuleDefinition; }
 
 type FilterPeriod = 'week' | 'month' | 'year' | 'all';
+
+const NAVY = '#101B4D';
+
+/** Accent-tinted light background for the header icon tile (matches app). */
+const ACCENT_LIGHT_BG: Record<string, string> = {
+  mod_shopee: '#FFF7F5',
+  mod_vang: '#FFFBEB',
+  mod_nhatro: '#F0FDF4',
+  mod_creditcard: '#F5F3FF',
+};
 
 /**
  * ModuleViewMobile — Generic module transaction view for Shopee, Gold, Rental, Credit Card.
@@ -106,17 +117,20 @@ export function ModuleViewMobile({ module }: Props) {
 
   const openDetail = (record: DataRecord) => { push({ id: `detail-${record.id}`, component: <TransactionDetailMobile record={record} /> }); };
 
+  // Rental (and gold/creditcard) use only 3 period pills in the app (no Tuần).
+  const periods: FilterPeriod[] = module.id === 'mod_nhatro' ? ['month', 'year', 'all'] : ['week', 'month', 'year', 'all'];
+
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Header — Android style: back + icon + title + subtitle */}
       <header className="flex items-center gap-2 px-2 py-2 border-b border-gray-100">
-        <button onClick={pop} className="w-10 h-10 flex items-center justify-center"><ArrowLeft size={22} className="text-gray-700" /></button>
-        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center">{getModuleIcon()}</div>
+        <button onClick={pop} className="w-10 h-10 flex items-center justify-center"><ArrowLeft size={22} style={{ color: NAVY }} /></button>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: ACCENT_LIGHT_BG[module.id] || '#F5F7FA' }}>{getModuleIcon()}</div>
         <div className="flex-1 min-w-0">
-          <p className="text-base font-bold" style={{ color: '#0F1F4D' }}>{module.name}</p>
+          <p className="text-base font-bold" style={{ color: NAVY }}>{module.name}</p>
           {module.description && <p className="text-[11px] text-gray-500 truncate">{module.description}</p>}
         </div>
-        <button onClick={() => setShowSearch(!showSearch)} className="w-9 h-9 flex items-center justify-center"><Search size={18} color="#0F1F4D" /></button>
+        <button onClick={() => setShowSearch(!showSearch)} className="w-9 h-9 flex items-center justify-center"><Search size={18} color={NAVY} /></button>
       </header>
 
       {/* Search */}
@@ -127,7 +141,7 @@ export function ModuleViewMobile({ module }: Props) {
       {/* Period filter */}
       <div className="px-4 py-2 flex items-center gap-1.5">
         <button onClick={() => navigate(-1)} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={16} /></button>
-        {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
+        {periods.map(p => (
           <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2 rounded-full text-[11px] font-semibold text-center"
             style={{ backgroundColor: period === p ? accentColor : '#fff', color: period === p ? '#fff' : '#1A1A1A', border: period === p ? 'none' : '1px solid #E5E7EB' }}>
             {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
@@ -192,6 +206,9 @@ export function ModuleViewMobile({ module }: Props) {
           ))
         )}
       </div>
+
+      {/* Per-module bottom navigation with accent-colored + button */}
+      <ModuleBottomNav accentColor={accentColor} moduleId={module.id} />
     </div>
   );
 }

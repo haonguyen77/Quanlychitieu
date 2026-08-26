@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
+import { ModuleBottomNav } from './ModuleBottomNav';
 import { MobileIcon } from './MobileIcon';
 import {
   getRecordField, getCreditCards, resolveCreditCardIdFromAccount,
@@ -312,6 +313,8 @@ export function CreditCardMobile() {
           )}
         </div>
       </div>
+
+      <ModuleBottomNav accentColor={PURPLE} moduleId="mod_creditcard" />
 
       {/* ═══ PAYMENT MODAL ═══ */}
       {showPayment && selectedCard && (

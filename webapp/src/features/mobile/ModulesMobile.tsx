@@ -4,6 +4,7 @@ import { ModuleViewMobile } from './ModuleViewMobile';
 import { WineMobile } from './WineMobile';
 import { CreditCardMobile } from './CreditCardMobile';
 import { ShopeeMobile } from './ShopeeMobile';
+import { GoldMobile } from './GoldMobile';
 import { MobileIcon } from './MobileIcon';
 import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
 import { ChevronRight } from 'lucide-react';
@@ -27,6 +28,8 @@ export function ModulesMobile() {
       push({ id: 'creditcard', component: <CreditCardMobile /> });
     } else if (mod.id === 'mod_shopee') {
       push({ id: 'shopee', component: <ShopeeMobile /> });
+    } else if (mod.id === 'mod_vang') {
+      push({ id: 'gold', component: <GoldMobile /> });
     } else {
       push({ id: `module-${mod.id}`, component: <ModuleViewMobile module={mod} /> });
     }
