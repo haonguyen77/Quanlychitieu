@@ -100,7 +100,7 @@ export function Sidebar() {
               }`}
               title={item.label}
             >
-              <Icon name={item.icon} size={18} color={isActive(item) ? '#ffffff' : undefined} />
+              <Icon name={item.icon} size={18} color={isActive(item) ? '#ffffff' : MENU_ICON_COLORS[item.icon] || undefined} />
               <span className="truncate text-sm">{item.label}</span>
             </button>
           );
@@ -128,3 +128,19 @@ export function Sidebar() {
     </aside>
   );
 }
+
+// Per-menu icon colors (for inactive items) to match the colorful sidebar look.
+const MENU_ICON_COLORS: Record<string, string> = {
+  'layout-dashboard': '#6366f1',
+  wallet: '#a855f7',
+  'shopping-cart': '#f05423',
+  'shopping-bag': '#f05423',
+  'credit-card': '#8b5cf6',
+  card: '#8b5cf6',
+  gem: '#f59e0b',
+  home: '#22c55e',
+  database: '#0ea5e9',
+  'trash-2': '#ef4444',
+  trash: '#ef4444',
+  settings: '#64748b',
+};

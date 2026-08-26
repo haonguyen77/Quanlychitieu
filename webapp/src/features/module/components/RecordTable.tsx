@@ -491,26 +491,26 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
         </div>
       )}
       <table className={`w-full ${fontClass}`} style={{ minWidth: `${displayColumns.length * 150 + 120}px` }}>
-        <thead className="sticky top-0 z-10 bg-[var(--color-surface)]">
+        <thead className="sticky top-0 z-10 text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
           <tr>
             {hasSelection && (
-              <th className="px-2 py-3 w-10 border-b border-[var(--color-border)]">
+              <th className="px-2 py-2 w-10 border-r border-white/20">
                 <input
                   type="checkbox"
-                  className="rounded border-[var(--color-border)] cursor-pointer"
+                  className="rounded border-white/60 cursor-pointer"
                   checked={paginatedRecords.length > 0 && selectedIds.size === paginatedRecords.length}
                   onChange={handleSelectAll}
                 />
               </th>
             )}
             {virtualColumns ? virtualColumns.map((vc) => (
-              <th key={vc.id} className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-[var(--color-border)] group/th" style={{ width: vc.width ? `${vc.width}px` : undefined }}>
+              <th key={vc.id} className="px-4 py-2 text-left text-xs font-medium text-white group/th border-r border-white/20 last:border-r-0" style={{ width: vc.width ? `${vc.width}px` : undefined }}>
                 <div className="flex items-center gap-1">
                   <span>{vc.label}</span>
                 </div>
               </th>
             )) : displayColumns.map((field) => (
-              <th key={field.id} className={`px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-[var(--color-border)] cursor-pointer hover:text-[var(--color-text)] select-none group/th whitespace-nowrap`} style={field.fieldName === '__category' ? { width: '130px', minWidth: '130px' } : field.fieldType === 'date' ? { width: '90px', minWidth: '90px' } : undefined} onClick={() => field.fieldName !== '__category' && field.fieldName !== '__module' && handleSort(field.id)}>
+              <th key={field.id} className={`px-4 py-2 text-left text-xs font-medium text-white cursor-pointer hover:text-white/80 select-none group/th whitespace-nowrap border-r border-white/20 last:border-r-0`} style={field.fieldName === '__category' ? { width: '130px', minWidth: '130px' } : field.fieldType === 'date' ? { width: '90px', minWidth: '90px' } : undefined} onClick={() => field.fieldName !== '__category' && field.fieldName !== '__module' && handleSort(field.id)}>
                 <div className="flex items-center gap-1">
                   <span>{field.fieldLabel}</span>
                   {sortField === field.id && <Icon name={sortDir === 'asc' ? 'chevron-up' : 'chevron-down'} size={12} />}
@@ -539,7 +539,7 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
                 </div>
               </th>
             ))}
-            <th className="px-4 py-3 w-20 text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-[var(--color-border)]">Thao tác</th>
+            <th className="px-4 py-2 w-20 text-xs font-medium text-white">Thao tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-border)] divide-opacity-50">
