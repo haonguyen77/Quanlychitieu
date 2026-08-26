@@ -33,7 +33,7 @@ function saveReminders(list: RecurringReminder[]) {
 
 const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
-export function RecurringReminderSection() {
+export function RecurringReminderSection({ embedded = false }: { embedded?: boolean } = {}) {
   const [reminders, setReminders] = useState<RecurringReminder[]>(loadReminders);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -74,14 +74,22 @@ export function RecurringReminderSection() {
     return `Ngày ${r.dayOfMonth} hàng tháng ${r.time}`;
   };
 
-  return (
-    <section className="card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">Nhắc nhở định kỳ</h2>
-        <button onClick={() => setAdding(!adding)} className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-          {adding ? 'Đóng' : '+ Thêm'}
-        </button>
-      </div>
+  const addBtn = (
+    <button onClick={() => setAdding(!adding)} className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+      {adding ? 'Đóng' : '+ Thêm'}
+    </button>
+  );
+
+  const body = (
+    <div className={embedded ? 'pt-3' : ''}>
+      {!embedded ? (
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-[var(--color-text)]">Nhắc nhở định kỳ</h2>
+          {addBtn}
+        </div>
+      ) : (
+        <div className="flex justify-end mb-2">{addBtn}</div>
+      )}
 
       {/* Add form */}
       {adding && (
@@ -135,6 +143,9 @@ export function RecurringReminderSection() {
           </div>
         ))}
       </div>
-    </section>
+    </div>
   );
+
+  if (embedded) return body;
+  return <section className="card p-5">{body}</section>;
 }

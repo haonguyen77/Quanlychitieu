@@ -19,7 +19,7 @@ const NOTIFICATION_TYPES: {
   { key: 'budget', label: 'Ngân sách', desc: 'Cảnh báo vượt ngân sách', icon: Wallet },
 ];
 
-export function NotificationSettingsSection() {
+export function NotificationSettingsSection({ embedded = false }: { embedded?: boolean } = {}) {
   const [settings, setSettings] = useState<NotificationSettings>(getNotificationSettings);
 
   const toggle = (key: keyof Omit<NotificationSettings, 'reminderDays'>) => {
@@ -44,13 +44,8 @@ export function NotificationSettingsSection() {
 
   const DAYS_OPTIONS = [1, 3, 5, 7, 14, 30];
 
-  return (
-    <section className="card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Bell size={18} className="text-[var(--color-primary)]" />
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">Thông báo</h2>
-      </div>
-
+  const body = (
+    <div className={embedded ? 'pt-2' : ''}>
       {/* Toggle list */}
       <div className="space-y-1">
         {NOTIFICATION_TYPES.map(({ key, label, desc, icon: IconComp }) => (
@@ -98,6 +93,17 @@ export function NotificationSettingsSection() {
           ))}
         </div>
       </div>
+    </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <section className="card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Bell size={18} className="text-[var(--color-primary)]" />
+        <h2 className="text-sm font-semibold text-[var(--color-text)]">Thông báo</h2>
+      </div>
+      {body}
     </section>
   );
 }

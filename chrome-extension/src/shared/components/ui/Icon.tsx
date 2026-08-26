@@ -54,6 +54,12 @@ import {
   Database,
   FileJson,
   FileSpreadsheet,
+  Bell,
+  Clock,
+  Repeat,
+  Cloud,
+  Shield,
+  Lock,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -115,6 +121,12 @@ const iconMap: Record<string, LucideIcon> = {
   'file-json': FileJson,
   'file-spreadsheet': FileSpreadsheet,
   'trash-2': Trash2,
+  bell: Bell,
+  clock: Clock,
+  repeat: Repeat,
+  cloud: Cloud,
+  shield: Shield,
+  lock: Lock,
 };
 
 interface IconProps {

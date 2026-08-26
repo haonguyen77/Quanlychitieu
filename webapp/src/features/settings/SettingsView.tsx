@@ -9,7 +9,10 @@ import { SharedConfigSection } from './SharedConfigSection';
 import { NotificationSettingsSection } from './NotificationSettingsSection';
 import { ReminderSection } from './ReminderSection';
 import { RecurringReminderSection } from './RecurringReminderSection';
-import { SecuritySection } from './SecuritySection';
+import { PinCard, PasscodeCard } from './SecuritySection';
+import { CollapsibleCard } from './CollapsibleCard';
+import { ModuleManager } from './ModuleManager';
+import { ModuleToggleManager } from './ModuleToggleManager';
 import { cryptoService, type EncryptedEnvelope } from '@/services/crypto/cryptoService';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
 import { PinPromptModal } from '@/features/mobile/PinPromptModal';
@@ -137,38 +140,17 @@ export function SettingsView() {
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Quản lý ứng dụng</p>
       </div>
 
-      <div className="p-6 max-w-2xl space-y-5">
-        {/* Notification Settings */}
-        <NotificationSettingsSection />
-
-        {/* Reminder */}
-        <ReminderSection />
-
-        {/* Recurring Reminders */}
-        <RecurringReminderSection />
-
-        {/* Warranty notification */}
-        <section className="card p-5">
-          <h2 className="text-sm font-semibold text-[var(--color-text)] mb-3">Thông báo bảo hành</h2>
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-[var(--color-text-secondary)]">Cảnh báo trước</label>
-            <input type="number" className="input-field py-1.5 px-2 w-16 text-sm text-center"
-              value={data?.settings?.warrantyAlertDays ?? 10}
-              onChange={(e) => {
-                const days = parseInt(e.target.value, 10);
-                if (!isNaN(days) && days >= 0) {
-                  const appStore = useAppStore.getState();
-                  appStore.updateSettings({ warrantyAlertDays: days });
-                }
-              }}
-              min="0" max="90" />
-            <span className="text-sm text-[var(--color-text-secondary)]">ngày</span>
-          </div>
-        </section>
-
+      <div className="p-6 max-w-5xl mx-auto space-y-5">
+        {/* Top row: Google Drive · PIN · Passcode (3 short cards) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Google Drive Sync */}
         <section className="card p-5">
-          <h2 className="text-sm font-semibold text-[var(--color-text)] mb-3">Google Drive</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#0ea5e91a' }}>
+              <Icon name="cloud" size={16} color="#0ea5e9" />
+            </div>
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">Google Drive</h2>
+          </div>
           <div className="space-y-3">
             {/* Account info */}
             {userEmail && userEmail !== 'offline@local' && (
@@ -211,44 +193,60 @@ export function SettingsView() {
           </div>
         </section>
 
-        {/* Security: PIN encryption */}
-        <SecuritySection />
+        {/* PIN + Passcode fill the remaining 2 columns of the top row */}
+        <PinCard />
+        <PasscodeCard />
+        </div>{/* end top row grid */}
+
+        {/* Notification groups (collapsible) */}
+        <CollapsibleCard title="Thông báo" subtitle="Bật/tắt các loại thông báo và nhắc trước" icon="bell" iconColor="#0ea5e9">
+          <NotificationSettingsSection embedded />
+        </CollapsibleCard>
+
+        <CollapsibleCard title="Nhắc nhập chi tiêu" subtitle="Nhắc bạn ghi chi tiêu theo khung giờ" icon="clock" iconColor="#22c55e">
+          <ReminderSection embedded />
+        </CollapsibleCard>
+
+        <CollapsibleCard title="Nhắc nhở định kỳ" subtitle="Nhắc các khoản định kỳ (tiền nước, tiền nhà...)" icon="repeat" iconColor="#8b5cf6">
+          <RecurringReminderSection embedded />
+        </CollapsibleCard>
+
+        {/* Warranty notification */}
+        <CollapsibleCard title="Thông báo bảo hành" subtitle="Cảnh báo trước khi sản phẩm hết hạn bảo hành" icon="alert-triangle" iconColor="#ef4444">
+          <div className="flex items-center gap-3 pt-3">
+            <label className="text-sm text-[var(--color-text-secondary)]">Cảnh báo trước</label>
+            <input type="number" className="input-field py-1.5 px-2 w-16 text-sm text-center"
+              value={data?.settings?.warrantyAlertDays ?? 10}
+              onChange={(e) => {
+                const days = parseInt(e.target.value, 10);
+                if (!isNaN(days) && days >= 0) {
+                  const appStore = useAppStore.getState();
+                  appStore.updateSettings({ warrantyAlertDays: days });
+                }
+              }}
+              min="0" max="90" />
+            <span className="text-sm text-[var(--color-text-secondary)]">ngày</span>
+          </div>
+        </CollapsibleCard>
 
         {/* Shared Config: Tài khoản, Danh mục, Người nhận */}
-        <SharedConfigSection />
+        <CollapsibleCard title="Danh mục dùng chung" subtitle="Quản lý tài khoản, danh mục và người nhận" icon="users" iconColor="#f05423">
+          <div className="pt-3"><SharedConfigSection embedded /></div>
+        </CollapsibleCard>
 
-        {/* Module ON/OFF */}
-        <section className="card p-5">
-          <h2 className="text-sm font-semibold text-[var(--color-text)] mb-3">Quản lý Module</h2>
-          <div className="space-y-3">
-            {[
-              { key: 'pdp_ws_chitieu', label: 'Quản lý chi tiêu', desc: 'Chi tiêu, Shopee, Vàng, Nhà trọ, Thẻ tín dụng' },
-              { key: 'pdp_ws_ruou', label: 'Quản lý rượu', desc: 'Đơn hàng, Khách hàng, Kho, Sản phẩm' },
-            ].map((mod) => {
-              const enabled = localStorage.getItem(mod.key) !== '0';
-              return (
-                <div key={mod.key} className="flex items-center justify-between py-2">
-                  <div>
-                    <span className="text-sm font-medium text-[var(--color-text)]">{mod.label}</span>
-                    <p className="text-[10px] text-[var(--color-text-secondary)]">{mod.desc}</p>
-                  </div>
-                  <button
-                    onClick={() => { localStorage.setItem(mod.key, enabled ? '0' : '1'); window.location.reload(); }}
-                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
-                  >
-                    {enabled ? 'ON' : 'OFF'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-[10px] text-[var(--color-text-secondary)] mt-2">OFF = ẩn module, dữ liệu vẫn giữ nguyên</p>
-        </section>
+        {/* Module & Metadata manager (embedded) */}
+        <CollapsibleCard title="Quản lý Module" subtitle="Bật/tắt module và cấu hình chi tiết" icon="database" iconColor="#0ea5e9">
+          <ModuleManager embedded />
+        </CollapsibleCard>
 
-        {/* Backup - 6 buttons only */}
-        <section className="card p-5">
-          <h2 className="text-sm font-semibold text-[var(--color-text)] mb-3">Sao lưu & Xuất dữ liệu</h2>
-          <div className="grid grid-cols-2 gap-3">
+        {/* Sidebar modules: add/edit/delete/toggle (like mobile app) + workspace ON/OFF */}
+        <CollapsibleCard title="Bật/tắt nhóm module" subtitle="Thêm/sửa/xóa & bật tắt module hiển thị bên trái" icon="layout-dashboard" iconColor="#6366f1">
+          <ModuleToggleManager />
+        </CollapsibleCard>
+
+        {/* Backup - collapsible, 6 buttons */}
+        <CollapsibleCard title="Sao lưu & Xuất dữ liệu" subtitle="Sao lưu dữ liệu và xuất ra các định dạng khác nhau" icon="upload" iconColor="#0ea5e9">
+          <div className="grid grid-cols-2 gap-3 pt-3">
             <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
               <Icon name="download" size={15} />
               Export JSON
@@ -366,23 +364,23 @@ export function SettingsView() {
               Import Google Sheets
             </button>
           </div>
-        </section>
+        </CollapsibleCard>
 
-        {/* Data info */}
+        {/* Data info - full width at bottom */}
         <section className="card p-5">
-          <h2 className="text-sm font-semibold text-[var(--color-text)] mb-3">Thông tin dữ liệu</h2>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-[var(--color-text-secondary)]">Tổng bản ghi</span>
-              <span className="font-medium text-[var(--color-text)]">{data?.metadata.totalRecords || 0}</span>
+          <h2 className="text-sm font-semibold text-[var(--color-text)] mb-4">Thông tin dữ liệu</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-lg border border-[var(--color-border)] p-4 text-center">
+              <div className="text-2xl font-bold text-[var(--color-text)]">{data?.metadata.totalRecords || 0}</div>
+              <div className="text-xs text-[var(--color-text-secondary)] mt-1">Tổng bản ghi</div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-[var(--color-text-secondary)]">Modules</span>
-              <span className="font-medium text-[var(--color-text)]">{data?.modules.length || 0}</span>
+            <div className="rounded-lg border border-[var(--color-border)] p-4 text-center">
+              <div className="text-2xl font-bold text-[var(--color-text)]">{data?.modules.length || 0}</div>
+              <div className="text-xs text-[var(--color-text-secondary)] mt-1">Modules</div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-[var(--color-text-secondary)]">Schema version</span>
-              <span className="font-medium text-[var(--color-text)]">{data?.version || '—'}</span>
+            <div className="rounded-lg border border-[var(--color-border)] p-4 text-center">
+              <div className="text-2xl font-bold text-[var(--color-text)]">{data?.version || '—'}</div>
+              <div className="text-xs text-[var(--color-text-secondary)] mt-1">Schema version</div>
             </div>
           </div>
         </section>

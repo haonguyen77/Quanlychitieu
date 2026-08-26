@@ -15,7 +15,7 @@ const COLOR_PALETTE = [
  * Shared Config Section: CRUD for Tài khoản, Danh mục, Người nhận
  * These are dropdown options shared across all modules (Chi tiêu, Shopee, etc.)
  */
-export function SharedConfigSection() {
+export function SharedConfigSection({ embedded = false }: { embedded?: boolean } = {}) {
   const { data, setData } = useAppStore();
   const [activeTab, setActiveTab] = useState<'account' | 'category' | 'beneficiary'>('account');
   const [editingItem, setEditingItem] = useState<{ idx: number; label: string; value: string; color?: string } | null>(null);
@@ -146,10 +146,8 @@ export function SharedConfigSection() {
     { key: 'beneficiary' as const, label: 'Người nhận', icon: 'user' },
   ];
 
-  return (
-    <section className="card p-5">
-      <h2 className="text-sm font-semibold text-[var(--color-text)] mb-3">Danh mục dùng chung</h2>
-      
+  const body = (
+    <>
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-[var(--color-border)]">
         {tabs.map((tab) => (
@@ -217,6 +215,14 @@ export function SharedConfigSection() {
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (embedded) return body;
+  return (
+    <section className="card p-5">
+      <h2 className="text-sm font-semibold text-[var(--color-text)] mb-3">Danh mục dùng chung</h2>
+      {body}
     </section>
   );
 }

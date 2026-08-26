@@ -39,7 +39,7 @@ function saveConfig(config: ReminderConfig) {
   // Web: reminders will use Web Notification API in Phase 5
 }
 
-export function ReminderSection() {
+export function ReminderSection({ embedded = false }: { embedded?: boolean } = {}) {
   const [config, setConfig] = useState<ReminderConfig>(loadConfig);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTime, setEditingTime] = useState('');
@@ -88,17 +88,24 @@ export function ReminderSection() {
   // Sort by time
   const sortedReminders = [...config.reminders].sort((a, b) => a.time.localeCompare(b.time));
 
-  return (
-    <section className="card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">Nhắc nhập chi tiêu</h2>
-        <button
-          onClick={toggleGlobal}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${config.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
-        >
-          {config.enabled ? 'ON' : 'OFF'}
-        </button>
-      </div>
+  const toggleBtn = (
+    <button
+      onClick={toggleGlobal}
+      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${config.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+    >
+      {config.enabled ? 'ON' : 'OFF'}
+    </button>
+  );
+
+  const body = (
+    <div className={embedded ? 'pt-3' : ''}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-[var(--color-text)]">Nhắc nhập chi tiêu</h2>
+          {toggleBtn}
+        </div>
+      )}
+      {embedded && <div className="flex justify-end mb-2">{toggleBtn}</div>}
 
       {config.enabled && (
         <div className="space-y-3">
@@ -146,6 +153,9 @@ export function ReminderSection() {
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
+
+  if (embedded) return body;
+  return <section className="card p-5">{body}</section>;
 }

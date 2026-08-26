@@ -6,7 +6,7 @@ import type { ModuleDefinition, FieldDefinition, CategoryDefinition } from '@/ty
 
 type ManagerTab = 'modules' | 'fields' | 'categories' | 'menu';
 
-export function ModuleManager() {
+export function ModuleManager({ embedded = false }: { embedded?: boolean } = {}) {
   const { data, setData } = useAppStore();
   const [activeTab, setActiveTab] = useState<ManagerTab>('modules');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
@@ -311,14 +311,16 @@ export function ModuleManager() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="px-6 py-5 border-b border-[var(--color-border)]">
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">Quản lý Module & Metadata</h1>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Thêm/sửa/xóa modules, fields, danh mục</p>
-      </div>
+    <div className={embedded ? '' : 'flex-1 overflow-y-auto'}>
+      {!embedded && (
+        <div className="px-6 py-5 border-b border-[var(--color-border)]">
+          <h1 className="text-xl font-semibold text-[var(--color-text)]">Quản lý Module & Metadata</h1>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Thêm/sửa/xóa modules, fields, danh mục</p>
+        </div>
+      )}
 
       {/* Tab bar */}
-      <div className="px-6 border-b border-[var(--color-border)] flex gap-1">
+      <div className={`${embedded ? '' : 'px-6'} border-b border-[var(--color-border)] flex gap-1`}>
         {tabs.map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
@@ -329,7 +331,7 @@ export function ModuleManager() {
         ))}
       </div>
 
-      <div className="p-6">
+      <div className={embedded ? 'pt-4' : 'p-6'}>
         {/* Module selector for fields/categories tabs */}
         {(activeTab === 'fields' || activeTab === 'categories') && (
           <div className="mb-4 flex items-center gap-3">

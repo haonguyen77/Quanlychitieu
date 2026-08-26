@@ -12,17 +12,8 @@ export function Sidebar() {
     const items = data.menu
       .filter((m) => m.isVisible)
       .filter((m) => m.id !== 'menu_ruou') // Wine is in its own workspace
+      .filter((m) => m.id !== 'menu_manager') // "Quản lý" is merged into Settings now
       .sort((a, b) => a.sortOrder - b.sortOrder);
-    // Ensure "Quản lý" menu item exists for existing users
-    if (!items.find((m) => m.id === 'menu_manager')) {
-      const settingsIdx = items.findIndex((m) => m.type === 'settings');
-      const managerItem: MenuItem = { id: 'menu_manager', label: 'Quản lý', icon: 'database', type: 'report', sortOrder: 99, isVisible: true };
-      if (settingsIdx >= 0) {
-        items.splice(settingsIdx, 0, managerItem);
-      } else {
-        items.push(managerItem);
-      }
-    }
     // Ensure "Thùng rác" menu item exists for existing users
     if (!items.find((m) => m.id === 'menu_trash')) {
       const settingsIdx = items.findIndex((m) => m.type === 'settings');
