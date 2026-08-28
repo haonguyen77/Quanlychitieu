@@ -132,9 +132,28 @@ class _ModuleManagerScreenState extends State<ModuleManagerScreen> {
 
     final provider = context.read<ModuleProvider>();
     provider.deleteModule(module.id);
+    // Write a tombstone so the deletion propagates across devices (sync merge
+    // would otherwise re-add the module from remote).
+    await _writeModuleTombstone(module.id);
     // Records are NOT deleted — they remain in Chi tiêu with linkedModuleId
     // The linkedModuleId on records becomes orphaned but harmless
     _persistAndSync();
+  }
+
+  /// Append {id, deletedAt} to the persisted deletedModuleIds tombstone list.
+  Future<void> _writeModuleTombstone(String moduleId) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    final existing = await DatabaseHelper.instance.getAppData('deletedModuleIds');
+    final list = <Map<String, dynamic>>[];
+    if (existing is List) {
+      for (final t in existing) {
+        if (t is Map && t['id'] != null && t['id'] != moduleId) {
+          list.add({'id': t['id'], 'deletedAt': t['deletedAt']});
+        }
+      }
+    }
+    list.add({'id': moduleId, 'deletedAt': now});
+    await DatabaseHelper.instance.setAppData('deletedModuleIds', list);
   }
 
   void _persistAndSync() {

@@ -383,7 +383,8 @@ class DatabaseHelper {
 
       // Store everything else as app_data JSON blobs
       final keysToStore = ['settings', 'modules', 'dashboard', 'reports', 'menu',
-        'metadata', 'recurringTransactions', 'budgets', 'activityLog', 'version', 'deviceId'];
+        'metadata', 'recurringTransactions', 'budgets', 'activityLog', 'version', 'deviceId',
+        'deletedModuleIds'];
       for (final key in keysToStore) {
         if (data.containsKey(key)) {
           await txn.insert('app_data', {

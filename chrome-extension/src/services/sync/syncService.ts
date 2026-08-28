@@ -16,6 +16,30 @@ export function validateFinanceData(data: unknown): data is FinanceData {
   return true;
 }
 
+/** A module-deletion tombstone: id of the deleted module + when it was deleted. */
+export interface Tombstone { id: string; deletedAt: string; }
+
+/** System modules that must NEVER be dropped by tombstone propagation. */
+const SYNC_SYSTEM_MODULES = new Set([
+  'mod_chitieu', 'mod_shopee', 'mod_vang', 'mod_nhatro', 'mod_creditcard',
+  'mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory',
+]);
+
+/** Union two tombstone lists by id, keeping the newest deletedAt. Prunes
+ * entries older than 180 days so the list can't grow unbounded. */
+function mergeTombstones(a?: Tombstone[], b?: Tombstone[]): Tombstone[] {
+  const byId = new Map<string, string>();
+  for (const t of [...(a || []), ...(b || [])]) {
+    if (!t || !t.id || !t.deletedAt) continue;
+    const prev = byId.get(t.id);
+    if (!prev || new Date(t.deletedAt).getTime() > new Date(prev).getTime()) byId.set(t.id, t.deletedAt);
+  }
+  const cutoff = Date.now() - 180 * 24 * 60 * 60 * 1000;
+  return Array.from(byId.entries())
+    .filter(([, deletedAt]) => new Date(deletedAt).getTime() >= cutoff)
+    .map(([id, deletedAt]) => ({ id, deletedAt }));
+}
+
 export type SyncStatus = 'idle' | 'syncing' | 'success' | 'conflict' | 'error' | 'locked';
 
 export interface SyncResult {
@@ -323,6 +347,27 @@ class SyncService {
       }
     }
 
+    // ── Module DELETION propagation via tombstones ──────────────────────────
+    // A plain union re-adds a module deleted on one device. Keep a tombstone
+    // list {id, deletedAt}; drop a module only when its tombstone is NEWER than
+    // the module's createdAt (so a genuinely re-created module survives).
+    // System modules are never dropped.
+    const tombstones = mergeTombstones(
+      (local as unknown as { deletedModuleIds?: Tombstone[] }).deletedModuleIds,
+      (remote as unknown as { deletedModuleIds?: Tombstone[] }).deletedModuleIds,
+    );
+    if (tombstones.length > 0) {
+      const tombMap = new Map(tombstones.map((t) => [t.id, t.deletedAt]));
+      merged.modules = merged.modules.filter((m) => {
+        if (SYNC_SYSTEM_MODULES.has(m.id)) return true;
+        const deletedAt = tombMap.get(m.id);
+        if (!deletedAt) return true;
+        const created = m.createdAt || '2000-01-01';
+        return new Date(created).getTime() > new Date(deletedAt).getTime();
+      });
+    }
+    (merged as unknown as { deletedModuleIds?: Tombstone[] }).deletedModuleIds = tombstones;
+
     // Merge menu: keep remote as base, add local-only menu items (by id and by
     // targetId) so module menu entries created locally aren't lost after sync.
     {
@@ -336,7 +381,11 @@ class SyncService {
         if (item.targetId && haveTargets.has(item.targetId)) continue;
         mergedMenu.push(item);
       }
-      (merged as unknown as { menu?: unknown }).menu = mergedMenu;
+      // Drop menu items pointing to a module that no longer exists (deleted).
+      const liveModuleIds = new Set(merged.modules.map((m) => m.id));
+      (merged as unknown as { menu?: unknown }).menu = mergedMenu.filter(
+        (item) => (item as { type?: string }).type !== 'module' || !item.targetId || liveModuleIds.has(item.targetId),
+      );
     }
 
     merged.lastModified = new Date().toISOString();

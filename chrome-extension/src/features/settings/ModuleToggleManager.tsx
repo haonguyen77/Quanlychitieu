@@ -126,7 +126,9 @@ export function ModuleToggleManager() {
     const now = new Date().toISOString();
     const mods = data.modules.filter((m) => m.id !== moduleId);
     const menu = data.menu.filter((m) => m.targetId !== moduleId);
-    setData({ ...data, modules: mods, menu, lastModified: now });
+    // Tombstone so the deletion propagates across devices.
+    const deletedModuleIds = [...(((data as unknown as { deletedModuleIds?: Array<{ id: string; deletedAt: string }> }).deletedModuleIds) || []).filter((t) => t.id !== moduleId), { id: moduleId, deletedAt: now }];
+    setData({ ...data, modules: mods, menu, deletedModuleIds, lastModified: now } as never);
   };
 
   return (

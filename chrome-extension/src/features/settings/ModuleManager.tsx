@@ -90,8 +90,11 @@ export function ModuleManager({ embedded = false }: { embedded?: boolean } = {})
     const now = new Date().toISOString();
     const modules = data.modules.filter((m) => m.id !== moduleId);
     const menu = data.menu.filter((m) => m.targetId !== moduleId);
+    // Tombstone so the deletion propagates across devices (merge would otherwise
+    // re-add the module from remote).
+    const deletedModuleIds = [...(((data as unknown as { deletedModuleIds?: Array<{ id: string; deletedAt: string }> }).deletedModuleIds) || []).filter((t) => t.id !== moduleId), { id: moduleId, deletedAt: now }];
     // Do NOT delete or modify records — they belong to mod_chitieu
-    setData({ ...data, modules, menu, lastModified: now });
+    setData({ ...data, modules, menu, deletedModuleIds, lastModified: now } as never);
   };
 
   // ─── Field CRUD ───────────────────────────────────────────────

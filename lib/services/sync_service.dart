@@ -334,6 +334,61 @@ class SyncService {
       merged['modules'] = byId.values.toList();
     }
 
+    // ── Module DELETION propagation via tombstones ──────────────────────────
+    // A plain union re-adds a module deleted on one device. Union the tombstone
+    // lists (newest deletedAt wins), then drop any module whose tombstone is
+    // NEWER than its createdAt. System modules are never dropped.
+    const systemModuleIds = {
+      'mod_chitieu', 'mod_shopee', 'mod_vang', 'mod_nhatro', 'mod_creditcard',
+      'mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory',
+    };
+    final tombMap = <String, String>{};
+    void collectTombs(dynamic list) {
+      if (list is List) {
+        for (final t in list) {
+          if (t is Map && t['id'] != null && t['deletedAt'] != null) {
+            final id = t['id'] as String;
+            final da = t['deletedAt'].toString();
+            final prev = tombMap[id];
+            if (prev == null || DateTime.parse(da).isAfter(DateTime.parse(prev))) {
+              tombMap[id] = da;
+            }
+          }
+        }
+      }
+    }
+    collectTombs(local['deletedModuleIds']);
+    collectTombs(remote['deletedModuleIds']);
+    // Prune tombstones older than 180 days.
+    final cutoff = DateTime.now().toUtc().subtract(const Duration(days: 180));
+    tombMap.removeWhere((_, da) {
+      try { return DateTime.parse(da).isBefore(cutoff); } catch (_) { return false; }
+    });
+    if (tombMap.isNotEmpty && merged['modules'] is List) {
+      merged['modules'] = (merged['modules'] as List).where((m) {
+        final id = (m is Map ? m['id'] as String? : null) ?? '';
+        if (systemModuleIds.contains(id)) return true;
+        final da = tombMap[id];
+        if (da == null) return true;
+        final createdRaw = (m is Map ? m['createdAt'] : null)?.toString();
+        DateTime created;
+        try { created = DateTime.parse(createdRaw ?? '2000-01-01'); } catch (_) { created = DateTime(2000); }
+        // Keep only if (re)created after it was deleted.
+        try { return created.isAfter(DateTime.parse(da)); } catch (_) { return true; }
+      }).toList();
+      // Drop menu items pointing to a now-removed module.
+      final liveIds = <String>{ for (final m in (merged['modules'] as List)) if (m is Map && m['id'] != null) m['id'] as String };
+      if (merged['menu'] is List) {
+        merged['menu'] = (merged['menu'] as List).where((item) {
+          if (item is! Map) return true;
+          if (item['type'] != 'module') return true;
+          final t = item['targetId'] as String?;
+          return t == null || liveIds.contains(t);
+        }).toList();
+      }
+    }
+    merged['deletedModuleIds'] = tombMap.entries.map((e) => {'id': e.key, 'deletedAt': e.value}).toList();
+
     merged['lastModified'] = DateTime.now().toUtc().toIso8601String();
 
     return merged;
