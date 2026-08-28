@@ -5,6 +5,25 @@ import { indexedDBService } from '@/services/indexeddb/indexedDBService';
 import { syncService } from '@/services/sync/syncService';
 import { driveService } from '@/services/drive/driveService';
 
+/**
+ * Overlay `current` records onto `base` (the sync result) by id + updatedAt.
+ * Used after a sync to preserve records that were added/edited in the store
+ * WHILE the sync was running (fullSync used a pre-change local snapshot).
+ * A record present only in `current` (added during the window) is kept; for
+ * ids in both, the newer updatedAt wins (so a fresh local edit isn't reverted).
+ */
+function mergeRecordsByUpdatedAt(base: FinanceData, current: FinanceData): FinanceData {
+  const byId = new Map(base.records.map((r) => [r.id, r]));
+  for (const cur of current.records) {
+    const b = byId.get(cur.id);
+    if (!b) { byId.set(cur.id, cur); continue; } // added during sync window
+    const ct = new Date(cur.updatedAt || cur.createdAt || '2000-01-01').getTime();
+    const bt = new Date(b.updatedAt || b.createdAt || '2000-01-01').getTime();
+    if (ct > bt) byId.set(cur.id, cur); // local edit during window is newer
+  }
+  return { ...base, records: Array.from(byId.values()) };
+}
+
 interface AppState {
   // Data
   data: FinanceData | null;
@@ -647,7 +666,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isSyncing: true });
       const result = await syncService.fullSync();
       if (result.status === 'success' && result.data) {
-        get().setData(result.data);
+        // RACE GUARD: a record may have been added/edited in the store DURING
+        // the sync round-trip. fullSync snapshotted local BEFORE that change, so
+        // result.data would drop it. Re-merge the sync result with the CURRENT
+        // store state by id + updatedAt so nothing entered during the sync is lost.
+        const current = get().data;
+        const merged = current ? mergeRecordsByUpdatedAt(result.data, current) : result.data;
+        get().setData(merged);
       }
     } catch { /* ignore */ }
     finally { set({ isSyncing: false }); }

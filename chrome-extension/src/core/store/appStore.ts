@@ -10,6 +10,24 @@ import { syncNotificationsToBackground } from '@/services/notifications/notifica
 const WINE_MODULE_IDS = new Set(['mod_ruou', 'mod_ruou_products', 'mod_ruou_customers', 'mod_ruou_inventory']);
 
 /**
+ * Overlay `current` records onto `base` (the sync result) by id + updatedAt.
+ * Preserves records added/edited in the store WHILE a sync was running
+ * (fullSync used a pre-change local snapshot). New-in-current records are kept;
+ * for ids in both, the newer updatedAt wins.
+ */
+function mergeRecordsByUpdatedAt(base: FinanceData, current: FinanceData): FinanceData {
+  const byId = new Map(base.records.map((r) => [r.id, r]));
+  for (const cur of current.records) {
+    const b = byId.get(cur.id);
+    if (!b) { byId.set(cur.id, cur); continue; }
+    const ct = new Date(cur.updatedAt || cur.createdAt || '2000-01-01').getTime();
+    const bt = new Date(b.updatedAt || b.createdAt || '2000-01-01').getTime();
+    if (ct > bt) byId.set(cur.id, cur);
+  }
+  return { ...base, records: Array.from(byId.values()) };
+}
+
+/**
  * Ensure every active/visible module has exactly one menu item.
  * De-dupes by both `menu_<id>` and targetId so it never creates a second entry
  * for a module (fixes duplicate rows). Inserts before Quản lý/Thùng rác/Cài đặt
@@ -673,7 +691,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isSyncing: true });
       const result = await syncService.fullSync();
       if (result.status === 'success' && result.data) {
-        get().setData(result.data);
+        // RACE GUARD: a record may have been added/edited in the store DURING
+        // the sync round-trip. fullSync snapshotted local BEFORE that change, so
+        // result.data would drop it. Re-merge with the CURRENT store state so
+        // nothing entered during the sync window is lost.
+        const current = get().data;
+        const merged = current ? mergeRecordsByUpdatedAt(result.data, current) : result.data;
+        get().setData(merged);
       }
     } catch { /* ignore */ }
     finally { set({ isSyncing: false }); }

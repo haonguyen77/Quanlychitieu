@@ -140,9 +140,15 @@ class SyncService {
         return _lastMessage;
       }
 
-      // Step 5: Import merged into local DB
+      // Step 5: Import merged into local DB.
+      // RACE GUARD: importFinanceJson wipes+rewrites the records table. A record
+      // may have been inserted into the DB DURING the upload round-trip (step 1
+      // exported BEFORE it). Re-export now and merge so nothing entered during
+      // the sync is wiped by the destructive import.
       debugPrint('[SYNC] Importing merged into DB...');
-      await db.importFinanceJson(dataToUpload);
+      final freshLocal = await db.exportFinanceJson();
+      final safeToImport = _merge(freshLocal, dataToUpload);
+      await db.importFinanceJson(safeToImport);
 
       // Step 6: Save timestamp
       await _setLastSyncTimestamp(
@@ -218,8 +224,12 @@ class SyncService {
       // Write the merged result back to the local DB so records pulled in from
       // remote during this push are not lost on the next open (previously
       // quickPush uploaded the merge but never re-imported it locally).
+      // RACE GUARD: re-export first and merge so a record inserted DURING the
+      // upload round-trip isn't wiped by the destructive import.
       if (remoteData != null) {
-        await db.importFinanceJson(dataToUpload);
+        final freshLocal = await db.exportFinanceJson();
+        final safeToImport = _merge(freshLocal, dataToUpload);
+        await db.importFinanceJson(safeToImport);
       }
       await _setLastSyncTimestamp(DateTime.now().toUtc().toIso8601String());
     } catch (e) {
