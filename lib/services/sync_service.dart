@@ -123,19 +123,12 @@ class SyncService {
         dataToUpload = _merge(localData, remoteData);
       }
 
-      // Step 3: Safety check
+      // Step 3: (Removed old 50%-safety reimport-remote guard.)
+      // The merge is a per-record UNION by id — it can only have fewer records
+      // than remote when records were soft-deleted (legitimate tombstones).
+      // The old guard discarded freshly-added local records that hadn't been
+      // pushed yet ("nhập chi tiêu → đồng bộ → mất"). We trust the union merge.
       final mergedRecordCount = (dataToUpload['records'] as List?)?.length ?? 0;
-      if (remoteData != null) {
-        final remoteRecordCount = (remoteData['records'] as List?)?.length ?? 0;
-        if (remoteRecordCount > 5 && mergedRecordCount < remoteRecordCount ~/ 2) {
-          // Data loss! Don't upload, just import remote
-          await db.importFinanceJson(remoteData);
-          _status = SyncStatus.error;
-          _lastMessage = 'An toàn: đã tải từ Drive ($remoteRecordCount records)';
-          _notify();
-          return _lastMessage;
-        }
-      }
 
       // Step 4: Upload merged
       debugPrint('[SYNC] Uploading...');
@@ -222,6 +215,12 @@ class SyncService {
       }
 
       await _uploadFinanceJson(user, dataToUpload);
+      // Write the merged result back to the local DB so records pulled in from
+      // remote during this push are not lost on the next open (previously
+      // quickPush uploaded the merge but never re-imported it locally).
+      if (remoteData != null) {
+        await db.importFinanceJson(dataToUpload);
+      }
       await _setLastSyncTimestamp(DateTime.now().toUtc().toIso8601String());
     } catch (e) {
       debugPrint('[SYNC] Quick push error: $e');
@@ -268,10 +267,26 @@ class SyncService {
         if (localModuleId != remoteModuleId && remoteModuleId.isNotEmpty) {
           mergedRecords[id] = remoteRec;
         } else {
-          // Same module: use updatedAt to resolve
+          // Same module: use updatedAt to resolve (last-write-wins).
           final lt = _parseTime(localRec['updatedAt']);
           final rt = _parseTime(remoteRec['updatedAt']);
-          mergedRecords[id] = lt.isAfter(rt) ? localRec : remoteRec;
+          if (lt.isAfter(rt)) {
+            mergedRecords[id] = localRec;
+          } else if (rt.isAfter(lt)) {
+            mergedRecords[id] = remoteRec;
+          } else {
+            // Exact tie: tombstone wins so a delete isn't silently undone;
+            // otherwise keep local (this device's edit).
+            final localDeleted = localRec['isDeleted'] == true;
+            final remoteDeleted = remoteRec['isDeleted'] == true;
+            if (localDeleted && !remoteDeleted) {
+              mergedRecords[id] = localRec;
+            } else if (remoteDeleted && !localDeleted) {
+              mergedRecords[id] = remoteRec;
+            } else {
+              mergedRecords[id] = localRec;
+            }
+          }
         }
       } else {
         mergedRecords[id] = entry.value;

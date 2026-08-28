@@ -55,6 +55,9 @@ export function MobileShell() {
   return (
     <MobileNavProvider>
       <div className="h-screen flex flex-col bg-white overflow-hidden">
+        {/* Sync status banner (auto-pull on open / focus) */}
+        <SyncBanner />
+
         {/* Content */}
         <main className="flex-1 overflow-hidden">
           {activeTab === 'dashboard' && <DashboardMobile />}
@@ -114,5 +117,17 @@ function NavItem({ iconName, label, active, onPress }: {
       <MobileIcon name={iconName} size={24} color={color} />
       <span style={{ fontSize: '11px', color, fontWeight: active ? 600 : 400, marginTop: '4px' }}>{label}</span>
     </button>
+  );
+}
+
+/** Thin banner shown while a background Drive sync is running (auto-pull on open/focus). */
+function SyncBanner() {
+  const isSyncing = useAppStore((s) => s.isSyncing);
+  if (!isSyncing) return null;
+  return (
+    <div className="flex-shrink-0 flex items-center justify-center gap-2 py-1 bg-amber-50 border-b border-amber-100">
+      <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+      <span className="text-[11px] text-amber-700">Đang đồng bộ...</span>
+    </div>
   );
 }

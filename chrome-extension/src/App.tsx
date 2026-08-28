@@ -23,6 +23,9 @@ export function App() {
     cryptoService.loadPersistedKey().finally(() => {
       initializeApp();
       setReady(true);
+      // Auto-pull from Drive on open so the user sees the latest data + the
+      // "Đang đồng bộ..." status without having to press Đồng bộ manually.
+      setTimeout(() => { useAppStore.getState().syncFromDrive(); }, 300);
     });
   }, [initializeApp]);
 

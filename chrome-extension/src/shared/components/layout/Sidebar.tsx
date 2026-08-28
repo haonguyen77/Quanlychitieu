@@ -5,6 +5,7 @@ import type { MenuItem } from '@/types';
 
 export function Sidebar() {
   const { data, activeModuleId, activeView, sidebarCollapsed, setActiveModule, setActiveView, theme, setTheme } = useAppStore();
+  const isSyncing = useAppStore((s) => s.isSyncing);
 
   if (!data) return null;
 
@@ -118,8 +119,8 @@ export function Sidebar() {
 
         {/* Sync status */}
         <div className="flex items-center gap-2 px-3 py-1">
-          <div className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs text-[var(--color-text-secondary)]">Đã đồng bộ</span>
+          <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
+          <span className="text-xs text-[var(--color-text-secondary)]">{isSyncing ? 'Đang đồng bộ...' : 'Đã đồng bộ'}</span>
         </div>
       </div>
     </aside>

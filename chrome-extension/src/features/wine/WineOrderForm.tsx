@@ -57,6 +57,7 @@ export function WineOrderForm({ record, onClose }: Props) {
   const [shipFee, setShipFee] = useState(Number(record?.values['mod_ruou_ship_fee'] ?? 0));
   const [note1, setNote1] = useState(record?.values['mod_ruou_note1'] as string ?? '');
   const [note2, setNote2] = useState(record?.values['mod_ruou_note2'] as string ?? '');
+  const [skipInventory, setSkipInventory] = useState(String(record?.values['mod_ruou_skip_inventory'] ?? '') === '1' || record?.values['mod_ruou_skip_inventory'] === true);
 
   const [rows, setRows] = useState<GridRow[]>(() => {
     if (record) {
@@ -133,12 +134,13 @@ export function WineOrderForm({ record, onClose }: Props) {
     const valid = rows.filter((r)=>r.productName&&r.quantity>0);
     if (!valid.length) return;
     const f = valid[0];
-    const values: RecordValues = { mod_ruou_order_date:orderDate, mod_ruou_customer_name:customerName.trim(), mod_ruou_customer_phone:customerPhone.trim(), mod_ruou_customer_address:customerAddress.trim(), mod_ruou_customer_district:customerWard.trim(), mod_ruou_customer_city:customerDistrict.trim(), mod_ruou_product_sku:f.productSku, mod_ruou_product_name:f.productName, mod_ruou_color:f.color, mod_ruou_quantity:f.quantity, mod_ruou_price:f.price, mod_ruou_glasses:f.ly?1:0, mod_ruou_boxes:f.box?1:0, mod_ruou_ship_fee:shipFee, mod_ruou_total_amount:totalPayment, mod_ruou_note1:note1.trim(), mod_ruou_note2:note2.trim(), mod_ruou_product_lines:valid.length>1?JSON.stringify(valid.map((r)=>({productName:r.productName,productSku:r.productSku,quantity:String(r.quantity),price:String(r.price),color:r.color,glasses:r.ly?'1':'0',boxes:r.box?'1':'0'}))):null };
+    const values: RecordValues = { mod_ruou_order_date:orderDate, mod_ruou_customer_name:customerName.trim(), mod_ruou_customer_phone:customerPhone.trim(), mod_ruou_customer_address:customerAddress.trim(), mod_ruou_customer_district:customerWard.trim(), mod_ruou_customer_city:customerDistrict.trim(), mod_ruou_product_sku:f.productSku, mod_ruou_product_name:f.productName, mod_ruou_color:f.color, mod_ruou_quantity:f.quantity, mod_ruou_price:f.price, mod_ruou_glasses:f.ly?1:0, mod_ruou_boxes:f.box?1:0, mod_ruou_ship_fee:shipFee, mod_ruou_total_amount:totalPayment, mod_ruou_note1:note1.trim(), mod_ruou_note2:note2.trim(), mod_ruou_skip_inventory:skipInventory?1:0, mod_ruou_product_lines:valid.length>1?JSON.stringify(valid.map((r)=>({productName:r.productName,productSku:r.productSku,quantity:String(r.quantity),price:String(r.price),color:r.color,glasses:r.ly?'1':'0',boxes:r.box?'1':'0'}))):null };
     if (record) updateRecord(record.id, values);
-    else { addRecord('mod_ruou', values); for(const r of valid) if(r.productSku) deductStock(r.productSku,r.color,r.quantity); ensureCustomer(); }
+    else { addRecord('mod_ruou', values); if(!skipInventory) for(const r of valid) if(r.productSku) deductStock(r.productSku,r.color,r.quantity); ensureCustomer(); }
     onClose();
   };
-  const deductStock = (sku:string,color:string,qty:number) => { if(!data||!sku||!qty)return; const fs=color?`${sku}-${color}`:sku; const inv=data.records.find((r)=>r.moduleId==='mod_ruou_inventory'&&!r.isDeleted&&(String(r.values['mod_ruou_inventory_sku']??'')===fs||String(r.values['mod_ruou_inventory_sku']??'')===sku)); if(inv)updateRecord(inv.id,{mod_ruou_inventory_stock:Math.max(0,Number(inv.values['mod_ruou_inventory_stock']??0)-qty)}); };
+  // Allow negative stock (sell 10 when 0 in stock → -10) per requirement.
+  const deductStock = (sku:string,color:string,qty:number) => { if(!data||!sku||!qty)return; const fs=color?`${sku}-${color}`:sku; const inv=data.records.find((r)=>r.moduleId==='mod_ruou_inventory'&&!r.isDeleted&&(String(r.values['mod_ruou_inventory_sku']??'')===fs||String(r.values['mod_ruou_inventory_sku']??'')===sku)); if(inv)updateRecord(inv.id,{mod_ruou_inventory_stock:Number(inv.values['mod_ruou_inventory_stock']??0)-qty}); };
   const ensureCustomer = () => { if(!data||!customerName.trim())return; const phone=customerPhone.trim(); const ex=phone?data.records.find((r)=>r.moduleId==='mod_ruou_customers'&&!r.isDeleted&&String(r.values['mod_ruou_customers_phone']??'')===phone):null; if(ex){const updates:any={mod_ruou_customers_total_orders:Number(ex.values['mod_ruou_customers_total_orders']??0)+1,mod_ruou_customers_last_order_date:orderDate,mod_ruou_customers_full_name:customerName.trim()}; if(customerAddress.trim())updates.mod_ruou_customers_address=customerAddress.trim(); if(customerWard.trim())updates.mod_ruou_customers_district=customerWard.trim(); if(customerDistrict.trim())updates.mod_ruou_customers_city=customerDistrict.trim(); updateRecord(ex.id,updates);} else addRecord('mod_ruou_customers',{mod_ruou_customers_full_name:customerName.trim(),mod_ruou_customers_phone:phone,mod_ruou_customers_address:customerAddress.trim(),mod_ruou_customers_district:customerWard.trim(),mod_ruou_customers_city:customerDistrict.trim(),mod_ruou_customers_total_orders:1,mod_ruou_customers_last_order_date:orderDate,mod_ruou_customers_note:''}); };
 
   const prevDay=()=>{const d=new Date(orderDate);d.setDate(d.getDate()-1);setOrderDate(d.toISOString().slice(0,10));};
@@ -302,7 +304,10 @@ export function WineOrderForm({ record, onClose }: Props) {
 
         {/* Footer */}
         <div className="px-5 py-2.5 border-t border-gray-200 flex items-center justify-between bg-gray-50 rounded-b-xl flex-shrink-0">
-          <span className="text-[11px] text-gray-400">Tab: ô tiếp theo · Enter: dòng mới · Ctrl+C/V: copy dòng</span>
+          <label className="flex items-center gap-1.5 text-[12px] text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={skipInventory} onChange={(e)=>setSkipInventory(e.target.checked)} className="rounded" style={{accentColor:'#6C2BD9'}} />
+            Không trừ kho
+          </label>
           <div className="flex items-center gap-3">
             <button onClick={onClose} className="px-5 py-2 text-[13px] text-gray-600 hover:bg-gray-200 rounded-lg">Hủy</button>
             <button onClick={handleSave} disabled={!customerName.trim()||!rows.some((r)=>r.productName&&r.quantity>0)}

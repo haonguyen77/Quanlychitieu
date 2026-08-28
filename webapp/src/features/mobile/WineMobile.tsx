@@ -33,6 +33,7 @@ export function WineMobile() {
   const [orderLines, setOrderLines] = useState<Array<{ name: string; sku: string; qty: string; price: string }>>([{ name: '', sku: '', qty: '1', price: '' }]);
   const [orderShipFee, setOrderShipFee] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [orderSkipInventory, setOrderSkipInventory] = useState(false);
 
   const get = (r: { values: Record<string, unknown> }, s: string) => { const k = Object.keys(r.values).find(k => k.endsWith(`_${s}`)); return k ? String(r.values[k] ?? '') : ''; };
 
@@ -90,6 +91,7 @@ export function WineMobile() {
       mod_ruou_ship_fee: shipFee,
       mod_ruou_total_amount: total,
       mod_ruou_order_date: orderDate,
+      mod_ruou_skip_inventory: orderSkipInventory ? 1 : 0,
     };
     if (validLines.length > 1) {
       values['mod_ruou_product_lines'] = JSON.stringify(validLines.map(l => ({
@@ -107,7 +109,7 @@ export function WineMobile() {
       if (shouldCreateCustomer(values)) addRecord('mod_ruou_customers', getCustomerValues(values));
     }
     setShowAddOrder(false); setEditOrderId(null); setOrderCustomer(''); setOrderPhone(''); setOrderAddress('');
-    setOrderLines([{ name: '', sku: '', qty: '1', price: '' }]); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10));
+    setOrderLines([{ name: '', sku: '', qty: '1', price: '' }]); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10)); setOrderSkipInventory(false);
   };
 
   const startEditOrder = (id: string) => {
@@ -128,6 +130,7 @@ export function WineMobile() {
     }
     setOrderShipFee(get(order, 'ship_fee'));
     setOrderDate(get(order, 'order_date') || new Date().toISOString().slice(0, 10));
+    setOrderSkipInventory(String(order.values['mod_ruou_skip_inventory'] ?? '') === '1' || order.values['mod_ruou_skip_inventory'] === true);
     setShowAddOrder(true);
   };
 
@@ -194,7 +197,13 @@ export function WineMobile() {
             <div className="border-t border-gray-100 pt-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-gray-600">Sản phẩm</p>
-                <button onClick={() => setOrderLines([...orderLines, { name: '', sku: '', qty: '1', price: '' }])} className="text-xs font-medium" style={{ color: PURPLE }}>+ Thêm SP</button>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                    <input type="checkbox" checked={orderSkipInventory} onChange={e => setOrderSkipInventory(e.target.checked)} className="rounded" style={{ accentColor: PURPLE }} />
+                    Không trừ kho
+                  </label>
+                  <button onClick={() => setOrderLines([...orderLines, { name: '', sku: '', qty: '1', price: '' }])} className="text-xs font-medium" style={{ color: PURPLE }}>+ Thêm SP</button>
+                </div>
               </div>
               {orderLines.map((line, idx) => (
                 <div key={idx} className="mb-2 p-2 bg-gray-50 rounded-lg">
@@ -270,7 +279,7 @@ function WineReports({ orders, inventory }: { orders: Array<{ date: string; amou
 
   const totalStock = inventory.reduce((s, i) => s + i.stock, 0);
   const totalProducts = inventory.length;
-  const lowStock = inventory.filter(i => i.stock > 0 && i.stock <= 4).length;
+  const lowStock = inventory.filter(i => i.stock <= 4).length;
 
   // Top products (by qty)
   const productMap = new Map<string, number>();

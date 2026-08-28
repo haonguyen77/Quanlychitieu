@@ -83,13 +83,16 @@ class SyncService {
       if (!localData || remoteModified > localModified) {
         const remoteData = await driveService.downloadFile(remoteFile.id);
         if (remoteData && validateFinanceData(remoteData)) {
-          await indexedDBService.saveData(remoteData);
-          const recordCount = remoteData.records?.length ?? 0;
-          const moduleCount = remoteData.modules?.length ?? 0;
+          // SAFETY: never blindly replace local with remote — merge by id so
+          // freshly-added local records (not yet pushed) are preserved.
+          const finalData = localData ? this.mergeData(localData, remoteData).data : remoteData;
+          await indexedDBService.saveData(finalData);
+          const recordCount = finalData.records?.length ?? 0;
+          const moduleCount = finalData.modules?.length ?? 0;
           return {
             status: 'success',
             message: `Đã tải từ Drive: ${moduleCount} modules, ${recordCount} records`,
-            data: remoteData,
+            data: finalData,
           };
         } else {
           return { status: 'error', message: 'Failed to download file from Drive' };
@@ -231,13 +234,12 @@ class SyncService {
         syncStats = { addedToRemote: result.addedToRemote, addedFromRemote: result.addedFromRemote, updated: result.updated };
       }
 
-      // SAFETY: verify merged data has at least as many records as remote
-      const mergedRecordCount = mergedData.records?.length ?? 0;
-      if (remoteData && (remoteData.records?.length ?? 0) > 5 && mergedRecordCount < (remoteData.records?.length ?? 0) * 0.5) {
-        // Something went wrong with merge - don't upload, just import remote
-        await indexedDBService.saveData(remoteData);
-        return { status: 'error', message: `An toàn: merged data (${mergedRecordCount}) ít hơn remote (${remoteData.records?.length}). Đã khôi phục từ Drive.`, data: remoteData };
-      }
+      // NOTE: The merge is a per-record UNION by id (see mergeData) — it can
+      // never contain FEWER records than remote unless records were soft-deleted
+      // (tombstones), which is legitimate. The old "merged < 50% of remote →
+      // reimport remote wholesale" guard was DISCARDING freshly-added local
+      // records that hadn't been pushed yet (the "add → sync → gone" bug).
+      // We trust the union merge and always upload it.
 
       // Upload merged
       const fileId = await driveService.uploadFile(mergedData);
@@ -279,7 +281,14 @@ class SyncService {
         const lt = new Date(localRec.updatedAt || localRec.createdAt || '2000-01-01').getTime();
         const rt = new Date(remoteRec.updatedAt || remoteRec.createdAt || '2000-01-01').getTime();
         if (lt > rt) { mergedRecords.set(id, localRec); updated++; }
-        else { mergedRecords.set(id, remoteRec); }
+        else if (rt > lt) { mergedRecords.set(id, remoteRec); }
+        else {
+          // Exact updatedAt tie: prefer the deleted side (tombstone wins so a
+          // delete isn't silently undone); otherwise keep local (this device's edit).
+          if (localRec.isDeleted && !remoteRec.isDeleted) mergedRecords.set(id, localRec);
+          else if (remoteRec.isDeleted && !localRec.isDeleted) mergedRecords.set(id, remoteRec);
+          else mergedRecords.set(id, localRec);
+        }
       } else {
         mergedRecords.set(id, remoteRec);
         addedFromRemote++;

@@ -31,7 +31,14 @@ export function ResponsiveApp() {
 
   // Try to load persisted encryption key at startup (transparent, no user interaction)
   useEffect(() => {
-    cryptoService.loadPersistedKey().then(() => setKeyLoaded(true)).catch(() => setKeyLoaded(true));
+    cryptoService.loadPersistedKey()
+      .then(() => setKeyLoaded(true))
+      .catch(() => setKeyLoaded(true))
+      .finally(() => {
+        // Auto-pull from Drive on open so the user sees latest data + the
+        // "Đang đồng bộ..." status without pressing Đồng bộ manually.
+        setTimeout(() => { useAppStore.getState().syncFromDrive(); }, 400);
+      });
   }, []);
 
   // Auto-pull from Drive when the tab becomes visible again (see changes made

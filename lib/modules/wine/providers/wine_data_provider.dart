@@ -342,6 +342,9 @@ class WineDataProvider extends ChangeNotifier {
   /// Deduct inventory for an order's products.
   /// Reads product_lines (multi-product) or single product fields.
   Future<void> _deductInventoryForOrder(Map<String, dynamic> values) async {
+    // "Không trừ kho": skip deduction entirely when the order opts out.
+    final skip = values['mod_ruou_skip_inventory'];
+    if (skip == true || skip == 1 || skip == '1') return;
     final lines = _getProductLines(values);
     for (final line in lines) {
       final sku = line['sku'] as String? ?? '';
@@ -353,6 +356,9 @@ class WineDataProvider extends ChangeNotifier {
 
   /// Return inventory for an order's products (on delete/update).
   Future<void> _returnInventoryForOrder(Map<String, dynamic> values) async {
+    // If the order didn't deduct stock, don't return stock either.
+    final skip = values['mod_ruou_skip_inventory'];
+    if (skip == true || skip == 1 || skip == '1') return;
     final lines = _getProductLines(values);
     for (final line in lines) {
       final sku = line['sku'] as String? ?? '';
@@ -379,7 +385,8 @@ class WineDataProvider extends ChangeNotifier {
         final currentStock = (values['mod_ruou_inventory_stock'] is num)
             ? (values['mod_ruou_inventory_stock'] as num).toInt()
             : int.tryParse(values['mod_ruou_inventory_stock']?.toString() ?? '0') ?? 0;
-        final newStock = (currentStock + delta).clamp(0, 999999);
+        // Allow negative stock (sell 10 when 0 in stock → -10) per requirement.
+        final newStock = (currentStock + delta).clamp(-999999, 999999);
         values['mod_ruou_inventory_stock'] = newStock;
         await db.update('records', {
           'values_json': jsonEncode(values),

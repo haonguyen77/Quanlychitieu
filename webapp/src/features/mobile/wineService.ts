@@ -64,7 +64,8 @@ function adjustInventory(sku: string, delta: number): void {
     if (invSku !== sku && invSku !== `${sku}-`) return r;
 
     const currentStock = Number(r.values['mod_ruou_inventory_stock']) || 0;
-    const newStock = Math.max(0, Math.min(999999, currentStock + delta));
+    // Allow negative stock (e.g. sell 10 when 0 in stock → -10) per requirement.
+    const newStock = Math.min(999999, currentStock + delta);
     return {
       ...r,
       values: { ...r.values, mod_ruou_inventory_stock: newStock },
@@ -79,16 +80,26 @@ function adjustInventory(sku: string, delta: number): void {
  * Deduct inventory for order creation (matches Android _deductInventoryForOrder).
  */
 export function deductInventoryForOrder(values: RecordValues): void {
+  // "Không trừ kho": skip deduction entirely when the order opts out.
+  if (isSkipInventory(values)) return;
   const lines = getProductLines(values);
   for (const { sku, qty } of lines) {
     adjustInventory(sku, -qty);
   }
 }
 
+/** Whether an order is flagged to NOT deduct inventory. */
+export function isSkipInventory(values: RecordValues): boolean {
+  const v = values['mod_ruou_skip_inventory'];
+  return v === true || v === 1 || v === '1';
+}
+
 /**
  * Return inventory on order delete (matches Android _returnInventoryForOrder).
  */
 export function returnInventoryForOrder(values: RecordValues): void {
+  // If the order didn't deduct stock, don't return stock either.
+  if (isSkipInventory(values)) return;
   const lines = getProductLines(values);
   for (const { sku, qty } of lines) {
     adjustInventory(sku, qty);

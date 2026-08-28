@@ -41,6 +41,9 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
   DateTime _date = DateTime.now();
   List<_ProductLine> _lines = [_ProductLine()];
 
+  // "Không trừ kho": when true, this order does NOT deduct inventory stock.
+  bool _skipInventory = false;
+
   // Inline customer suggestions (reliable: rendered directly in the tree, not
   // via an overlay). _suggestField is which field is active ('name'|'phone'|
   // 'address'|'ward'|'city'), _suggestions is the list to show under it.
@@ -86,6 +89,8 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
       _cityCtrl.text = order['customer_city'] as String? ?? '';
       _note1Ctrl.text = order['note1'] as String? ?? '';
       _note2Ctrl.text = order['note2'] as String? ?? '';
+      final skip = order['skip_inventory'];
+      _skipInventory = skip == true || skip == 1 || skip == '1';
       final shipFee = order['ship_fee'];
       _shipFeeCtrl.text = shipFee != null && shipFee != 0
           ? NumberFormat('#,###', 'vi_VN').format((shipFee as num).toInt())
@@ -166,6 +171,7 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
       'mod_ruou_total_amount': _grandTotal,
       'mod_ruou_note1': _note1Ctrl.text.trim(),
       'mod_ruou_note2': _note2Ctrl.text.trim(),
+      'mod_ruou_skip_inventory': _skipInventory ? 1 : 0,
     };
 
     // Multi-product: store as product_lines JSON
@@ -267,6 +273,25 @@ class _WineOrderFormScreenState extends State<WineOrderFormScreen> {
           Row(children: [
             const Text('Sản phẩm', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _navy)),
             const Spacer(),
+            // "Không trừ kho" toggle
+            InkWell(
+              onTap: () => setState(() => _skipInventory = !_skipInventory),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(
+                  width: 20, height: 20,
+                  child: Checkbox(
+                    value: _skipInventory,
+                    onChanged: (v) => setState(() => _skipInventory = v ?? false),
+                    activeColor: _purple,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Text('Không trừ kho', style: TextStyle(fontSize: 12, color: _navy)),
+              ]),
+            ),
+            const SizedBox(width: 8),
             TextButton.icon(
               onPressed: () => setState(() {
                 final line = _ProductLine();
