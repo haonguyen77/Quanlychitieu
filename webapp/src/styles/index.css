@@ -58,6 +58,19 @@ body {
   overflow: hidden;
 }
 
+/* ─── Mobile density token (Layer 1) ─────────────────────────────────────────
+ * A single responsive multiplier for mobile UI sizing, keyed on viewport WIDTH
+ * (no transform, no zoom, no UA sniffing). Components multiply their pixel sizes
+ * by var(--m). Tuned so:
+ *   >=390px → 1.00 (iPhone unchanged)   375px → ~0.98   360px → ~0.95
+ *   344px  → ~0.91                      320px → ~0.86 (narrow Android shrinks)
+ * Only defined on the mobile root (.mobile-density) and only under the mobile
+ * media query, so DESKTOP is never affected. Default fallback is 1 elsewhere. */
+:root { --m: 1; }
+@media (max-width: 1023px) {
+  .mobile-density { --m: clamp(0.86, 0.1618 + 0.2182vw, 1); }
+}
+
 /* Mobile: prevent bounce scroll, handle keyboard */
 @media (max-width: 1023px) {
   html, body, #root {

@@ -183,8 +183,8 @@ export function AddExpenseMobile({ onClose, editRecord, presetModuleId }: Props)
         <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg active:bg-gray-100">
           <MobileIcon name="arrow-left" size={22} color="#374151" />
         </button>
-        <h2 className="flex-1 text-[16px] font-bold" style={{ color: '#1F2937' }}>{isEditing ? 'Sửa chi tiêu' : 'Thêm chi tiêu'}</h2>
-        <button onClick={handleSave} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-semibold active:scale-95" style={{ backgroundColor: '#004DEB' }}>
+        <h2 className="flex-1 min-w-0 truncate text-[16px] font-bold" style={{ color: '#1F2937' }}>{isEditing ? 'Sửa chi tiêu' : 'Thêm chi tiêu'}</h2>
+        <button onClick={handleSave} className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-semibold active:scale-95" style={{ backgroundColor: '#004DEB' }}>
           <MobileIcon name="save" size={16} color="white" />
           <span>Lưu</span>
         </button>
@@ -198,9 +198,9 @@ export function AddExpenseMobile({ onClose, editRecord, presetModuleId }: Props)
           <button onClick={prevDay} className="w-8 h-8 flex items-center justify-center active:bg-black/5 rounded-lg">
             <ChevronLeft size={20} color="#616161" />
           </button>
-          <button onClick={() => setShowDatePicker(!showDatePicker)} className="flex items-center gap-1.5 flex-1 justify-center">
-            <Calendar size={14} color="#757575" />
-            <span className="text-[13px] font-medium text-gray-800">{formatDate(date)}</span>
+          <button onClick={() => setShowDatePicker(!showDatePicker)} className="flex items-center gap-1.5 flex-1 min-w-0 justify-center">
+            <Calendar size={14} color="#757575" className="flex-shrink-0" />
+            <span className="text-[13px] font-medium text-gray-800 truncate">{formatDate(date)}</span>
           </button>
           <button onClick={nextDay} className="w-8 h-8 flex items-center justify-center active:bg-black/5 rounded-lg">
             <ChevronRight size={20} color="#616161" />
@@ -208,15 +208,15 @@ export function AddExpenseMobile({ onClose, editRecord, presetModuleId }: Props)
           <div className="w-px h-6 bg-gray-200 mx-1" />
           {/* Type pills — Android: Icons.arrow_downward (Chi) + Icons.arrow_upward (Thu) */}
           <button onClick={() => { setType(0); setCategoryId(''); }}
-            className="flex items-center gap-1 px-3 py-2 rounded-[10px]"
-            style={{ backgroundColor: type === 0 ? 'rgba(244,67,54,0.15)' : 'transparent', border: `${type === 0 ? 2 : 1}px solid ${type === 0 ? '#F44336' : '#E0E0E0'}` }}>
-            <ArrowDown size={14} color={type === 0 ? '#F44336' : '#BDBDBD'} />
+            className="flex items-center gap-1 py-2 rounded-[10px] flex-shrink-0"
+            style={{ paddingLeft: 'clamp(8px, 3vw, 12px)', paddingRight: 'clamp(8px, 3vw, 12px)', backgroundColor: type === 0 ? 'rgba(244,67,54,0.15)' : 'transparent', border: `${type === 0 ? 2 : 1}px solid ${type === 0 ? '#F44336' : '#E0E0E0'}` }}>
+            <ArrowDown size={14} color={type === 0 ? '#F44336' : '#BDBDBD'} className="flex-shrink-0" />
             <span style={{ fontSize: 12, fontWeight: type === 0 ? 700 : 400, color: type === 0 ? '#F44336' : '#9E9E9E' }}>Chi</span>
           </button>
           <button onClick={() => { setType(1); setCategoryId(''); }}
-            className="flex items-center gap-1 px-3 py-2 rounded-[10px] ml-1"
-            style={{ backgroundColor: type === 1 ? 'rgba(76,175,80,0.15)' : 'transparent', border: `${type === 1 ? 2 : 1}px solid ${type === 1 ? '#4CAF50' : '#E0E0E0'}` }}>
-            <ArrowUp size={14} color={type === 1 ? '#4CAF50' : '#BDBDBD'} />
+            className="flex items-center gap-1 py-2 rounded-[10px] ml-1 flex-shrink-0"
+            style={{ paddingLeft: 'clamp(8px, 3vw, 12px)', paddingRight: 'clamp(8px, 3vw, 12px)', backgroundColor: type === 1 ? 'rgba(76,175,80,0.15)' : 'transparent', border: `${type === 1 ? 2 : 1}px solid ${type === 1 ? '#4CAF50' : '#E0E0E0'}` }}>
+            <ArrowUp size={14} color={type === 1 ? '#4CAF50' : '#BDBDBD'} className="flex-shrink-0" />
             <span style={{ fontSize: 12, fontWeight: type === 1 ? 700 : 400, color: type === 1 ? '#4CAF50' : '#9E9E9E' }}>Thu</span>
           </button>
         </div>
@@ -279,8 +279,8 @@ export function AddExpenseMobile({ onClose, editRecord, presetModuleId }: Props)
         {/* ─── 5. Payment Method — GRID CHIPS with icons (Android: _buildPaymentMethodSection) ─── */}
         <div className="mt-5">
           <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Phương thức thanh toán *</label>
-          {/* One row only — 4 equal columns, chips fluid to fit width */}
-          <div className="grid grid-cols-4 gap-2 mt-2.5">
+          {/* 4 equal columns (minmax(0,1fr) via grid-cols-4), fluid chips, responsive gap */}
+          <div className="grid grid-cols-4 mt-2.5" style={{ gap: 'clamp(6px, 2vw, 10px)' }}>
             {visibleAccs.map(acc => {
               const iconInfo = getAccountIconInfo(acc.icon);
               return <GridChip fluid key={acc.id} label={acc.name} icon={iconInfo.icon} iconColor={acc.color || iconInfo.color} isSelected={accountId === acc.id} onTap={() => setAccountId(acc.id)} />;
@@ -292,8 +292,8 @@ export function AddExpenseMobile({ onClose, editRecord, presetModuleId }: Props)
         {/* ─── 6. Category — GRID CHIPS with icons (Android: _buildCategorySection, Wrap) ─── */}
         <div className="mt-5">
           <label className="text-[13px] font-medium" style={{ color: '#424242' }}>Danh mục *</label>
-          {/* Max 2 rows — 4 columns; overflow goes into the "Thêm" sheet */}
-          <div className="grid grid-cols-4 gap-2 mt-2.5">
+          {/* 4 columns (minmax(0,1fr)); overflow goes into the "Thêm" sheet; responsive gap */}
+          <div className="grid grid-cols-4 mt-2.5" style={{ gap: 'clamp(6px, 2vw, 10px)' }}>
             {visibleCats.map(cat => {
               const v = resolveCategoryVisual(cat.icon, cat.color);
               return <GridChip fluid key={cat.id} label={cat.name} icon={v.icon} iconColor={v.color} isSelected={categoryId === cat.id} onTap={() => setCategoryId(cat.id)} />;

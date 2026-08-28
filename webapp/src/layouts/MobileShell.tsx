@@ -54,7 +54,7 @@ export function MobileShell() {
 
   return (
     <MobileNavProvider>
-      <div className="h-screen flex flex-col bg-white overflow-hidden">
+      <div className="mobile-density h-screen flex flex-col bg-white overflow-hidden">
         {/* Sync status banner (auto-pull on open / focus) */}
         <SyncBanner />
 
@@ -87,7 +87,9 @@ export function MobileShell() {
                 marginTop: '-12px',
               }}
             >
-              <Plus size={28} color="white" strokeWidth={2.5} />
+              <span style={{ fontSize: 'calc(28px * var(--m))', lineHeight: 0, display: 'inline-flex' }}>
+                <Plus size="1em" color="white" strokeWidth={2.5} />
+              </span>
             </button>
 
             <NavItem iconName="layout-grid" label="Danh mục" active={activeTab === 'modules'} onPress={() => handleTabPress('modules')} />
