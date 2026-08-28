@@ -4,12 +4,8 @@ import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { Icon } from '@/shared/components/ui/Icon';
 import { SuggestInput } from './SuggestInput';
+import { getWineColorPalette } from './wineColors';
 import type { DataRecord, RecordValues } from '@/types';
-
-const COLOR_CODES = [
-  { code: 'DL', label: 'Da lươn' }, { code: 'DEN', label: 'Đen' }, { code: 'HONG', label: 'Hồng' },
-  { code: 'TRANG', label: 'Trắng' }, { code: 'XN', label: 'Xanh ngọc' }, { code: 'XR', label: 'Xanh rêu' }, { code: 'XBB', label: 'Xanh bút bi' },
-];
 
 interface GridRow { productName: string; productSku: string; quantity: number; price: number; color: string; ly: boolean; box: boolean; }
 function emptyRow(): GridRow { return { productName: '', productSku: '', quantity: 0, price: 0, color: '', ly: false, box: false }; }
@@ -47,6 +43,7 @@ interface Props { record: DataRecord | null; onClose: () => void; }
 export function WineOrderForm({ record, onClose }: Props) {
   const { data } = useAppStore();
   const { addRecord, updateRecord } = useRecordStore();
+  const COLOR_CODES = useMemo(() => getWineColorPalette(data), [data]);
 
   const [orderDate, setOrderDate] = useState(record?.values['mod_ruou_order_date'] as string ?? new Date().toISOString().slice(0, 10));
   const [customerName, setCustomerName] = useState(record?.values['mod_ruou_customer_name'] as string ?? '');

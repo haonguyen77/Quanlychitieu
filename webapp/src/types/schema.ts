@@ -314,6 +314,12 @@ export interface FinanceData {
   recurringTransactions: RecurringTransaction[];
   budgets: Budget[];
   activityLog: ActivityLog[];
+  wineColorPalette?: WineColorOption[];  // synced wine color palette (source of truth)
+}
+
+export interface WineColorOption {
+  code: string;
+  label: string;
 }
 
 export interface AppMetadata {

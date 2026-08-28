@@ -388,6 +388,22 @@ class SyncService {
       );
     }
 
+    // ── Wine color palette merge (union by code, keep this device's label) ──
+    // Palette is a small shared list {code,label}. Union both sides by code so
+    // a color added on one device shows on the other. On label conflict prefer
+    // local (this device's most recent edit intent). Does NOT touch record
+    // color values (mod_ruou_color) — only the selectable palette source.
+    {
+      const localPalette = (local as unknown as { wineColorPalette?: { code: string; label: string }[] }).wineColorPalette;
+      const remotePalette = (remote as unknown as { wineColorPalette?: { code: string; label: string }[] }).wineColorPalette;
+      if (localPalette || remotePalette) {
+        const byCode = new Map<string, { code: string; label: string }>();
+        for (const c of remotePalette ?? []) { if (c && c.code) byCode.set(c.code, c); }
+        for (const c of localPalette ?? []) { if (c && c.code) byCode.set(c.code, c); }
+        (merged as unknown as { wineColorPalette?: { code: string; label: string }[] }).wineColorPalette = Array.from(byCode.values());
+      }
+    }
+
     merged.lastModified = new Date().toISOString();
     merged.deviceId = local.deviceId;
 

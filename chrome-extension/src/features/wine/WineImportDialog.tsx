@@ -1,12 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/shared/components/ui/Icon';
+import { getWineColorPalette } from './wineColors';
 import type { FinanceData, RecordValues, DataRecord } from '@/types';
-
-const COLOR_CODES = [
-  { code: 'DL', label: 'Da lươn' }, { code: 'DEN', label: 'Đen' }, { code: 'HONG', label: 'Hồng' },
-  { code: 'TRANG', label: 'Trắng' }, { code: 'XN', label: 'Xanh ngọc' }, { code: 'XR', label: 'Xanh rêu' }, { code: 'XBB', label: 'Xanh bút bi' },
-];
 
 interface Line { query: string; sku: string; name: string; shortName: string; qty: string; color: string; note: string; wineType: string; bottleType: string; }
 function emptyLine(): Line { return { query:'',sku:'',name:'',shortName:'',qty:'',color:'',note:'',wineType:'',bottleType:'' }; }
@@ -19,6 +15,7 @@ interface Props {
 }
 
 export function WineImportDialog({ data, addRecord, updateRecord, onClose }: Props) {
+  const COLOR_CODES = useMemo(() => getWineColorPalette(data), [data]);
   const [importDate, setImportDate] = useState(new Date().toISOString().slice(0,10));
   const [lines, setLines] = useState<Line[]>([emptyLine(), emptyLine()]);
   const [activeIdx, setActiveIdx] = useState(-1);

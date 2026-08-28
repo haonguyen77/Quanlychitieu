@@ -5,16 +5,7 @@ import { Icon } from '@/shared/components/ui/Icon';
 import { useTableZoom, ZoomControls } from '@/shared/components/ui/TableZoom';
 import { useTableSortFilter, ColumnHeader } from '@/shared/components/ui/ColumnHeader';
 import { WineImportDialog } from './WineImportDialog';
-
-const COLOR_CODES = [
-  { code: 'DL', label: 'Da lươn' },
-  { code: 'DEN', label: 'Đen' },
-  { code: 'HONG', label: 'Hồng' },
-  { code: 'TRANG', label: 'Trắng' },
-  { code: 'XN', label: 'Xanh ngọc' },
-  { code: 'XR', label: 'Xanh rêu' },
-  { code: 'XBB', label: 'Xanh bút bi' },
-];
+import { getWineColorPalette } from './wineColors';
 
 type StatusFilter = 'all' | 'instock' | 'low' | 'out';
 interface InvItem { id: string; sku: string; name: string; wineType: string; volume: number; color: string; stock: number; bottleType: string; note: string; }
@@ -22,6 +13,7 @@ interface InvItem { id: string; sku: string; name: string; wineType: string; vol
 export function WineInventoryTab() {
   const { data } = useAppStore();
   const { addRecord, updateRecord, deleteRecord } = useRecordStore();
+  const COLOR_CODES = useMemo(() => getWineColorPalette(data), [data]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [filterColor, setFilterColor] = useState('');

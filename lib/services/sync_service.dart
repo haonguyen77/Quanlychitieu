@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../database/database_helper.dart';
+import '../modules/wine/services/wine_color_service.dart';
 import 'crypto_service.dart';
 
 /// Sync status enum
@@ -149,6 +150,8 @@ class SyncService {
       final freshLocal = await db.exportFinanceJson();
       final safeToImport = _merge(freshLocal, dataToUpload);
       await db.importFinanceJson(safeToImport);
+      // Merged palette may have changed — drop cache so the picker reloads it.
+      WineColorService.instance.invalidateCache();
 
       // Step 6: Save timestamp
       await _setLastSyncTimestamp(
@@ -230,6 +233,7 @@ class SyncService {
         final freshLocal = await db.exportFinanceJson();
         final safeToImport = _merge(freshLocal, dataToUpload);
         await db.importFinanceJson(safeToImport);
+        WineColorService.instance.invalidateCache();
       }
       await _setLastSyncTimestamp(DateTime.now().toUtc().toIso8601String());
     } catch (e) {
@@ -388,6 +392,27 @@ class SyncService {
       }
     }
     merged['deletedModuleIds'] = tombMap.entries.map((e) => {'id': e.key, 'deletedAt': e.value}).toList();
+
+    // Merge wine color palette (union by code, keep this device's label).
+    // Small shared list [{code,label}]. Does NOT touch record color values.
+    {
+      final localPalette = (local['wineColorPalette'] as List<dynamic>?);
+      final remotePalette = (remote['wineColorPalette'] as List<dynamic>?);
+      if (localPalette != null || remotePalette != null) {
+        final byCode = <String, Map<String, dynamic>>{};
+        for (final c in (remotePalette ?? [])) {
+          if (c is Map && c['code'] != null) {
+            byCode[c['code'].toString()] = Map<String, dynamic>.from(c);
+          }
+        }
+        for (final c in (localPalette ?? [])) {
+          if (c is Map && c['code'] != null) {
+            byCode[c['code'].toString()] = Map<String, dynamic>.from(c);
+          }
+        }
+        merged['wineColorPalette'] = byCode.values.toList();
+      }
+    }
 
     merged['lastModified'] = DateTime.now().toUtc().toIso8601String();
 

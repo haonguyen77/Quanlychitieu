@@ -4,6 +4,7 @@ import { useRecordStore } from '@/core/store/recordStore';
 import { Icon } from '@/shared/components/ui/Icon';
 import { indexedDBService } from '@/services/indexeddb/indexedDBService';
 import { syncService } from '@/services/sync/syncService';
+import { getWineColorPalette, setWineColorPalette } from './wineColors';
 import * as XLSX from 'xlsx';
 
 interface Props { onClearFilters?: () => void; }
@@ -671,42 +672,47 @@ export function WineSettingsView({ onClearFilters: _onClearFilters }: Props) {
     { id: 'wbt_su', label: 'Sứ', value: 'su', color: '#795548', sortOrder: 1, isActive: true },
     { id: 'wbt_thuytinh', label: 'Thuỷ tinh', value: 'thuytinh', color: '#03A9F4', sortOrder: 2, isActive: true },
   ];
-  const colorSettings = JSON.parse(localStorage.getItem('wine_color_codes') || 'null') as { code: string; label: string }[] | null;
-  const colorList = colorSettings || [
-    { code: 'DL', label: 'Da lươn' }, { code: 'DEN', label: 'Đen' }, { code: 'HONG', label: 'Hồng' },
-    { code: 'TRANG', label: 'Trắng' }, { code: 'XN', label: 'Xanh ngọc' }, { code: 'XR', label: 'Xanh rêu' }, { code: 'XBB', label: 'Xanh bút bi' },
-  ];
+  // Palette source of truth is data.wineColorPalette (synced). Legacy
+  // localStorage is only a migration fallback (handled inside getWineColorPalette).
+  const colorList = getWineColorPalette(data);
+
+  const persistPalette = (updated: { code: string; label: string }[]) => {
+    if (!data) return;
+    const updatedData = setWineColorPalette(data, updated);
+    setData(updatedData); indexedDBService.saveData(updatedData);
+  };
 
   const addColor = () => {
     if (!newItemValue.trim() || !newItemLabel.trim()) return;
     const updated = [...colorList, { code: newItemValue.trim().toUpperCase(), label: newItemLabel.trim() }];
-    localStorage.setItem('wine_color_codes', JSON.stringify(updated));
+    persistPalette(updated);
     setNewItemLabel(''); setNewItemValue('');
     showStatus('Đã thêm màu');
   };
 
   const removeColor = (code: string) => {
     const updated = colorList.filter((c) => c.code !== code);
-    localStorage.setItem('wine_color_codes', JSON.stringify(updated));
+    persistPalette(updated);
     showStatus('Đã xóa màu');
   };
 
   const saveEditColor = (oldCode: string) => {
     if (!editingItemLabel.trim() || !editingItemValue.trim()) { setEditingItemKey(null); return; }
+    if (!data) { setEditingItemKey(null); return; }
     const newCode = editingItemValue.trim().toUpperCase();
-    const updated = colorList.map((c) => c.code === oldCode ? { ...c, code: newCode, label: editingItemLabel.trim() } : c);
-    localStorage.setItem('wine_color_codes', JSON.stringify(updated));
-    // Propagate code change to records if code changed
-    if (newCode !== oldCode && data) {
-      const updatedRecords = data.records.map((r) => {
+    const updatedPalette = colorList.map((c) => c.code === oldCode ? { ...c, code: newCode, label: editingItemLabel.trim() } : c);
+    // Persist palette, and propagate code change to records if code changed.
+    let updatedData = setWineColorPalette(data, updatedPalette);
+    if (newCode !== oldCode) {
+      const updatedRecords = updatedData.records.map((r) => {
         if (r.values['mod_ruou_color'] === oldCode) {
           return { ...r, values: { ...r.values, mod_ruou_color: newCode }, updatedAt: new Date().toISOString() };
         }
         return r;
       });
-      const updatedData = { ...data, records: updatedRecords, lastModified: new Date().toISOString() };
-      setData(updatedData); indexedDBService.saveData(updatedData);
+      updatedData = { ...updatedData, records: updatedRecords, lastModified: new Date().toISOString() };
     }
+    setData(updatedData); indexedDBService.saveData(updatedData);
     setEditingItemKey(null);
     showStatus('Đã sửa màu');
   };

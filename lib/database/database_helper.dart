@@ -382,7 +382,7 @@ class DatabaseHelper {
       }
 
       // Store everything else as app_data JSON blobs
-      final keysToStore = ['settings', 'modules', 'dashboard', 'reports', 'menu',
+      final keysToStore = ['settings', 'modules', 'dashboard', 'reports', 'menu', 'wineColorPalette',
         'metadata', 'recurringTransactions', 'budgets', 'activityLog', 'version', 'deviceId',
         'deletedModuleIds'];
       for (final key in keysToStore) {
