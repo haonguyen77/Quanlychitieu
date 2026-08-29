@@ -4,7 +4,7 @@ import { useMobileNav } from './MobileNavigation';
 import { TransactionDetailMobile } from './TransactionDetailMobile';
 import { MobileIcon } from './MobileIcon';
 import { getCategoryDisplay, getAccountDisplay, getRecordField } from './mobileDataMapper';
-import { Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, Calendar, ArrowLeft } from 'lucide-react';
 import type { DataRecord } from '@/types';
 
 type FilterPeriod = 'week' | 'month' | 'year' | 'all';
@@ -22,7 +22,10 @@ type FilterPeriod = 'week' | 'month' | 'year' | 'all';
  */
 export function ExpenseMobile({ initialCategoryId, initialPeriod }: { initialCategoryId?: string; initialPeriod?: FilterPeriod } = {}) {
   const { data } = useAppStore();
-  const { push } = useMobileNav();
+  const { push, pop } = useMobileNav();
+  // When opened as an overlay (e.g. from Dashboard by tapping a category), show
+  // a back button. The root Chi tiêu tab has no category preset → no back button.
+  const showBack = !!initialCategoryId;
 
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,6 +132,11 @@ export function ExpenseMobile({ initialCategoryId, initialPeriod }: { initialCat
     <div className="h-full flex flex-col bg-white overflow-hidden">
       {/* ═══ HEADER — Android: "Chi tiêu" 26px bold + search + filter ═══ */}
       <div className="px-5 pb-1 flex items-center gap-2" style={{ paddingTop: 'max(14px, env(safe-area-inset-top))' }}>
+        {showBack && (
+          <button onClick={pop} className="w-10 h-10 -ml-2 flex items-center justify-center rounded-lg active:bg-gray-100">
+            <ArrowLeft size={22} color="#0F1F4D" />
+          </button>
+        )}
         <h1 className="flex-1 font-bold" style={{ fontSize: 26, color: '#0F1F4D' }}>Chi tiêu</h1>
         <button onClick={() => { setIsSearching(!isSearching); if (isSearching) setSearchQuery(''); }} className="w-10 h-10 flex items-center justify-center rounded-lg active:bg-gray-100">
           {isSearching ? <X size={20} color="#0F1F4D" /> : <Search size={20} color="#0F1F4D" />}
