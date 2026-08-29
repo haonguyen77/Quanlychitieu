@@ -15,7 +15,14 @@ import '../transactions/transaction_detail_screen.dart';
 enum FilterPeriod { week, month, year, all }
 
 class ExpenseScreen extends StatefulWidget {
-  const ExpenseScreen({super.key});
+  /// Optional initial category filter (used when opened from Dashboard by
+  /// tapping a category slice). UI-only filter; does not change data.
+  final String? initialCategoryId;
+  /// Optional initial date range (from Dashboard's selected period).
+  final DateTime? initialFromDate;
+  final DateTime? initialToDate;
+
+  const ExpenseScreen({super.key, this.initialCategoryId, this.initialFromDate, this.initialToDate});
 
   @override
   State<ExpenseScreen> createState() => _ExpenseScreenState();
@@ -33,6 +40,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   DateTime _referenceDate = DateTime.now();
   DateTime? _customFromDate;
   DateTime? _customToDate;
+  /// Type filter for the summary cards: null=all, 0=Chi, 1=Thu (UI-only).
+  int? _typeFilter;
+  /// Category filter (UI-only), e.g. when opened from Dashboard.
+  String? _categoryFilter;
   List<Transaction> _transactions = [];
   bool _isLoading = false;
   final TransactionRepository _repository = TransactionRepository();
@@ -49,6 +60,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   @override
   void initState() {
     super.initState();
+    // Apply initial filters passed from Dashboard (category + date range).
+    _categoryFilter = widget.initialCategoryId;
+    if (widget.initialFromDate != null) _customFromDate = widget.initialFromDate;
+    if (widget.initialToDate != null) _customToDate = widget.initialToDate;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
@@ -177,17 +192,46 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   Map<String, Account> _accountsById = {};
 
-  double get _totalExpense => _displayedTransactions.where((t) => t.type == 0 && !t.isDeleted).fold(0.0, (s, t) => s + t.amount);
-  double get _totalIncome => _displayedTransactions.where((t) => t.type == 1 && !t.isDeleted).fold(0.0, (s, t) => s + t.amount);
-
-  /// Transactions filtered by search query
-  List<Transaction> get _displayedTransactions {
-    if (_searchQuery.isEmpty) return _transactions;
+  /// Base for the summary cards — respects search + category filter but NOT the
+  /// type filter, so both "Tổng chi"/"Tổng thu" always reflect the full period.
+  List<Transaction> get _summaryBase {
     final q = _searchQuery.toLowerCase();
     return _transactions.where((t) {
-      final titleMatch = t.title.toLowerCase().contains(q);
-      final noteMatch = (t.note ?? '').toLowerCase().contains(q);
-      return titleMatch || noteMatch;
+      if (_categoryFilter != null && !_matchesCategory(t)) return false;
+      if (q.isNotEmpty) {
+        final titleMatch = t.title.toLowerCase().contains(q);
+        final noteMatch = (t.note ?? '').toLowerCase().contains(q);
+        if (!titleMatch && !noteMatch) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  /// Match the current category filter. Dashboard maps uncategorized to 'other',
+  /// so treat 'other' as null/empty categoryId.
+  bool _matchesCategory(Transaction t) {
+    final cf = _categoryFilter;
+    if (cf == null) return true;
+    final cid = t.categoryId ?? '';
+    if (cf == 'other') return cid.isEmpty || cid == 'other';
+    return cid == cf;
+  }
+
+  double get _totalExpense => _summaryBase.where((t) => t.type == 0 && !t.isDeleted).fold(0.0, (s, t) => s + t.amount);
+  double get _totalIncome => _summaryBase.where((t) => t.type == 1 && !t.isDeleted).fold(0.0, (s, t) => s + t.amount);
+
+  /// Transactions filtered by search query + type filter + category filter.
+  List<Transaction> get _displayedTransactions {
+    final q = _searchQuery.toLowerCase();
+    return _transactions.where((t) {
+      if (_typeFilter != null && t.type != _typeFilter) return false;
+      if (_categoryFilter != null && !_matchesCategory(t)) return false;
+      if (q.isNotEmpty) {
+        final titleMatch = t.title.toLowerCase().contains(q);
+        final noteMatch = (t.note ?? '').toLowerCase().contains(q);
+        if (!titleMatch && !noteMatch) return false;
+      }
+      return true;
     }).toList();
   }
 
@@ -504,18 +548,27 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Expanded(child: _summaryCard(Icons.account_balance_wallet, const Color(0xFFFFEBEE), _red, 'Tổng chi', _totalExpense, _red)),
+          Expanded(child: _summaryCard(Icons.account_balance_wallet, const Color(0xFFFFEBEE), _red, 'Tổng chi', _totalExpense, _red, type: 0)),
           const SizedBox(width: 12),
-          Expanded(child: _summaryCard(Icons.arrow_circle_down, const Color(0xFFE8F5E9), _green, 'Tổng thu', _totalIncome, _green)),
+          Expanded(child: _summaryCard(Icons.arrow_circle_down, const Color(0xFFE8F5E9), _green, 'Tổng thu', _totalIncome, _green, type: 1)),
         ],
       ),
     );
   }
 
-  Widget _summaryCard(IconData icon, Color iconBg, Color iconColor, String label, double amount, Color amountColor) {
-    return Container(
+  /// Tapping a card toggles the type filter (tap again to clear; tapping the
+  /// other switches). [type]: 0=Chi, 1=Thu.
+  Widget _summaryCard(IconData icon, Color iconBg, Color iconColor, String label, double amount, Color amountColor, {required int type}) {
+    final selected = _typeFilter == type;
+    return GestureDetector(
+      onTap: () => setState(() => _typeFilter = selected ? null : type),
+      child: Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: _border)),
+      decoration: BoxDecoration(
+        color: selected ? amountColor.withOpacity(0.06) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: selected ? amountColor : _border, width: selected ? 1.5 : 1),
+      ),
       child: Row(
         children: [
           Container(
@@ -535,6 +588,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -588,7 +642,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   }
 
   Widget _buildDayGroup(DateTime day, List<Transaction> txns) {
-    final total = txns.where((t) => t.type != 2).fold(0.0, (s, t) => s + t.amount);
+    final dayExpense = txns.where((t) => t.type == 0).fold(0.0, (s, t) => s + t.amount);
+    final dayIncome = txns.where((t) => t.type == 1).fold(0.0, (s, t) => s + t.amount);
     final now = DateTime.now();
     final isToday = day.year == now.year && day.month == now.month && day.day == now.day;
     final isYesterday = day.year == now.year && day.month == now.month && day.day == now.day - 1;
@@ -614,7 +669,16 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               const SizedBox(width: 8),
               Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _darkText)),
               const Spacer(),
-              Text('Tổng: ${Formatters.currencyCompact(total)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _red)),
+              // Both income & expense in a day → "+thu (xanh) | -chi (đỏ)".
+              // Only expense → single red number; only income → "+thu" green.
+              if (dayIncome > 0 && dayExpense > 0) ...[
+                Text('+${Formatters.currencyCompact(dayIncome)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _green)),
+                Text('  |  ', style: TextStyle(fontSize: 13, color: Colors.grey[400])),
+                Text('-${Formatters.currencyCompact(dayExpense)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _red)),
+              ] else if (dayIncome > 0)
+                Text('+${Formatters.currencyCompact(dayIncome)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _green))
+              else
+                Text('Tổng: ${Formatters.currencyCompact(dayExpense)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _red)),
             ],
           ),
         ),

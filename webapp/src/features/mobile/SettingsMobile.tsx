@@ -11,8 +11,7 @@ import { BackupRestoreMobile } from './BackupRestoreMobile';
 import { ModuleManagementMobile } from './ModuleManagementMobile';
 import { RecurringMobile } from './RecurringMobile';
 import { SecurityMobile } from './SecurityMobile';
-import { MobileIcon } from './MobileIcon';
-import { getModuleIconInfo, getModuleColor } from './mobileIconMap';
+import { NotificationSettingsMobile } from './NotificationSettingsMobile';
 import { Cloud, Bell, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, Palette, BarChart3, PieChart, Repeat, Layers } from 'lucide-react';
 
 /**
@@ -20,10 +19,8 @@ import { Cloud, Bell, Tag, Wallet, User, Trash2, Database, Lock, ChevronRight, P
  * 6 sections: Dữ liệu, Quản lý Module, Đồng bộ, Thông báo, Import/Export, Bảo mật.
  */
 export function SettingsMobile() {
-  const { data, theme, setTheme } = useAppStore();
+  const { theme, setTheme } = useAppStore();
   const { push } = useMobileNav();
-
-  const modules = data?.modules || [];
 
   return (
     <div className="h-full overflow-auto bg-[#F8F9FA]">
@@ -50,18 +47,9 @@ export function SettingsMobile() {
           <SettingsNav icon={<Trash2 size={18} />} iconBg="#FFEBEE" iconColor="#D32F2F" label="Thùng rác" subtitle="Xem và khôi phục giao dịch đã xóa" onTap={() => push({ id: 'trash', component: <TrashMobile /> })} />
         </SettingsSection>
 
-        {/* 2. QUẢN LÝ MODULE */}
+        {/* 2. QUẢN LÝ MODULE — only the nav; the module list opens inside it (like app) */}
         <SettingsSection title="2. QUẢN LÝ MODULE">
           <SettingsNav icon={<Layers size={18} />} iconBg="#E3F2FD" iconColor="#1565C0" label="Quản lý Module" subtitle="Thêm, sửa, xóa module" onTap={() => push({ id: 'module-mgmt', component: <ModuleManagementMobile /> })} />
-          <Divider />
-          {modules.filter(m => m.isVisible !== false).map(mod => {
-            const iconInfo = getModuleIconInfo(mod.icon);
-            const color = getModuleColor(mod.id);
-            return <ModuleToggle key={mod.id} name={mod.name} iconName={iconInfo.icon} iconColor={color} isActive={mod.isActive} onToggle={() => {
-              const updated = { ...data!, modules: data!.modules.map(m => m.id === mod.id ? { ...m, isActive: !m.isActive } : m), lastModified: new Date().toISOString() };
-              useAppStore.getState().setData(updated);
-            }} />;
-          })}
         </SettingsSection>
 
         {/* 3. ĐỒNG BỘ */}
@@ -71,7 +59,7 @@ export function SettingsMobile() {
 
         {/* 4. THÔNG BÁO */}
         <SettingsSection title="4. THÔNG BÁO">
-          <SettingsNav icon={<Bell size={18} />} iconBg="#FFF3E0" iconColor="#E65100" label="Nhắc nhập chi tiêu" subtitle="Web notification chưa được cấu hình" onTap={() => {}} />
+          <SettingsNav icon={<Bell size={18} />} iconBg="#FFF3E0" iconColor="#E65100" label="Nhắc nhập chi tiêu" subtitle="Nhắc nhở, cảnh báo thẻ/định kỳ/ngân sách" onTap={() => push({ id: 'notifications', component: <NotificationSettingsMobile /> })} />
         </SettingsSection>
 
         {/* 5. IMPORT / EXPORT & BACKUP */}
@@ -123,18 +111,6 @@ function SettingsNav({ icon, iconBg, iconColor, label, subtitle, onTap }: { icon
       </div>
       <ChevronRight size={16} className="text-gray-300" />
     </button>
-  );
-}
-
-function ModuleToggle({ name, iconName, iconColor, isActive, onToggle }: { name: string; iconName: string; iconColor: string; isActive: boolean; onToggle: () => void }) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-b-0">
-      <MobileIcon name={iconName} size={16} color={iconColor} />
-      <span className="flex-1 text-sm text-gray-900">{name}</span>
-      <button onClick={onToggle} className={`w-11 h-6 rounded-full transition-colors relative ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
-        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isActive ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-      </button>
-    </div>
   );
 }
 

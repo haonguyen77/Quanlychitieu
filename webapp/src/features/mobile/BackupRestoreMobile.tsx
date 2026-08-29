@@ -30,6 +30,66 @@ export function BackupRestoreMobile() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!data) { setStatus({ type: 'error', msg: 'Không có dữ liệu để export' }); return; }
+    try {
+      const xlsx = await import('xlsx');
+      const wb = xlsx.utils.book_new();
+      const sheetDefs: { name: string; moduleId: string; columns: { key: string; label: string; type?: 'n' }[] }[] = [
+        { name: 'Chi tiêu', moduleId: 'mod_chitieu', columns: [
+          { key: 'mod_chitieu_date', label: 'Ngày' }, { key: 'mod_chitieu_title', label: 'Tên giao dịch' },
+          { key: 'mod_chitieu_amount', label: 'Số tiền', type: 'n' }, { key: 'mod_chitieu_type', label: 'Loại' },
+          { key: 'mod_chitieu_account', label: 'Tài khoản' }, { key: 'mod_chitieu_beneficiary', label: 'Người nhận' },
+          { key: 'mod_chitieu_quantity', label: 'Số lượng', type: 'n' }, { key: 'mod_chitieu_warranty_months', label: 'Tháng BH', type: 'n' },
+          { key: 'mod_chitieu_warranty_date', label: 'Hạn BH' }, { key: 'mod_chitieu_note', label: 'Ghi chú' },
+        ]},
+        { name: 'Shopee', moduleId: 'mod_shopee', columns: [
+          { key: 'mod_shopee_date', label: 'Ngày' }, { key: 'mod_shopee_order_name', label: 'Tên đơn' },
+          { key: 'mod_shopee_amount', label: 'Số tiền', type: 'n' }, { key: 'mod_shopee_status', label: 'Trạng thái' },
+          { key: 'mod_shopee_category', label: 'Phân loại' }, { key: 'mod_shopee_note', label: 'Ghi chú' },
+        ]},
+        { name: 'Vàng', moduleId: 'mod_vang', columns: [
+          { key: 'mod_vang_date', label: 'Ngày' }, { key: 'mod_vang_type', label: 'Loại GD' },
+          { key: 'mod_vang_gold_type', label: 'Loại vàng' }, { key: 'mod_vang_quantity', label: 'Số lượng', type: 'n' },
+          { key: 'mod_vang_price_per_unit', label: 'Giá/chỉ', type: 'n' }, { key: 'mod_vang_total_amount', label: 'Tổng tiền', type: 'n' },
+          { key: 'mod_vang_note', label: 'Ghi chú' },
+        ]},
+        { name: 'Nhà trọ', moduleId: 'mod_nhatro', columns: [
+          { key: 'mod_nhatro_month', label: 'Tháng' }, { key: 'mod_nhatro_room_name', label: 'Phòng' },
+          { key: 'mod_nhatro_tenant_name', label: 'Người thuê' }, { key: 'mod_nhatro_rent_amount', label: 'Tiền phòng', type: 'n' },
+          { key: 'mod_nhatro_electricity', label: 'Điện', type: 'n' }, { key: 'mod_nhatro_water', label: 'Nước', type: 'n' },
+          { key: 'mod_nhatro_internet', label: 'Internet', type: 'n' }, { key: 'mod_nhatro_total', label: 'Tổng', type: 'n' },
+          { key: 'mod_nhatro_status', label: 'Trạng thái' }, { key: 'mod_nhatro_note', label: 'Ghi chú' },
+        ]},
+        { name: 'Thẻ tín dụng', moduleId: 'mod_creditcard', columns: [
+          { key: 'mod_creditcard_card_name', label: 'Tên thẻ' }, { key: 'mod_creditcard_bank_name', label: 'Ngân hàng' },
+          { key: 'mod_creditcard_last4', label: '4 số cuối' }, { key: 'mod_creditcard_credit_limit', label: 'Hạn mức', type: 'n' },
+          { key: 'mod_creditcard_is_installment', label: 'Trả góp' }, { key: 'mod_creditcard_installment_months', label: 'Số tháng', type: 'n' },
+          { key: 'mod_creditcard_installment_amount', label: 'Tiền/tháng', type: 'n' }, { key: 'mod_creditcard_installment_remaining', label: 'Còn lại', type: 'n' },
+          { key: 'mod_creditcard_note', label: 'Ghi chú' },
+        ]},
+      ];
+      for (const sheet of sheetDefs) {
+        const records = data.records.filter(r => r.moduleId === sheet.moduleId && !r.isDeleted);
+        const headers = sheet.columns.map(c => c.label);
+        const rows = records.map(r => sheet.columns.map(c => { const v = r.values[c.key]; if (v == null) return ''; if (c.type === 'n') return Number(v) || 0; return String(v); }));
+        const ws = xlsx.utils.aoa_to_sheet([headers, ...rows]);
+        if (ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] };
+        ws['!cols'] = headers.map((h, i) => { let max = h.length; for (const row of rows) { const cVal = String(row[i] ?? ''); if (cVal.length > max) max = cVal.length; } return { wch: Math.min(Math.max(max + 2, 8), 40) }; });
+        xlsx.utils.book_append_sheet(wb, ws, sheet.name);
+      }
+      const wbout = xlsx.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `chitieu-data-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      setStatus({ type: 'success', msg: 'Đã export Excel thành công!' });
+    } catch (e) {
+      setStatus({ type: 'error', msg: 'Lỗi export Excel: ' + String(e) });
+    }
+  };
+
   const handleImport = () => {
     fileRef.current?.click();
   };
@@ -79,6 +139,9 @@ export function BackupRestoreMobile() {
           <p className="text-xs text-gray-500 mb-3">Tải xuống file finance.json chứa toàn bộ dữ liệu.</p>
           <button onClick={handleExport} className="w-full py-3 rounded-lg bg-blue-600 text-white text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98]">
             <Download size={16} /> Export finance.json
+          </button>
+          <button onClick={handleExportExcel} className="w-full mt-2 py-3 rounded-lg border border-green-600 text-green-700 text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98]">
+            <Download size={16} /> Export Excel (.xlsx)
           </button>
           {data && <p className="text-[10px] text-gray-400 mt-2 text-center">{data.records.length} records • {data.modules.length} modules • {data.accounts?.length || 0} accounts</p>}
         </div>

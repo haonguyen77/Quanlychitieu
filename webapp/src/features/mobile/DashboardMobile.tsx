@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/core/store/appStore';
+import { useMobileNav } from './MobileNavigation';
 import { MobileIcon } from './MobileIcon';
 import { resolveCategoryVisual } from './mobileDataMapper';
+import { ExpenseMobile } from './ExpenseMobile';
 import { Search, SlidersHorizontal, ChevronLeft, ChevronRight, Bell, User } from 'lucide-react';
 import { NotificationBellMobile } from './NotificationMobile';
 
@@ -13,6 +15,7 @@ type FilterPeriod = 'week' | 'month' | 'year' | 'all';
  */
 export function DashboardMobile() {
   const { data } = useAppStore();
+  const { push } = useMobileNav();
   const [period, setPeriod] = useState<FilterPeriod>('month');
   const [showFilter, setShowFilter] = useState(false);
   const [refDate, setRefDate] = useState(new Date());
@@ -118,7 +121,7 @@ export function DashboardMobile() {
     return entries.map(([id, amount], i) => {
       const cat = mod?.categories?.find(c => c.id === id);
       const v = resolveCategoryVisual(cat?.icon, cat?.color);
-      return { name: cat?.name || 'Khác', amount, percent: (amount / total) * 100, color: cat?.color || v.color || fallback[i] || '#607D8B', icon: v.icon };
+      return { id, name: cat?.name || 'Khác', amount, percent: (amount / total) * 100, color: cat?.color || v.color || fallback[i] || '#607D8B', icon: v.icon };
     });
   }, [stats.categories, data]);
 
@@ -197,14 +200,14 @@ export function DashboardMobile() {
               </div>
               <div className="flex-1 space-y-2">
                 {categoryData.map((cat, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <button key={i} onClick={() => push({ id: `expense-cat-${cat.id}`, component: <ExpenseMobile initialCategoryId={cat.id} initialPeriod={period} /> })}
+                    className="w-full flex items-center gap-3 active:opacity-70">
                     <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${cat.color}20` }}>
                       <MobileIcon name={cat.icon} size={13} color={cat.color} />
                     </div>
-                    <span className="text-[11px] text-gray-700 flex-1 truncate">{cat.name}</span>
-                    <span className="text-[11px] text-gray-500">{cat.percent.toFixed(0)}%</span>
+                    <span className="text-[11px] text-gray-500 flex-1 text-left">{cat.percent.toFixed(0)}%</span>
                     <span className="text-[11px] font-medium text-right" style={{ color: cat.color }}>{fmtShort(cat.amount)}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

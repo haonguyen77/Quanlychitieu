@@ -20,15 +20,19 @@ type FilterPeriod = 'week' | 'month' | 'year' | 'all';
  * - Transaction row: 40x40 category icon (rounded 10, bgColor+icon) + title + account+module sub + amount
  * - Amount color: expenses = #0F1F4D (dark), income = #20A84A (green)
  */
-export function ExpenseMobile() {
+export function ExpenseMobile({ initialCategoryId, initialPeriod }: { initialCategoryId?: string; initialPeriod?: FilterPeriod } = {}) {
   const { data } = useAppStore();
   const { push } = useMobileNav();
 
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
-  const [period, setPeriod] = useState<FilterPeriod>('month');
+  const [period, setPeriod] = useState<FilterPeriod>(initialPeriod ?? 'month');
   const [refDate, setRefDate] = useState(new Date());
+  // Type filter for the summary cards: null=all, '0'=Chi, '1'=Thu (UI-only).
+  const [typeFilter, setTypeFilter] = useState<'0' | '1' | null>(null);
+  // Category filter (UI-only), e.g. opened from Dashboard.
+  const [categoryFilter] = useState<string | null>(initialCategoryId ?? null);
 
   // Date range calculation (Android: _startDate, _endDate)
   const { startDate, endDate } = useMemo(() => {
@@ -51,7 +55,13 @@ export function ExpenseMobile() {
         const d = getRecordField(r, 'date');
         if (d < startDate || d > endDate) return false;
         const type = getRecordField(r, 'type');
-        return type !== '2'; // exclude transfer
+        if (type === '2') return false; // exclude transfer
+        // Category filter (opened from Dashboard). '__other' = uncategorized.
+        if (categoryFilter) {
+          const cid = r.categoryId || '';
+          if (categoryFilter === '__other' ? cid !== '' : cid !== categoryFilter) return false;
+        }
+        return true;
       })
       .map(r => ({
         record: r,
@@ -65,21 +75,27 @@ export function ExpenseMobile() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [data, startDate, endDate]);
 
-  // Search filter (Android: _displayedTransactions)
+  // Search filter (Android: _displayedTransactions) — base for the summary cards.
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return allTxns;
     const q = searchQuery.toLowerCase();
     return allTxns.filter(t => t.title.toLowerCase().includes(q));
   }, [allTxns, searchQuery]);
 
+  // List respects the summary-card type filter (toggle) on top of search.
+  const listTxns = useMemo(() => {
+    if (!typeFilter) return filtered;
+    return filtered.filter(t => (typeFilter === '1' ? t.type === '1' : t.type === '0'));
+  }, [filtered, typeFilter]);
+
   // Group by day (Android: _grouped)
   const grouped = useMemo(() => {
-    const map = new Map<string, typeof filtered>();
-    for (const t of filtered) { const day = t.date.slice(0, 10); if (!map.has(day)) map.set(day, []); map.get(day)!.push(t); }
+    const map = new Map<string, typeof listTxns>();
+    for (const t of listTxns) { const day = t.date.slice(0, 10); if (!map.has(day)) map.set(day, []); map.get(day)!.push(t); }
     return Array.from(map.entries());
-  }, [filtered]);
+  }, [listTxns]);
 
-  // Totals (Android: _totalExpense, _totalIncome)
+  // Totals (Android: _totalExpense, _totalIncome) — from search+category base, NOT type filter.
   const totalExpense = filtered.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0);
   const totalIncome = filtered.filter(t => t.type === '1').reduce((s, t) => s + t.amount, 0);
 
@@ -167,18 +183,22 @@ export function ExpenseMobile() {
 
       {/* ═══ SUMMARY — Android: 2 cards (Tổng chi = wallet/red, Tổng thu = arrow_down/green) ═══ */}
       <div className="px-4 py-2 flex gap-3">
-        <div className="flex-1 border border-gray-200 rounded-[14px] p-3 flex items-center gap-2.5">
-          <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center" style={{ backgroundColor: '#FFEBEE' }}>
+        <button onClick={() => setTypeFilter(f => f === '0' ? null : '0')}
+          className="flex-1 border rounded-[14px] p-3 flex items-center gap-2.5 text-left"
+          style={{ borderColor: typeFilter === '0' ? '#EF3030' : '#E5E7EB', borderWidth: typeFilter === '0' ? 1.5 : 1, backgroundColor: typeFilter === '0' ? '#FFEBEE55' : '#fff' }}>
+          <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFEBEE' }}>
             <MobileIcon name="wallet" size={18} color="#EF3030" />
           </div>
           <div><p className="text-[12px] text-gray-500">Tổng chi</p><p className="text-[15px] font-bold" style={{ color: '#EF3030' }}>{fmtCompact(totalExpense)}</p></div>
-        </div>
-        <div className="flex-1 border border-gray-200 rounded-[14px] p-3 flex items-center gap-2.5">
-          <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center" style={{ backgroundColor: '#E8F5E9' }}>
+        </button>
+        <button onClick={() => setTypeFilter(f => f === '1' ? null : '1')}
+          className="flex-1 border rounded-[14px] p-3 flex items-center gap-2.5 text-left"
+          style={{ borderColor: typeFilter === '1' ? '#20A84A' : '#E5E7EB', borderWidth: typeFilter === '1' ? 1.5 : 1, backgroundColor: typeFilter === '1' ? '#E8F5E955' : '#fff' }}>
+          <div className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#E8F5E9' }}>
             <MobileIcon name="arrow-down" size={18} color="#20A84A" />
           </div>
           <div><p className="text-[12px] text-gray-500">Tổng thu</p><p className="text-[15px] font-bold" style={{ color: '#20A84A' }}>{fmtCompact(totalIncome)}</p></div>
-        </div>
+        </button>
       </div>
 
       {/* ═══ TRANSACTION LIST — grouped by day ═══ */}
@@ -190,14 +210,27 @@ export function ExpenseMobile() {
           </div>
         ) : (
           grouped.map(([day, txns]) => {
-            const dayTotal = txns.filter(t => t.type !== '1').reduce((s, t) => s + t.amount, 0);
+            const dayExpense = txns.filter(t => t.type === '0').reduce((s, t) => s + t.amount, 0);
+            const dayIncome = txns.filter(t => t.type === '1').reduce((s, t) => s + t.amount, 0);
             return (
               <div key={day}>
-                {/* Day header — Android: bgLight + calendar + label + total */}
+                {/* Day header — Android: bgLight + calendar + label + total.
+                    Both income & expense → "+thu (xanh) | -chi (đỏ)"; only expense
+                    → "Tổng: -chi" red; only income → "+thu" green. */}
                 <div className="flex items-center gap-2 px-4 py-2.5" style={{ backgroundColor: '#F5F7FA' }}>
                   <Calendar size={14} color="#757575" />
                   <span className="flex-1 text-xs font-semibold" style={{ color: '#0F1F4D' }}>{fmtDayLabel(day)}</span>
-                  <span className="text-xs font-semibold" style={{ color: '#EF3030' }}>Tổng: {fmtCompact(dayTotal)}</span>
+                  {dayIncome > 0 && dayExpense > 0 ? (
+                    <span className="text-xs font-semibold">
+                      <span style={{ color: '#20A84A' }}>+{fmtCompact(dayIncome)}</span>
+                      <span className="text-gray-400 mx-1">|</span>
+                      <span style={{ color: '#EF3030' }}>-{fmtCompact(dayExpense)}</span>
+                    </span>
+                  ) : dayIncome > 0 ? (
+                    <span className="text-xs font-semibold" style={{ color: '#20A84A' }}>+{fmtCompact(dayIncome)}</span>
+                  ) : (
+                    <span className="text-xs font-semibold" style={{ color: '#EF3030' }}>Tổng: {fmtCompact(dayExpense)}</span>
+                  )}
                 </div>
                 {/* Transaction rows */}
                 {txns.map(t => {

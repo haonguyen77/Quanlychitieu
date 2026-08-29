@@ -15,6 +15,7 @@ import '../../modules/rental/screens/rental_home_screen.dart';
 import '../../utils/transaction_styles.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../settings/recurring_reminder_screen.dart';
+import '../expense/expense_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _FilterPeriod { week, month, year, all }
@@ -622,7 +623,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final pct = total > 0 ? (e.value.value / total * 100).toStringAsFixed(0) : '0';
                     final cat = TransactionStyles.categoryByName(catName);
                     final color = colors[e.key % colors.length];
-                    return Padding(
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => ExpenseScreen(
+                          initialCategoryId: e.value.key,
+                          initialFromDate: _startDate,
+                          initialToDate: _endDate,
+                        ),
+                      )),
+                      child: Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Row(children: [
                         Container(
@@ -635,6 +645,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(width: 12),
                         Expanded(child: Text(_formatShort(e.value.value), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color), textAlign: TextAlign.right)),
                       ]),
+                    ),
                     );
                   }).toList(),
                 ),
