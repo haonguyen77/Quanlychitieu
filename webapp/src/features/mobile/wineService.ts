@@ -146,6 +146,8 @@ export function getCustomerValues(orderValues: RecordValues): RecordValues {
     mod_ruou_customers_full_name: String(orderValues['mod_ruou_customer_name'] || ''),
     mod_ruou_customers_phone: String(orderValues['mod_ruou_customer_phone'] || ''),
     mod_ruou_customers_address: String(orderValues['mod_ruou_customer_address'] || ''),
+    mod_ruou_customers_district: String(orderValues['mod_ruou_customer_district'] || ''),
+    mod_ruou_customers_city: String(orderValues['mod_ruou_customer_city'] || ''),
     mod_ruou_customers_total_orders: 0,
     mod_ruou_customers_note: '',
   };

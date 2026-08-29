@@ -241,14 +241,20 @@ class _WineOrderListScreenState extends State<WineOrderListScreen> {
                       Text('📍 $address', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
                     ],
                   ])),
-                  Text('${nf.format(total.toInt())} VND', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _red)),
+                  // Total + ship fee stacked on the right (ship under total).
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('${nf.format(total.toInt())} VND', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _red)),
+                      if (shipFee > 0) ...[
+                        const SizedBox(height: 2),
+                        Text('Tiền ship: ${nf.format(shipFee.toInt())} VND', style: TextStyle(fontSize: 10, color: Colors.blue[600])),
+                      ],
+                    ],
+                  ),
                 ],
               ),
-              // Ship fee
-              if (shipFee > 0) ...[
-                const SizedBox(height: 4),
-                Text('Tiền ship: ${nf.format(shipFee.toInt())} VND', style: TextStyle(fontSize: 10, color: Colors.blue[600])),
-              ],
               // Products
               if (productLines.isNotEmpty) ...[
                 const SizedBox(height: 8),

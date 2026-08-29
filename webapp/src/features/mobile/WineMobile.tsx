@@ -2,9 +2,10 @@ import { useState, useMemo } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { useMobileNav } from './MobileNavigation';
-import { ArrowLeft, BarChart3, FileText, Plus, Users, Package, Trash2, X, Search, Receipt, TrendingUp, AlertTriangle, Pencil, Wine } from 'lucide-react';
-import { deductInventoryForOrder, returnInventoryForOrder, adjustInventoryForEdit, shouldCreateCustomer, getCustomerValues } from './wineService';
-import { showConfirm, showPrompt } from './mobileDialog';
+import { ArrowLeft, BarChart3, FileText, Plus, Users, Package, Trash2, Search, Receipt, TrendingUp, AlertTriangle, Pencil, Wine } from 'lucide-react';
+import { returnInventoryForOrder } from './wineService';
+import { showConfirm } from './mobileDialog';
+import { WineOrderFormMobile, WineCustomerForm, WineProductsScreenMobile, WineStockInMobile } from './WineScreens';
 
 type WineTab = 'reports' | 'orders' | 'customers' | 'inventory';
 
@@ -21,21 +22,23 @@ const BORDER = '#E5E7EB';
  * Tabs: Báo cáo / Đơn hàng / +add / Khách hàng / Kho. Accent purple #6C2BD9.
  */
 export function WineMobile() {
-  const { pop } = useMobileNav();
+  const { pop, push } = useMobileNav();
   const { data } = useAppStore();
-  const { addRecord, deleteRecord, updateRecord } = useRecordStore();
+  const { deleteRecord } = useRecordStore();
   const [activeTab, setActiveTab] = useState<WineTab>('orders');
   const [showAddOrder, setShowAddOrder] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
-  const [orderCustomer, setOrderCustomer] = useState('');
-  const [orderPhone, setOrderPhone] = useState('');
-  const [orderAddress, setOrderAddress] = useState('');
-  const [orderLines, setOrderLines] = useState<Array<{ name: string; sku: string; qty: string; price: string }>>([{ name: '', sku: '', qty: '1', price: '' }]);
-  const [orderShipFee, setOrderShipFee] = useState('');
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
-  const [orderSkipInventory, setOrderSkipInventory] = useState(false);
+  const [customerFormId, setCustomerFormId] = useState<string | null>(null);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
 
   const get = (r: { values: Record<string, unknown> }, s: string) => { const k = Object.keys(r.values).find(k => k.endsWith(`_${s}`)); return k ? String(r.values[k] ?? '') : ''; };
+
+  const openAddOrder = () => { setEditOrderId(null); setShowAddOrder(true); };
+  const openEditOrder = (id: string) => { setEditOrderId(id); setShowAddOrder(true); };
+  const openAddCustomer = () => { setCustomerFormId(null); setShowCustomerForm(true); };
+  const openEditCustomer = (id: string) => { setCustomerFormId(id); setShowCustomerForm(true); };
+  const openStockIn = () => push({ id: 'wine-stockin', component: <WineStockInMobile /> });
+  const openProducts = () => push({ id: 'wine-products', component: <WineProductsScreenMobile /> });
 
   const orders = useMemo(() => {
     if (!data) return [];
@@ -73,67 +76,6 @@ export function WineMobile() {
         wineType: get(r, 'wine_type'), bottleType: get(r, 'bottle_type') }));
   }, [data]);
 
-  const submitOrder = () => {
-    if (!orderCustomer.trim()) return;
-    const validLines = orderLines.filter(l => l.name.trim());
-    const firstLine = validLines[0] || { name: '', sku: '', qty: '1', price: '0' };
-    const itemsTotal = validLines.reduce((s, l) => s + (Number(l.qty) || 1) * (Number(l.price) || 0), 0);
-    const shipFee = Number(orderShipFee) || 0;
-    const total = itemsTotal + shipFee;
-    const values: Record<string, string | number | boolean | string[] | null> = {
-      mod_ruou_customer_name: orderCustomer.trim(),
-      mod_ruou_customer_phone: orderPhone.trim() || null,
-      mod_ruou_customer_address: orderAddress.trim() || null,
-      mod_ruou_product_name: firstLine.name.trim() || null,
-      mod_ruou_product_sku: firstLine.sku.trim() || firstLine.name.trim() || null,
-      mod_ruou_quantity: Number(firstLine.qty) || 1,
-      mod_ruou_price: Number(firstLine.price) || 0,
-      mod_ruou_ship_fee: shipFee,
-      mod_ruou_total_amount: total,
-      mod_ruou_order_date: orderDate,
-      mod_ruou_skip_inventory: orderSkipInventory ? 1 : 0,
-    };
-    if (validLines.length > 1) {
-      values['mod_ruou_product_lines'] = JSON.stringify(validLines.map(l => ({
-        productName: l.name.trim(), productSku: l.sku.trim() || l.name.trim(),
-        quantity: String(Number(l.qty) || 1), price: String(Number(l.price) || 0), color: '', glasses: '0', boxes: '0',
-      })));
-    }
-    if (editOrderId) {
-      const oldRecord = data?.records.find(r => r.id === editOrderId);
-      if (oldRecord) adjustInventoryForEdit(oldRecord.values, values);
-      updateRecord(editOrderId, values);
-    } else {
-      addRecord('mod_ruou', values);
-      deductInventoryForOrder(values);
-      if (shouldCreateCustomer(values)) addRecord('mod_ruou_customers', getCustomerValues(values));
-    }
-    setShowAddOrder(false); setEditOrderId(null); setOrderCustomer(''); setOrderPhone(''); setOrderAddress('');
-    setOrderLines([{ name: '', sku: '', qty: '1', price: '' }]); setOrderShipFee(''); setOrderDate(new Date().toISOString().slice(0, 10)); setOrderSkipInventory(false);
-  };
-
-  const startEditOrder = (id: string) => {
-    const order = data?.records.find(r => r.id === id);
-    if (!order) return;
-    setEditOrderId(id);
-    setOrderCustomer(get(order, 'customer_name'));
-    setOrderPhone(get(order, 'customer_phone'));
-    setOrderAddress(get(order, 'customer_address'));
-    const plRaw = order.values['mod_ruou_product_lines'];
-    if (plRaw && typeof plRaw === 'string' && String(plRaw).length > 2) {
-      try {
-        const parsed = JSON.parse(String(plRaw)) as Array<Record<string, string>>;
-        setOrderLines(parsed.map(p => ({ name: p.productName || '', sku: p.productSku || '', qty: p.quantity || '1', price: p.price || '0' })));
-      } catch { setOrderLines([{ name: get(order, 'product_name'), sku: get(order, 'product_name'), qty: get(order, 'quantity') || '1', price: get(order, 'price') }]); }
-    } else {
-      setOrderLines([{ name: get(order, 'product_name'), sku: get(order, 'product_name'), qty: get(order, 'quantity') || '1', price: get(order, 'price') }]);
-    }
-    setOrderShipFee(get(order, 'ship_fee'));
-    setOrderDate(get(order, 'order_date') || new Date().toISOString().slice(0, 10));
-    setOrderSkipInventory(String(order.values['mod_ruou_skip_inventory'] ?? '') === '1' || order.values['mod_ruou_skip_inventory'] === true);
-    setShowAddOrder(true);
-  };
-
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Header (only for orders/reports which don't have own app bar title) */}
@@ -151,86 +93,28 @@ export function WineMobile() {
         {activeTab === 'reports' && <WineReports orders={orders} inventory={inventory} onBack={pop} />}
         {activeTab === 'orders' && <WineOrders orders={orders}
           onDelete={(id) => { const rec = data?.records.find(r => r.id === id); if (rec && !rec.isDeleted) returnInventoryForOrder(rec.values); deleteRecord(id); }}
-          onEdit={startEditOrder} />}
-        {activeTab === 'customers' && <WineCustomers customers={customers} onAdd={async () => {
-          const res = await showPrompt({ title: 'Thêm khách hàng', fields: [{ key: 'name', label: 'Họ tên', required: true }, { key: 'phone', label: 'SĐT' }, { key: 'address', label: 'Địa chỉ' }] });
-          if (!res) return;
-          addRecord('mod_ruou_customers', { mod_ruou_customers_full_name: res.name.trim(), mod_ruou_customers_phone: res.phone || '', mod_ruou_customers_address: res.address || '', mod_ruou_customers_total_orders: 0, mod_ruou_customers_note: '' });
-        }} onEdit={async (id) => {
-          const record = data?.records.find(r => r.id === id); if (!record) return;
-          const res = await showPrompt({ title: 'Sửa khách hàng', fields: [
-            { key: 'name', label: 'Họ tên', required: true, initialValue: String(record.values['mod_ruou_customers_full_name'] || '') },
-            { key: 'phone', label: 'SĐT', initialValue: String(record.values['mod_ruou_customers_phone'] || '') },
-            { key: 'address', label: 'Địa chỉ', initialValue: String(record.values['mod_ruou_customers_address'] || '') },
-          ] });
-          if (!res) return;
-          updateRecord(id, { ...record.values, mod_ruou_customers_full_name: res.name.trim(), mod_ruou_customers_phone: res.phone, mod_ruou_customers_address: res.address });
-        }} onDelete={(id) => deleteRecord(id)} />}
-        {activeTab === 'inventory' && <WineInventory items={inventory} onAdd={async () => {
-          const res = await showPrompt({ title: 'Thêm tồn kho', fields: [{ key: 'sku', label: 'SKU', required: true }, { key: 'name', label: 'Tên sản phẩm', required: true }, { key: 'stock', label: 'Số lượng tồn', numeric: true }] });
-          if (!res) return;
-          addRecord('mod_ruou_inventory', { mod_ruou_inventory_sku: res.sku.trim(), mod_ruou_inventory_product_name: res.name.trim(), mod_ruou_inventory_stock: Number(res.stock) || 0, mod_ruou_inventory_color: '' });
-        }} onEdit={async (id) => {
-          const record = data?.records.find(r => r.id === id); if (!record) return;
-          const res = await showPrompt({ title: 'Sửa tồn kho', fields: [
-            { key: 'name', label: 'Tên sản phẩm', required: true, initialValue: String(record.values['mod_ruou_inventory_product_name'] || '') },
-            { key: 'stock', label: 'Số lượng tồn', numeric: true, initialValue: String(record.values['mod_ruou_inventory_stock'] || '0') },
-          ] });
-          if (!res) return;
-          updateRecord(id, { ...record.values, mod_ruou_inventory_product_name: res.name.trim(), mod_ruou_inventory_stock: Number(res.stock) || 0 });
-        }} onDelete={(id) => deleteRecord(id)} />}
+          onEdit={openEditOrder} />}
+        {activeTab === 'customers' && <WineCustomers customers={customers}
+          onAdd={openAddCustomer} onEdit={openEditCustomer} onDelete={(id) => deleteRecord(id)} />}
+        {activeTab === 'inventory' && <WineInventory items={inventory}
+          onOpenProducts={openProducts} onStockIn={openStockIn} onDelete={(id) => deleteRecord(id)} />}
       </div>
 
-      {/* Add/Edit Order Modal */}
-      {showAddOrder && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30" onClick={() => setShowAddOrder(false)}>
-          <div className="relative bg-white rounded-t-2xl w-full max-h-[85vh] overflow-auto p-4 space-y-3" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center"><h3 className="text-sm font-semibold" style={{ color: NAVY }}>{editOrderId ? 'Sửa đơn hàng' : 'Tạo đơn hàng mới'}</h3><button onClick={() => setShowAddOrder(false)}><X size={18} color="#666" /></button></div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => { const d = new Date(orderDate); d.setDate(d.getDate() - 1); setOrderDate(d.toISOString().slice(0, 10)); }} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center">‹</button>
-              <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-center" />
-              <button onClick={() => { const d = new Date(orderDate); d.setDate(d.getDate() + 1); setOrderDate(d.toISOString().slice(0, 10)); }} className="w-8 h-8 border border-gray-200 rounded-lg flex items-center justify-center">›</button>
-            </div>
-            <input type="text" value={orderCustomer} onChange={e => setOrderCustomer(e.target.value)} placeholder="Tên khách hàng..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-            <input type="text" value={orderPhone} onChange={e => setOrderPhone(e.target.value)} placeholder="Số điện thoại..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-            <input type="text" value={orderAddress} onChange={e => setOrderAddress(e.target.value)} placeholder="Địa chỉ..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-            <div className="border-t border-gray-100 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-gray-600">Sản phẩm</p>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
-                    <input type="checkbox" checked={orderSkipInventory} onChange={e => setOrderSkipInventory(e.target.checked)} className="rounded" style={{ accentColor: PURPLE }} />
-                    Không trừ kho
-                  </label>
-                  <button onClick={() => setOrderLines([...orderLines, { name: '', sku: '', qty: '1', price: '' }])} className="text-xs font-medium" style={{ color: PURPLE }}>+ Thêm SP</button>
-                </div>
-              </div>
-              {orderLines.map((line, idx) => (
-                <div key={idx} className="mb-2 p-2 bg-gray-50 rounded-lg">
-                  <input type="text" value={line.name} onChange={e => { const l = [...orderLines]; l[idx] = { ...l[idx], name: e.target.value }; setOrderLines(l); }} placeholder="Tên sản phẩm..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-1" />
-                  <div className="flex gap-2">
-                    <input type="text" inputMode="numeric" value={line.qty} onChange={e => { const l = [...orderLines]; l[idx] = { ...l[idx], qty: e.target.value.replace(/\D/g, '') }; setOrderLines(l); }} placeholder="SL" className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm" />
-                    <input type="text" inputMode="numeric" value={line.price} onChange={e => { const l = [...orderLines]; l[idx] = { ...l[idx], price: e.target.value.replace(/\D/g, '') }; setOrderLines(l); }} placeholder="Đơn giá" className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm" />
-                    {orderLines.length > 1 && <button onClick={() => setOrderLines(orderLines.filter((_, i) => i !== idx))} className="text-red-400 text-xs px-2">✕</button>}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <input type="text" inputMode="numeric" value={orderShipFee} onChange={e => setOrderShipFee(e.target.value.replace(/\D/g, ''))} placeholder="Phí ship (0)" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
-            <div className="flex justify-between items-center px-1">
-              <span className="text-xs text-gray-500">Tổng cộng:</span>
-              <span className="text-sm font-bold" style={{ color: PURPLE }}>{(orderLines.reduce((s, l) => s + (Number(l.qty) || 1) * (Number(l.price) || 0), 0) + (Number(orderShipFee) || 0)).toLocaleString('vi-VN')}₫</span>
-            </div>
-            <button onClick={submitOrder} className="w-full py-3 rounded-lg text-white text-sm font-semibold" style={{ backgroundColor: PURPLE }}>{editOrderId ? 'Cập nhật' : 'Lưu đơn hàng'}</button>
-          </div>
-        </div>
-      )}
+      {/* Full-screen order form (create/edit) */}
+      {showAddOrder && <WineOrderFormMobile editId={editOrderId} onClose={() => { setShowAddOrder(false); setEditOrderId(null); }} />}
+
+      {/* Customer form (add/edit) */}
+      {showCustomerForm && <WineCustomerForm editId={customerFormId} onClose={() => { setShowCustomerForm(false); setCustomerFormId(null); }} />}
 
       {/* Wine Bottom Tabs */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 flex items-center justify-around h-14" style={{ boxShadow: '0 -1px 4px rgba(0,0,0,0.05)' }}>
         <TabBtn icon={<BarChart3 size={20} />} label="Báo cáo" active={activeTab === 'reports'} onTap={() => setActiveTab('reports')} />
         <TabBtn icon={<FileText size={20} />} label="Đơn hàng" active={activeTab === 'orders'} onTap={() => setActiveTab('orders')} />
-        <button onClick={() => { if (activeTab === 'orders' || activeTab === 'reports') { setEditOrderId(null); setShowAddOrder(true); } else if (activeTab === 'customers') { setActiveTab('customers'); } else { setActiveTab('inventory'); } }}
+        <button onClick={() => {
+          if (activeTab === 'orders' || activeTab === 'reports') openAddOrder();
+          else if (activeTab === 'customers') openAddCustomer();
+          else openStockIn();
+        }}
           className="w-12 h-12 rounded-full flex items-center justify-center -mt-3" style={{ backgroundColor: PURPLE, boxShadow: '0 4px 8px rgba(108,43,217,0.3)' }}>
           <Plus size={24} color="white" />
         </button>
@@ -460,9 +344,11 @@ function WineOrders({ orders, onDelete, onEdit }: {
                     {o.phone && <a href={`tel:${o.phone}`} className="text-[12px] text-blue-600 block">📞 {o.phone}</a>}
                     {o.address && <p className="text-[11px] text-gray-500">📍 {o.address}</p>}
                   </div>
-                  <span className="text-[14px] font-bold" style={{ color: RED }}>{nf(o.amount)} VND</span>
+                  <div className="flex flex-col items-end flex-shrink-0">
+                    <span className="text-[14px] font-bold" style={{ color: RED }}>{nf(o.amount)} VND</span>
+                    {o.shipFee > 0 && <span className="text-[10px] text-blue-600 mt-0.5">Tiền ship: {nf(o.shipFee)} VND</span>}
+                  </div>
                 </div>
-                {o.shipFee > 0 && <p className="text-[10px] text-blue-600 mt-1">Tiền ship: {nf(o.shipFee)} VND</p>}
                 {lines.length > 0 && (
                   <div className="mt-2 p-2 rounded-lg" style={{ backgroundColor: '#F9F9F9' }}>
                     <div className="flex text-[10px] font-semibold text-gray-400 pb-1 border-b border-gray-200">
@@ -534,7 +420,7 @@ function WineCustomers({ customers, onAdd, onEdit, onDelete }: { customers: Arra
 
 // ─── Inventory ──────────────────────────────────────────────────────────
 
-function WineInventory({ items, onAdd, onEdit, onDelete }: { items: Array<{ id: string; sku: string; name: string; stock: number; wineType: string; bottleType: string }>; onAdd: () => void; onEdit: (id: string) => void; onDelete: (id: string) => void }) {
+function WineInventory({ items, onOpenProducts, onStockIn, onDelete }: { items: Array<{ id: string; sku: string; name: string; stock: number; wineType: string; bottleType: string }>; onOpenProducts: () => void; onStockIn: () => void; onDelete: (id: string) => void }) {
   const [query, setQuery] = useState('');
   const filtered = items.filter(i => !query.trim() || i.sku.toLowerCase().includes(query.toLowerCase()) || i.name.toLowerCase().includes(query.toLowerCase()));
   const totalStock = filtered.reduce((s, i) => s + i.stock, 0);
@@ -542,7 +428,7 @@ function WineInventory({ items, onAdd, onEdit, onDelete }: { items: Array<{ id: 
     <div className="p-3">
       <div className="flex items-center justify-between mb-2 px-1">
         <span className="text-sm font-semibold" style={{ color: NAVY }}>{items.length} sản phẩm</span>
-        <button onClick={onAdd} className="text-xs font-medium flex items-center gap-1" style={{ color: PURPLE }}><Wine size={13} /> Thêm</button>
+        <button onClick={onOpenProducts} className="text-xs font-medium flex items-center gap-1" style={{ color: PURPLE }}><Wine size={13} /> Sản phẩm</button>
       </div>
       <div className="flex items-center gap-2 mb-2">
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: BORDER }}>
@@ -564,7 +450,7 @@ function WineInventory({ items, onAdd, onEdit, onDelete }: { items: Array<{ id: 
                   <p className="text-[13px] font-medium truncate" style={{ color: NAVY }}>{i.name || i.sku}</p>
                   <p className="text-[10px] text-gray-500">SKU: {i.sku}{i.wineType ? ` • ${i.wineType}` : ''}{i.bottleType ? ` • ${i.bottleType}` : ''}</p>
                 </div>
-                <button onClick={() => onEdit(i.id)} className="w-7 h-7 rounded flex items-center justify-center"><Pencil size={16} style={{ color: PURPLE }} /></button>
+                <button onClick={onStockIn} className="w-7 h-7 rounded flex items-center justify-center" title="Nhập kho"><Pencil size={16} style={{ color: PURPLE }} /></button>
                 <button onClick={async () => { if (await showConfirm({ title: 'Xóa sản phẩm?', message: `Xóa "${i.name}"?`, confirmLabel: 'Xóa', danger: true })) onDelete(i.id); }} className="w-7 h-7 rounded flex items-center justify-center"><Trash2 size={15} className="text-red-400" /></button>
               </div>
             );

@@ -2,6 +2,7 @@ import { useAppStore } from '@/core/store/appStore';
 import { useMobileNav } from './MobileNavigation';
 import { ModuleViewMobile } from './ModuleViewMobile';
 import { WineMobile } from './WineMobile';
+import { RentalMobile } from './RentalMobile';
 import { CreditCardMobile } from './CreditCardMobile';
 import { ShopeeMobile } from './ShopeeMobile';
 import { GoldMobile } from './GoldMobile';
@@ -30,6 +31,8 @@ export function ModulesMobile() {
       push({ id: 'shopee', component: <ShopeeMobile /> });
     } else if (mod.id === 'mod_vang') {
       push({ id: 'gold', component: <GoldMobile /> });
+    } else if (mod.id === 'mod_nhatro') {
+      push({ id: 'rental', component: <RentalMobile /> });
     } else {
       push({ id: `module-${mod.id}`, component: <ModuleViewMobile module={mod} /> });
     }
