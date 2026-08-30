@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
-import { useRecordStore } from '@/core/store/recordStore';
+import { useRecordStore, type DatePreset } from '@/core/store/recordStore';
 import { Icon } from '@/shared/components/ui/Icon';
 import { useTableZoom, ZoomControls } from '@/shared/components/ui/TableZoom';
 import { useTableSortFilter, ColumnHeader } from '@/shared/components/ui/ColumnHeader';
@@ -15,6 +15,7 @@ interface WineOrdersTabProps {
 
 export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }: WineOrdersTabProps) {
   const { data } = useAppStore();
+  const { datePreset, dateFrom, dateTo, setDatePresetForModule, setDateRange } = useRecordStore();
   const deleteRecord = useRecordStore((s) => s.deleteRecord);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DataRecord | null>(null);
@@ -22,6 +23,39 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
   const [expanded, setExpanded] = useState(true);
   const { fontSize, fontClass, zoomIn, zoomOut } = useTableZoom();
   const { sort, filters, toggleSort, setFilter, applySort } = useTableSortFilter();
+
+  const MODULE_ID = 'mod_ruou';
+  const PRESET_LABELS: Record<DatePreset, string> = { week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả', custom: 'Tùy chọn' };
+
+  // Default to 'year' when first shown.
+  useEffect(() => {
+    setDatePresetForModule('year', MODULE_ID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Period navigation — same logic as ChiTieuHeader.
+  const movePeriod = (direction: -1 | 1) => {
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (datePreset === 'week') {
+      const ref = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
+      ref.setDate(ref.getDate() + direction * 7);
+      const dow = ref.getDay(); const diffToMon = dow === 0 ? -6 : 1 - dow;
+      const mon = new Date(ref); mon.setDate(ref.getDate() + diffToMon);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      setDateRange(fmt(mon), fmt(sun));
+    } else if (datePreset === 'month') {
+      const ref = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
+      setDateRange(fmt(new Date(ref.getFullYear(), ref.getMonth() + direction, 1)), fmt(new Date(ref.getFullYear(), ref.getMonth() + direction + 1, 0)));
+    } else if (datePreset === 'year') {
+      const y = (dateFrom ? new Date(dateFrom + 'T00:00:00').getFullYear() : new Date().getFullYear()) + direction;
+      setDateRange(`${y}-01-01`, `${y}-12-31`);
+    } else if (datePreset === 'custom' && dateFrom && dateTo) {
+      const from = new Date(dateFrom + 'T00:00:00'); const to = new Date(dateTo + 'T00:00:00');
+      const days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+      from.setDate(from.getDate() + direction * days); to.setDate(to.getDate() + direction * days);
+      setDateRange(fmt(from), fmt(to));
+    }
+  };
 
   // Alt+N keyboard shortcut (works directly in this component)
   useEffect(() => {
@@ -61,6 +95,9 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
   const orders = useMemo(() => {
     if (!data) return [];
     let records = data.records.filter((r) => r.moduleId === 'mod_ruou' && !r.isDeleted);
+    // Date filter
+    if (dateFrom) records = records.filter((r) => String(r.values['mod_ruou_order_date'] ?? '') >= dateFrom);
+    if (dateTo)   records = records.filter((r) => String(r.values['mod_ruou_order_date'] ?? '') <= dateTo);
     if (customerFilter) {
       records = records.filter((r) => String(r.values['mod_ruou_customer_name'] ?? '').toLowerCase().includes(customerFilter.toLowerCase()));
     }
@@ -72,7 +109,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
       records = records.filter((r) => Object.values(r.values).some((v) => v !== null && String(v).toLowerCase().includes(q)));
     }
     return records.sort((a, b) => String(b.values['mod_ruou_order_date'] ?? '').localeCompare(String(a.values['mod_ruou_order_date'] ?? '')));
-  }, [data, customerFilter, productFilter, search]);
+  }, [data, customerFilter, productFilter, search, dateFrom, dateTo]);
 
   const getOrderValue = (r: DataRecord, col: string): string => {
     const map: Record<string, string> = {
@@ -103,13 +140,33 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden h-full">
-      {/* Toolbar */}
+      {/* Period filter row */}
+      <div className="px-6 py-2 flex items-center gap-2 border-b border-[var(--color-border)]">
+        <div className="flex rounded-md border border-[var(--color-border)] overflow-hidden">
+          {(['week', 'month', 'year', 'all'] as DatePreset[]).map((p) => (
+            <button key={p} onClick={() => setDatePresetForModule(p, MODULE_ID)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${datePreset === p ? 'bg-blue-600 text-white' : 'bg-white text-[var(--color-text-secondary)] hover:bg-gray-50'}`}>
+              {PRESET_LABELS[p]}
+            </button>
+          ))}
+        </div>
+        {datePreset !== 'all' && (
+          <div className="flex items-center gap-1">
+            <button onClick={() => movePeriod(-1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Icon name="chevron-left" size={14} /></button>
+            <input type="date" className="text-xs border border-[var(--color-border)] rounded px-2 py-1 w-[115px] bg-white" value={dateFrom} onChange={(e) => setDateRange(e.target.value, dateTo)} />
+            <span className="text-xs text-gray-400">→</span>
+            <input type="date" className="text-xs border border-[var(--color-border)] rounded px-2 py-1 w-[115px] bg-white" value={dateTo} onChange={(e) => setDateRange(dateFrom, e.target.value)} />
+            <button onClick={() => movePeriod(1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Icon name="chevron-right" size={14} /></button>
+          </div>
+        )}
+        <span className="ml-auto text-xs text-[var(--color-text-secondary)]">{sortedOrders.length} đơn</span>
+      </div>
+      {/* Search + zoom toolbar */}
       <div className="px-6 py-3 flex items-center gap-3 border-b border-[var(--color-border)]">
         <div className="relative flex-1 max-w-xs">
           <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]" />
           <input type="text" placeholder="Tìm đơn hàng..." className="input-field pl-8 py-1.5 text-xs w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <span className="text-xs text-[var(--color-text-secondary)]">{sortedOrders.length} đơn</span>
         <ZoomControls fontSize={fontSize} onZoomIn={zoomIn} onZoomOut={zoomOut} />
         <button
           onClick={() => setExpanded(!expanded)}
