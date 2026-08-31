@@ -147,9 +147,10 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
 
   /** Trả lại kho theo values của đơn hàng (cộng qty vào stock). Chỉ gọi khi skip_inventory = 0. */
   const returnStockForOrder = (orderValues: Record<string, unknown>) => {
-    if (!data) return;
-    // Lấy palette để map color label → code (giống WineOrderForm.resolveInvRecord)
-    const palette = data.wineColorPalette as Array<{ code: string; label: string }> | undefined ?? [];
+    // Đọc data mới nhất từ store (tránh closure cũ sau deleteRecord)
+    const currentData = useAppStore.getState().data;
+    if (!currentData) return;
+    const palette = (currentData as Record<string, unknown>).wineColorPalette as Array<{ code: string; label: string }> | undefined ?? [];
     const resolveInv = (sku: string, color: string) => {
       const colorCode = color
         ? (palette.find((c) => c.label === color)?.code ?? color).toUpperCase()
@@ -161,7 +162,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
       ].filter(Boolean);
       // Tìm theo thứ tự ưu tiên để tránh trừ nhầm record không màu
       for (const candidate of candidates) {
-        const found = data.records.find((r) =>
+        const found = currentData.records.find((r) =>
           r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
           String(r.values['mod_ruou_inventory_sku'] ?? '') === candidate
         );
@@ -196,11 +197,14 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
   const handleDelete = (id: string) => {
     const order = data?.records.find((r) => r.id === id);
     if (!order) return;
-    if (!confirm('Xóa đơn hàng này? Kho sẽ được khôi phục số lượng tương ứng.')) return;
-    // Trả kho nếu đơn không có cờ "Không trừ kho"
-    const skip = String(order.values['mod_ruou_skip_inventory'] ?? '') === '1' || order.values['mod_ruou_skip_inventory'] === true;
-    if (!skip) returnStockForOrder(order.values);
+    if (!confirm('Xóa đơn hàng này?')) return;
+    // Xóa đơn trước
     deleteRecord(id);
+    // Sau đó trả kho (đọc state mới nhất từ store để tránh race condition)
+    const skip = String(order.values['mod_ruou_skip_inventory'] ?? '') === '1' || order.values['mod_ruou_skip_inventory'] === true;
+    if (!skip) {
+      setTimeout(() => returnStockForOrder(order.values), 0);
+    }
   };
 
   const fmtMoney = (n: unknown) => { const num = Number(n ?? 0); return num ? num.toLocaleString('vi-VN') + '₫' : ''; };
