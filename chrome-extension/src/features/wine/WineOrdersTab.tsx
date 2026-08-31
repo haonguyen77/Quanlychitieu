@@ -108,7 +108,17 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
       const q = search.toLowerCase();
       records = records.filter((r) => Object.values(r.values).some((v) => v !== null && String(v).toLowerCase().includes(q)));
     }
-    return records.sort((a, b) => String(b.values['mod_ruou_order_date'] ?? '').localeCompare(String(a.values['mod_ruou_order_date'] ?? '')));
+    return records.sort((a, b) => {
+      // Primary: order_date descending
+      const dateA = String(a.values['mod_ruou_order_date'] ?? '');
+      const dateB = String(b.values['mod_ruou_order_date'] ?? '');
+      const dateCmp = dateB.localeCompare(dateA);
+      if (dateCmp !== 0) return dateCmp;
+      // Tiebreaker: createdAt/updatedAt descending (đơn mới tạo nằm trên)
+      const timeA = String(a.updatedAt || a.createdAt || '');
+      const timeB = String(b.updatedAt || b.createdAt || '');
+      return timeB.localeCompare(timeA);
+    });
   }, [data, customerFilter, productFilter, search, dateFrom, dateTo]);
 
   const getOrderValue = (r: DataRecord, col: string): string => {
