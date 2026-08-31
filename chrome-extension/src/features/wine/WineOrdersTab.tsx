@@ -170,10 +170,11 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
         <ZoomControls fontSize={fontSize} onZoomIn={zoomIn} onZoomOut={zoomOut} />
         <button
           onClick={() => setExpanded(!expanded)}
-          className="p-1.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)] text-[var(--color-text-secondary)]"
-          title={expanded ? 'Thu gọn' : 'Mở rộng'}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)] text-[var(--color-text-secondary)] text-xs font-medium"
+          title={expanded ? 'Thu gọn bảng vừa màn hình' : 'Mở rộng để xem đầy đủ'}
         >
-          <Icon name={expanded ? 'minimize-2' : 'maximize-2'} size={14} />
+          <Icon name={expanded ? 'minimize-2' : 'maximize-2'} size={13} />
+          {expanded ? 'Thu gọn' : 'Mở rộng'}
         </button>
         <button onClick={() => { setEditingRecord(null); setShowForm(true); }} className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1" title="Tạo đơn mới (Alt+N)">
           <Icon name="plus" size={13} />
@@ -181,7 +182,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
         </button>
       </div>
 
-      {/* Table - expanded widens columns, compact fits window */}
+      {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className={`${fontClass} ${expanded ? 'w-max min-w-full' : 'w-full'}`}>
           <thead className="sticky top-0 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
@@ -189,7 +190,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
               <ColumnHeader column="date" label="Ngày" className="px-2 py-2 w-[72px]" sort={sort} filterValue={filters['date']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="customer" label="Khách" className="px-2 py-2 w-[90px]" sort={sort} filterValue={filters['customer']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="phone" label="SĐT" className="px-2 py-2 w-[85px]" sort={sort} filterValue={filters['phone']} onSort={toggleSort} onFilter={setFilter} />
-              <ColumnHeader column="address" label="Địa chỉ" className="px-2 py-2 w-[130px]" sort={sort} filterValue={filters['address']} onSort={toggleSort} onFilter={setFilter} />
+              <ColumnHeader column="address" label="Địa chỉ" className={`px-2 py-2 ${expanded ? 'w-[130px]' : 'w-[80px]'}`} sort={sort} filterValue={filters['address']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="ward" label="Phường" className="px-2 py-2 w-[65px]" sort={sort} filterValue={filters['ward']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="city" label="TP" className="px-2 py-2 w-[45px]" sort={sort} filterValue={filters['city']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="product" label="SP" className="px-2 py-2 w-[120px]" sort={sort} filterValue={filters['product']} onSort={toggleSort} onFilter={setFilter} />
@@ -200,8 +201,8 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
               <th className="px-2 py-2 w-[25px] text-center">SL</th>
               <ColumnHeader column="ship" label="Ship" className="px-2 py-2 text-right w-[55px]" sort={sort} filterValue={filters['ship']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="total" label="Tổng" className="px-2 py-2 text-right w-[75px]" sort={sort} filterValue={filters['total']} onSort={toggleSort} onFilter={setFilter} />
-              <ColumnHeader column="note" label="Ghi chú" className="px-2 py-2 w-[80px]" sort={sort} filterValue={filters['note']} onSort={toggleSort} onFilter={setFilter} />
-              <ColumnHeader column="note2" label="Ghi chú 2" className="px-2 py-2 w-[80px]" sort={sort} filterValue={filters['note2']} onSort={toggleSort} onFilter={setFilter} />
+              {expanded && <ColumnHeader column="note" label="Ghi chú" className="px-2 py-2 w-[80px]" sort={sort} filterValue={filters['note']} onSort={toggleSort} onFilter={setFilter} />}
+              {expanded && <ColumnHeader column="note2" label="Ghi chú 2" className="px-2 py-2 w-[80px]" sort={sort} filterValue={filters['note2']} onSort={toggleSort} onFilter={setFilter} />}
               <th className="px-2 py-2 w-[40px]"></th>
             </tr>
           </thead>
@@ -257,8 +258,8 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
                   </td>
                   <td className="px-2 py-1.5 text-right text-[var(--color-text-secondary)] tabular-nums">{fmtMoney(r.values['mod_ruou_ship_fee'])}</td>
                   <td className="px-2 py-1.5 text-right font-medium text-[var(--color-text)] tabular-nums">{fmtMoney(r.values['mod_ruou_total_amount'])}</td>
-                  <td className="px-2 py-1.5 text-[var(--color-text-secondary)] truncate" title={String(r.values['mod_ruou_note1'] ?? '')}>{String(r.values['mod_ruou_note1'] ?? '')}</td>
-                  <td className="px-2 py-1.5 text-[var(--color-text-secondary)] truncate" title={String(r.values['mod_ruou_note2'] ?? '')}>{String(r.values['mod_ruou_note2'] ?? '')}</td>
+                  {expanded && <td className="px-2 py-1.5 text-[var(--color-text-secondary)] truncate" title={String(r.values['mod_ruou_note1'] ?? '')}>{String(r.values['mod_ruou_note1'] ?? '')}</td>}
+                  {expanded && <td className="px-2 py-1.5 text-[var(--color-text-secondary)] truncate" title={String(r.values['mod_ruou_note2'] ?? '')}>{String(r.values['mod_ruou_note2'] ?? '')}</td>}
                   <td className="px-2 py-1.5">
                     <div className="flex gap-0.5">
                       <button onClick={() => handleEdit(r)} className="p-1 hover:bg-[var(--color-border)] rounded"><Icon name="edit" size={11} /></button>
