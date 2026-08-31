@@ -104,7 +104,15 @@ export function WineInventoryTab() {
     }
     setEditingStockId(null);
   };
-  const handleDelete = (id: string) => { if (confirm('Xóa mục này khỏi kho?')) deleteRecord(id); };
+  const handleDelete = (id: string) => {
+    // Only delete actual inventory records — never touch product definitions.
+    const isInventoryRecord = data?.records.some((r) => r.id === id && r.moduleId === 'mod_ruou_inventory' && !r.isDeleted);
+    if (!isInventoryRecord) {
+      alert('Đây là sản phẩm chưa có tồn kho, không thể xóa khỏi Kho.\nĐể xóa sản phẩm, hãy vào tab Sản phẩm.');
+      return;
+    }
+    if (confirm('Xóa mục này khỏi kho?')) deleteRecord(id);
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden h-full">
