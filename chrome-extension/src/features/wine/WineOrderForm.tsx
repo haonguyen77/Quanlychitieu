@@ -132,12 +132,50 @@ export function WineOrderForm({ record, onClose }: Props) {
     if (!valid.length) return;
     const f = valid[0];
     const values: RecordValues = { mod_ruou_order_date:orderDate, mod_ruou_customer_name:customerName.trim(), mod_ruou_customer_phone:customerPhone.trim(), mod_ruou_customer_address:customerAddress.trim(), mod_ruou_customer_district:customerWard.trim(), mod_ruou_customer_city:customerDistrict.trim(), mod_ruou_product_sku:f.productSku, mod_ruou_product_name:f.productName, mod_ruou_color:f.color, mod_ruou_quantity:f.quantity, mod_ruou_price:f.price, mod_ruou_glasses:f.ly?1:0, mod_ruou_boxes:f.box?1:0, mod_ruou_ship_fee:shipFee, mod_ruou_total_amount:totalPayment, mod_ruou_note1:note1.trim(), mod_ruou_note2:note2.trim(), mod_ruou_skip_inventory:skipInventory?1:0, mod_ruou_product_lines:valid.length>1?JSON.stringify(valid.map((r)=>({productName:r.productName,productSku:r.productSku,quantity:String(r.quantity),price:String(r.price),color:r.color,glasses:r.ly?'1':'0',boxes:r.box?'1':'0'}))):null };
-    if (record) updateRecord(record.id, values);
+    if (record) {
+      // Sửa đơn: trả kho cũ (theo đơn trước), rồi trừ kho mới (theo đơn mới).
+      // Chỉ điều chỉnh khi skip_inventory = 0 ở cả hai phía.
+      const oldSkip = String(record.values['mod_ruou_skip_inventory'] ?? '') === '1' || record.values['mod_ruou_skip_inventory'] === true;
+      if (!oldSkip) returnStockFromOrder(record.values);
+      if (!skipInventory) for (const r of valid) if (r.productSku) deductStock(r.productSku, r.color, r.quantity);
+      updateRecord(record.id, values);
+    }
     else { addRecord('mod_ruou', values); if(!skipInventory) for(const r of valid) if(r.productSku) deductStock(r.productSku,r.color,r.quantity); ensureCustomer(); }
     onClose();
   };
   // Allow negative stock (sell 10 when 0 in stock → -10) per requirement.
   const deductStock = (sku:string,color:string,qty:number) => { if(!data||!sku||!qty)return; const fs=color?`${sku}-${color}`:sku; const inv=data.records.find((r)=>r.moduleId==='mod_ruou_inventory'&&!r.isDeleted&&(String(r.values['mod_ruou_inventory_sku']??'')===fs||String(r.values['mod_ruou_inventory_sku']??'')===sku)); if(inv)updateRecord(inv.id,{mod_ruou_inventory_stock:Number(inv.values['mod_ruou_inventory_stock']??0)-qty}); };
+
+  /** Trả lại kho theo values của đơn hàng cũ (cộng qty vào stock). */
+  const returnStockFromOrder = (orderValues: RecordValues) => {
+    if (!data) return;
+    // Lấy danh sách sản phẩm từ product_lines JSON hoặc single product.
+    type Line = { sku: string; color: string; qty: number };
+    const lines: Line[] = [];
+    const plRaw = orderValues['mod_ruou_product_lines'];
+    if (plRaw && typeof plRaw === 'string' && plRaw.length > 2) {
+      try {
+        const parsed = JSON.parse(plRaw) as Array<{ productSku: string; color: string; quantity: string }>;
+        for (const l of parsed) {
+          const sku = l.productSku || '';
+          const qty = parseInt(l.quantity || '0') || 0;
+          if (sku && qty > 0) lines.push({ sku, color: l.color || '', qty });
+        }
+      } catch { /* ignore */ }
+    }
+    if (lines.length === 0) {
+      const sku = String(orderValues['mod_ruou_product_sku'] ?? '');
+      const qty = Number(orderValues['mod_ruou_quantity'] ?? 0);
+      const color = String(orderValues['mod_ruou_color'] ?? '');
+      if (sku && qty > 0) lines.push({ sku, color, qty });
+    }
+    for (const { sku, color, qty } of lines) {
+      const fs = color ? `${sku}-${color}` : sku;
+      const inv = data.records.find((r) => r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
+        (String(r.values['mod_ruou_inventory_sku'] ?? '') === fs || String(r.values['mod_ruou_inventory_sku'] ?? '') === sku));
+      if (inv) updateRecord(inv.id, { mod_ruou_inventory_stock: Number(inv.values['mod_ruou_inventory_stock'] ?? 0) + qty });
+    }
+  };
   const ensureCustomer = () => { if(!data||!customerName.trim())return; const phone=customerPhone.trim(); const ex=phone?data.records.find((r)=>r.moduleId==='mod_ruou_customers'&&!r.isDeleted&&String(r.values['mod_ruou_customers_phone']??'')===phone):null; if(ex){const updates:any={mod_ruou_customers_total_orders:Number(ex.values['mod_ruou_customers_total_orders']??0)+1,mod_ruou_customers_last_order_date:orderDate,mod_ruou_customers_full_name:customerName.trim()}; if(customerAddress.trim())updates.mod_ruou_customers_address=customerAddress.trim(); if(customerWard.trim())updates.mod_ruou_customers_district=customerWard.trim(); if(customerDistrict.trim())updates.mod_ruou_customers_city=customerDistrict.trim(); updateRecord(ex.id,updates);} else addRecord('mod_ruou_customers',{mod_ruou_customers_full_name:customerName.trim(),mod_ruou_customers_phone:phone,mod_ruou_customers_address:customerAddress.trim(),mod_ruou_customers_district:customerWard.trim(),mod_ruou_customers_city:customerDistrict.trim(),mod_ruou_customers_total_orders:1,mod_ruou_customers_last_order_date:orderDate,mod_ruou_customers_note:''}); };
 
   const prevDay=()=>{const d=new Date(orderDate);d.setDate(d.getDate()-1);setOrderDate(d.toISOString().slice(0,10));};

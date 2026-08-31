@@ -134,7 +134,45 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
   const sortedOrders = useMemo(() => applySort(orders, getOrderValue), [orders, applySort]);
 
   const handleEdit = (record: DataRecord) => { setEditingRecord(record); setShowForm(true); };
-  const handleDelete = (id: string) => { if (confirm('Xóa đơn hàng này?')) deleteRecord(id); };
+
+  /** Trả lại kho theo values của đơn hàng (cộng qty vào stock). Chỉ gọi khi skip_inventory = 0. */
+  const returnStockForOrder = (orderValues: typeof orders[0] extends { record: DataRecord } ? DataRecord['values'] : Record<string, unknown>) => {
+    if (!data) return;
+    type Line = { sku: string; color: string; qty: number };
+    const lines: Line[] = [];
+    const plRaw = orderValues['mod_ruou_product_lines'];
+    if (plRaw && typeof plRaw === 'string' && plRaw.length > 2) {
+      try {
+        const parsed = JSON.parse(plRaw) as Array<{ productSku: string; color: string; quantity: string }>;
+        for (const l of parsed) {
+          const sku = l.productSku || ''; const qty = parseInt(l.quantity || '0') || 0;
+          if (sku && qty > 0) lines.push({ sku, color: l.color || '', qty });
+        }
+      } catch { /* ignore */ }
+    }
+    if (lines.length === 0) {
+      const sku = String(orderValues['mod_ruou_product_sku'] ?? '');
+      const qty = Number(orderValues['mod_ruou_quantity'] ?? 0);
+      const color = String(orderValues['mod_ruou_color'] ?? '');
+      if (sku && qty > 0) lines.push({ sku, color, qty });
+    }
+    for (const { sku, color, qty } of lines) {
+      const fs = color ? `${sku}-${color}` : sku;
+      const inv = data.records.find((r) => r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
+        (String(r.values['mod_ruou_inventory_sku'] ?? '') === fs || String(r.values['mod_ruou_inventory_sku'] ?? '') === sku));
+      if (inv) updateRecord(inv.id, { mod_ruou_inventory_stock: Number(inv.values['mod_ruou_inventory_stock'] ?? 0) + qty });
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    const order = data?.records.find((r) => r.id === id);
+    if (!order) return;
+    if (!confirm('Xóa đơn hàng này? Kho sẽ được khôi phục số lượng tương ứng.')) return;
+    // Trả kho nếu đơn không có cờ "Không trừ kho"
+    const skip = String(order.values['mod_ruou_skip_inventory'] ?? '') === '1' || order.values['mod_ruou_skip_inventory'] === true;
+    if (!skip) returnStockForOrder(order.values);
+    deleteRecord(id);
+  };
 
   const fmtMoney = (n: unknown) => { const num = Number(n ?? 0); return num ? num.toLocaleString('vi-VN') + '₫' : ''; };
 
