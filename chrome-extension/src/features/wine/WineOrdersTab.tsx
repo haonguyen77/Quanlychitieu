@@ -198,13 +198,49 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
     const order = data?.records.find((r) => r.id === id);
     if (!order) return;
     if (!confirm('Xóa đơn hàng này?')) return;
-    // Xóa đơn trước
-    deleteRecord(id);
-    // Sau đó trả kho (đọc state mới nhất từ store để tránh race condition)
+    // Trả kho trước — dùng store.getState() trực tiếp để không phụ thuộc closure
     const skip = String(order.values['mod_ruou_skip_inventory'] ?? '') === '1' || order.values['mod_ruou_skip_inventory'] === true;
     if (!skip) {
-      setTimeout(() => returnStockForOrder(order.values), 0);
+      const currentData = useAppStore.getState().data;
+      const storeUpdate = useRecordStore.getState().updateRecord;
+      if (currentData) {
+        const palette = (currentData as Record<string, unknown>).wineColorPalette as Array<{ code: string; label: string }> | undefined ?? [];
+        type Line = { sku: string; color: string; qty: number };
+        const lines: Line[] = [];
+        const plRaw = order.values['mod_ruou_product_lines'];
+        if (plRaw && typeof plRaw === 'string' && plRaw.length > 2) {
+          try {
+            const parsed = JSON.parse(plRaw) as Array<{ productSku: string; color: string; quantity: string }>;
+            for (const l of parsed) {
+              const sku = l.productSku || ''; const qty = parseInt(l.quantity || '0') || 0;
+              if (sku && qty > 0) lines.push({ sku, color: l.color || '', qty });
+            }
+          } catch { /* ignore */ }
+        }
+        if (lines.length === 0) {
+          const sku = String(order.values['mod_ruou_product_sku'] ?? '');
+          const qty = Number(order.values['mod_ruou_quantity'] ?? 0);
+          const color = String(order.values['mod_ruou_color'] ?? '');
+          if (sku && qty > 0) lines.push({ sku, color, qty });
+        }
+        for (const { sku, color, qty } of lines) {
+          const colorCode = color ? (palette.find((c) => c.label === color)?.code ?? color).toUpperCase() : '';
+          const candidates = [colorCode ? `${sku}-${colorCode}` : '', color ? `${sku}-${color}` : '', sku].filter(Boolean);
+          for (const candidate of candidates) {
+            const inv = currentData.records.find((r) =>
+              r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
+              String(r.values['mod_ruou_inventory_sku'] ?? '') === candidate
+            );
+            if (inv) {
+              storeUpdate(inv.id, { mod_ruou_inventory_stock: Number(inv.values['mod_ruou_inventory_stock'] ?? 0) + qty });
+              break;
+            }
+          }
+        }
+      }
     }
+    // Xóa đơn sau khi đã trả kho
+    deleteRecord(id);
   };
 
   const fmtMoney = (n: unknown) => { const num = Number(n ?? 0); return num ? num.toLocaleString('vi-VN') + '₫' : ''; };
