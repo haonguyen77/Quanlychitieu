@@ -146,8 +146,24 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
   const handleEdit = (record: DataRecord) => { setEditingRecord(record); setShowForm(true); };
 
   /** Trả lại kho theo values của đơn hàng (cộng qty vào stock). Chỉ gọi khi skip_inventory = 0. */
-  const returnStockForOrder = (orderValues: typeof orders[0] extends { record: DataRecord } ? DataRecord['values'] : Record<string, unknown>) => {
+  const returnStockForOrder = (orderValues: Record<string, unknown>) => {
     if (!data) return;
+    // Lấy palette để map color label → code (giống WineOrderForm.resolveInvRecord)
+    const palette = data.wineColorPalette as Array<{ code: string; label: string }> | undefined ?? [];
+    const resolveInv = (sku: string, color: string) => {
+      const colorCode = color
+        ? (palette.find((c) => c.label === color)?.code ?? color).toUpperCase()
+        : '';
+      const candidates = [
+        colorCode ? `${sku}-${colorCode}` : '',
+        color     ? `${sku}-${color}`    : '',
+        sku,
+      ].filter(Boolean);
+      return data.records.find((r) =>
+        r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
+        candidates.includes(String(r.values['mod_ruou_inventory_sku'] ?? ''))
+      );
+    };
     type Line = { sku: string; color: string; qty: number };
     const lines: Line[] = [];
     const plRaw = orderValues['mod_ruou_product_lines'];
@@ -167,9 +183,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
       if (sku && qty > 0) lines.push({ sku, color, qty });
     }
     for (const { sku, color, qty } of lines) {
-      const fs = color ? `${sku}-${color}` : sku;
-      const inv = data.records.find((r) => r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
-        (String(r.values['mod_ruou_inventory_sku'] ?? '') === fs || String(r.values['mod_ruou_inventory_sku'] ?? '') === sku));
+      const inv = resolveInv(sku, color);
       if (inv) updateRecord(inv.id, { mod_ruou_inventory_stock: Number(inv.values['mod_ruou_inventory_stock'] ?? 0) + qty });
     }
   };

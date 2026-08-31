@@ -144,7 +144,32 @@ export function WineOrderForm({ record, onClose }: Props) {
     onClose();
   };
   // Allow negative stock (sell 10 when 0 in stock → -10) per requirement.
-  const deductStock = (sku:string,color:string,qty:number) => { if(!data||!sku||!qty)return; const fs=color?`${sku}-${color}`:sku; const inv=data.records.find((r)=>r.moduleId==='mod_ruou_inventory'&&!r.isDeleted&&(String(r.values['mod_ruou_inventory_sku']??'')===fs||String(r.values['mod_ruou_inventory_sku']??'')===sku)); if(inv)updateRecord(inv.id,{mod_ruou_inventory_stock:Number(inv.values['mod_ruou_inventory_stock']??0)-qty}); };
+  // Helper: resolve inventory SKU — kho lưu dạng "SKU-CODE" (e.g. "3B650-DEN"),
+  // đơn hàng lưu color là label (e.g. "Đen"). Map label→code qua wineColorPalette
+  // để tìm đúng record inventory.
+  const resolveInvRecord = (sku: string, color: string) => {
+    if (!data || !sku) return undefined;
+    // Map color label → code (e.g. "Đen" → "DEN")
+    const palette = COLOR_CODES; // already memoized
+    const colorCode = color
+      ? (palette.find((c) => c.label === color)?.code ?? color).toUpperCase()
+      : '';
+    const candidates = [
+      colorCode ? `${sku}-${colorCode}` : '',   // "3B650-DEN"  ← most likely
+      color     ? `${sku}-${color}`    : '',    // "3B650-Đen"  ← fallback label
+      sku,                                       // "3B650"      ← no-color fallback
+    ].filter(Boolean);
+    return data.records.find((r) =>
+      r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
+      candidates.includes(String(r.values['mod_ruou_inventory_sku'] ?? ''))
+    );
+  };
+
+  const deductStock = (sku: string, color: string, qty: number) => {
+    if (!data || !sku || !qty) return;
+    const inv = resolveInvRecord(sku, color);
+    if (inv) updateRecord(inv.id, { mod_ruou_inventory_stock: Number(inv.values['mod_ruou_inventory_stock'] ?? 0) - qty });
+  };
 
   /** Trả lại kho theo values của đơn hàng cũ (cộng qty vào stock). */
   const returnStockFromOrder = (orderValues: RecordValues) => {
@@ -170,9 +195,7 @@ export function WineOrderForm({ record, onClose }: Props) {
       if (sku && qty > 0) lines.push({ sku, color, qty });
     }
     for (const { sku, color, qty } of lines) {
-      const fs = color ? `${sku}-${color}` : sku;
-      const inv = data.records.find((r) => r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
-        (String(r.values['mod_ruou_inventory_sku'] ?? '') === fs || String(r.values['mod_ruou_inventory_sku'] ?? '') === sku));
+      const inv = resolveInvRecord(sku, color);
       if (inv) updateRecord(inv.id, { mod_ruou_inventory_stock: Number(inv.values['mod_ruou_inventory_stock'] ?? 0) + qty });
     }
   };
