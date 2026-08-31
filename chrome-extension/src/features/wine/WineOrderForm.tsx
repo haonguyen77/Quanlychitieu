@@ -154,15 +154,21 @@ export function WineOrderForm({ record, onClose }: Props) {
     const colorCode = color
       ? (palette.find((c) => c.label === color)?.code ?? color).toUpperCase()
       : '';
+    // Tìm theo thứ tự ưu tiên — dừng ngay khi tìm thấy để tránh trừ nhầm
+    // record không màu khi có record theo màu tồn tại.
     const candidates = [
-      colorCode ? `${sku}-${colorCode}` : '',   // "3B650-DEN"  ← most likely
-      color     ? `${sku}-${color}`    : '',    // "3B650-Đen"  ← fallback label
-      sku,                                       // "3B650"      ← no-color fallback
+      colorCode ? `${sku}-${colorCode}` : '',  // "3B650-DEN"  ← ưu tiên 1
+      color     ? `${sku}-${color}`    : '',   // "3B650-Đen"  ← ưu tiên 2
+      sku,                                      // "3B650"      ← chỉ khi không có màu
     ].filter(Boolean);
-    return data.records.find((r) =>
-      r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
-      candidates.includes(String(r.values['mod_ruou_inventory_sku'] ?? ''))
-    );
+    for (const candidate of candidates) {
+      const found = data.records.find((r) =>
+        r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
+        String(r.values['mod_ruou_inventory_sku'] ?? '') === candidate
+      );
+      if (found) return found;
+    }
+    return undefined;
   };
 
   const deductStock = (sku: string, color: string, qty: number) => {

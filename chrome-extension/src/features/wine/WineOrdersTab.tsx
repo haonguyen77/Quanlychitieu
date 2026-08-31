@@ -159,10 +159,15 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
         color     ? `${sku}-${color}`    : '',
         sku,
       ].filter(Boolean);
-      return data.records.find((r) =>
-        r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
-        candidates.includes(String(r.values['mod_ruou_inventory_sku'] ?? ''))
-      );
+      // Tìm theo thứ tự ưu tiên để tránh trừ nhầm record không màu
+      for (const candidate of candidates) {
+        const found = data.records.find((r) =>
+          r.moduleId === 'mod_ruou_inventory' && !r.isDeleted &&
+          String(r.values['mod_ruou_inventory_sku'] ?? '') === candidate
+        );
+        if (found) return found;
+      }
+      return undefined;
     };
     type Line = { sku: string; color: string; qty: number };
     const lines: Line[] = [];
