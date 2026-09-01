@@ -38,14 +38,33 @@ export function ExpenseMobile({ initialCategoryId, initialPeriod }: { initialCat
   const [categoryFilter] = useState<string | null>(initialCategoryId ?? null);
 
   // Date range calculation (Android: _startDate, _endDate)
+  // IMPORTANT: dùng local date format thay vì toISOString() (UTC) để tránh lệch ngày
+  // ở múi giờ UTC+7 (VD: 01/09/2026 00:00 local = 31/08/2026 17:00 UTC).
   const { startDate, endDate } = useMemo(() => {
     const ref = refDate;
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const fmtLocal = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    };
     switch (period) {
-      case 'week': { const day = ref.getDay(); const diff = day === 0 ? -6 : 1 - day; const s = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + diff); const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6); return { startDate: fmt(s), endDate: fmt(e) }; }
-      case 'month': { const s = new Date(ref.getFullYear(), ref.getMonth(), 1); const e = new Date(ref.getFullYear(), ref.getMonth() + 1, 0); return { startDate: fmt(s), endDate: fmt(e) }; }
-      case 'year': return { startDate: `${ref.getFullYear()}-01-01`, endDate: `${ref.getFullYear()}-12-31` };
-      default: return { startDate: '2020-01-01', endDate: '2099-12-31' };
+      case 'week': {
+        const day = ref.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        const s = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + diff);
+        const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6);
+        return { startDate: fmtLocal(s), endDate: fmtLocal(e) };
+      }
+      case 'month': {
+        const s = new Date(ref.getFullYear(), ref.getMonth(), 1);
+        const e = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+        return { startDate: fmtLocal(s), endDate: fmtLocal(e) };
+      }
+      case 'year':
+        return { startDate: `${ref.getFullYear()}-01-01`, endDate: `${ref.getFullYear()}-12-31` };
+      default:
+        return { startDate: '2020-01-01', endDate: '2099-12-31' };
     }
   }, [period, refDate]);
 
@@ -75,7 +94,15 @@ export function ExpenseMobile({ initialCategoryId, initialPeriod }: { initialCat
         account: getRecordField(r, 'account'),
         categoryId: r.categoryId || '',
       }))
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => {
+        // Primary: date descending
+        const dateCmp = b.date.localeCompare(a.date);
+        if (dateCmp !== 0) return dateCmp;
+        // Tiebreaker: updatedAt/createdAt descending — giao dịch mới nhập nằm trên
+        const timeA = a.record.updatedAt || a.record.createdAt || '';
+        const timeB = b.record.updatedAt || b.record.createdAt || '';
+        return timeB.localeCompare(timeA);
+      });
   }, [data, startDate, endDate]);
 
   // Search filter (Android: _displayedTransactions) — base for the summary cards.
@@ -109,7 +136,15 @@ export function ExpenseMobile({ initialCategoryId, initialPeriod }: { initialCat
     return n.toLocaleString('vi-VN');
   };
   const fmtMoney = (n: number) => n.toLocaleString('vi-VN');
-  const navigate = (dir: number) => { const d = new Date(refDate); if (period === 'week') d.setDate(d.getDate() + 7 * dir); else if (period === 'month') d.setMonth(d.getMonth() + dir); else if (period === 'year') d.setFullYear(d.getFullYear() + dir); setRefDate(d); };
+  const navigate = (dir: number) => {
+    if (period === 'week') { const d = new Date(refDate); d.setDate(d.getDate() + 7 * dir); setRefDate(d); }
+    else if (period === 'month') {
+      // Luôn set ngày = 1 trước khi đổi tháng để tránh overflow (VD: 31/08 + 1 tháng = 01/10 thay vì 01/09)
+      const d = new Date(refDate.getFullYear(), refDate.getMonth() + dir, 1);
+      setRefDate(d);
+    }
+    else if (period === 'year') { const d = new Date(refDate); d.setFullYear(d.getFullYear() + dir); setRefDate(d); }
+  };
 
   // Day label (Android: "Hôm nay, dd/MM/yyyy")
   const fmtDayLabel = (dateStr: string) => {
