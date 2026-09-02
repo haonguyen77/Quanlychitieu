@@ -8,6 +8,14 @@ import { WineReportsTab } from './WineReportsTab';
 
 type WineTab = 'orders' | 'products' | 'customers' | 'inventory' | 'reports';
 
+const TAB_COLORS: Record<WineTab, string> = {
+  orders:    '#f05423',
+  customers: '#0ea5e9',
+  products:  '#a855f7',
+  inventory: '#22c55e',
+  reports:   '#6366f1',
+};
+
 const tabs: { id: WineTab; label: string; icon: string }[] = [
   { id: 'orders', label: 'Đơn hàng', icon: 'file-text' },
   { id: 'products', label: 'Sản phẩm', icon: 'wine' },
@@ -79,11 +87,12 @@ export function WineModuleView() {
             onClick={() => { setActiveTab(tab.id); clearFilters(); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? 'bg-purple-600 text-white'
+                ? 'text-white shadow-sm'
                 : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)]'
             }`}
+            style={activeTab === tab.id ? { backgroundColor: TAB_COLORS[tab.id] } : undefined}
           >
-            <Icon name={tab.icon} size={13} />
+            <Icon name={tab.icon} size={13} color={activeTab === tab.id ? '#ffffff' : TAB_COLORS[tab.id]} />
             {tab.label}
           </button>
         ))}
