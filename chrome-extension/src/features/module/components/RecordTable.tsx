@@ -209,7 +209,7 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
     if (isChiTieu) {
       const modColConfig = module.tableConfig?.columns?.find((c) => c.fieldId === '__module');
       const modSortOrder = modColConfig?.sortOrder ?? 901;
-      const modField = { id: '__module', moduleId: module.id, fieldName: '__module', fieldLabel: 'Module', fieldType: 'virtual' as const, sortOrder: modSortOrder, isRequired: false, isVisible: true, isTableVisible: true, createdAt: '', updatedAt: '' } as unknown as FieldDefinition;
+      const modField = { id: '__module', moduleId: module.id, fieldName: '__module', fieldLabel: 'Sự kiện', fieldType: 'virtual' as const, sortOrder: modSortOrder, isRequired: false, isVisible: true, isTableVisible: true, createdAt: '', updatedAt: '' } as unknown as FieldDefinition;
       cols.push(modField);
     }
     return cols.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -312,6 +312,34 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
       return true;
     });
   }, [sortedRecords, columnFilters, activeFilterCount, module.fields]);
+
+  // Pre-compute distinct values per text-type column from ALL (unfiltered) records,
+  // ordered newest-first so the most recently entered values appear at the top.
+  const columnSuggestions = useMemo((): Map<string, string[]> => {
+    const map = new Map<string, string[]>();
+    const textFields = module.fields.filter(
+      (f) => f.fieldType === 'text' || f.fieldType === 'textarea' || f.fieldType === 'number'
+    );
+    if (textFields.length === 0) return map;
+    for (const field of textFields) {
+      const seen = new Set<string>();
+      const values: string[] = [];
+      for (const rec of records) {
+        let raw = rec.values[field.id];
+        if (raw === undefined) {
+          const k = Object.keys(rec.values).find((x) => x.endsWith('_' + field.fieldName));
+          if (k) raw = rec.values[k];
+        }
+        const str = String(raw ?? '').trim();
+        if (str && !seen.has(str)) {
+          seen.add(str);
+          values.push(str);
+        }
+      }
+      if (values.length > 0) map.set(field.id, values);
+    }
+    return map;
+  }, [records, module.fields]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -532,6 +560,11 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
                     <ColumnFilter
                       type={field.fieldType === 'date' ? 'dateRange' : (field.fieldType === 'dropdown' ? 'select' : 'text')}
                       options={field.options?.filter((o) => o.isActive).map((o) => ({ value: o.value, label: o.label, color: o.color }))}
+                      suggestions={
+                        field.fieldType !== 'date' && field.fieldType !== 'dropdown'
+                          ? columnSuggestions.get(field.id)
+                          : undefined
+                      }
                       value={columnFilters[field.id] || null}
                       onChange={(f) => setColumnFilter(field.id, f)}
                     />

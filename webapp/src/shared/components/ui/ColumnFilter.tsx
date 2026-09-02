@@ -132,7 +132,7 @@ export function ColumnFilter({ type, options, suggestions, value, onChange }: Co
                         onChange({ type: 'text', value: s });
                         setOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                      className={`block w-full text-left px-3 py-1.5 text-xs transition-colors ${
                         localValue === s
                           ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                           : 'hover:bg-[var(--color-surface)] text-[var(--color-text)]'
@@ -170,7 +170,7 @@ export function ColumnFilter({ type, options, suggestions, value, onChange }: Co
 
           {/* ── SELECT FILTER ── */}
           {type === 'select' && options && (
-            <div className="p-2 max-h-48 overflow-y-auto space-y-0.5">
+            <div className="p-2 max-h-48 overflow-y-auto flex flex-col gap-0.5">
               {options.map((opt) => (
                 <button
                   key={opt.value}
@@ -184,7 +184,7 @@ export function ColumnFilter({ type, options, suggestions, value, onChange }: Co
                     }
                     setOpen(false);
                   }}
-                  className={`w-full text-left px-2 py-1.5 text-xs rounded-md transition-colors ${localValue === opt.value ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'hover:bg-[var(--color-surface)] text-[var(--color-text)]'}`}
+                  className={`block w-full text-left px-2 py-1.5 text-xs rounded-md transition-colors ${localValue === opt.value ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'hover:bg-[var(--color-surface)] text-[var(--color-text)]'}`}
                 >
                   {opt.color && <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: opt.color }} />}
                   {opt.label}
