@@ -5,6 +5,7 @@ import { Icon } from '@/shared/components/ui/Icon';
 import { useTableZoom, ZoomControls } from '@/shared/components/ui/TableZoom';
 import { useTableSortFilter, ColumnHeader } from '@/shared/components/ui/ColumnHeader';
 import { WineOrderForm } from './WineOrderForm';
+import { getWineColorPalette } from './wineColors';
 import type { DataRecord } from '@/types';
 
 interface WineOrdersTabProps {
@@ -17,6 +18,15 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
   const { data } = useAppStore();
   const { datePreset, dateFrom, dateTo, setDatePresetForModule, setDateRange } = useRecordStore();
   const deleteRecord = useRecordStore((s) => s.deleteRecord);
+
+  // Map color code → label for display (e.g. "TRANG" → "Trắng")
+  const colorPalette = useMemo(() => getWineColorPalette(data), [data]);
+  const resolveColorLabel = (code: string): string => {
+    if (!code) return '';
+    const found = colorPalette.find((c) => c.code.toUpperCase() === code.toUpperCase());
+    // If found in palette by code → return label; otherwise return as-is (might already be label)
+    return found ? found.label : code;
+  };
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DataRecord | null>(null);
   const [search, setSearch] = useState('');
@@ -349,7 +359,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
                     {lines.map((l, i) => (<div key={i} className="truncate" title={l.name}>{l.name}</div>))}
                   </td>
                   <td className="px-2 py-1.5 text-[var(--color-text-secondary)]">
-                    {lines.map((l, i) => (<div key={i}>{l.color}</div>))}
+                    {lines.map((l, i) => (<div key={i}>{resolveColorLabel(l.color)}</div>))}
                   </td>
                   <td className="px-2 py-1.5 text-center text-[var(--color-text-secondary)]">
                     {lines.map((l, i) => (<div key={i}>{Number(l.glasses) || ''}</div>))}
