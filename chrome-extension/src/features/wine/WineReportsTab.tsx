@@ -123,32 +123,71 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
   const ordersDiff = stats.totalOrders - prevMonthStats.orders;
   const productsDiff = stats.totalProducts - prevMonthStats.products;
 
-  // Chart data
+  // Chart data — tôn trọng toàn bộ khoảng dateFrom→dateTo từ filter
   const chartData = useMemo(() => {
     const bars: { label: string; revenue: number; orders: number }[] = [];
-    if (chartMode === 'day') {
-      for (let d = 1; d <= lastDay; d++) {
-        const ds = `${refYear}-${String(refMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const dayOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '') === ds);
-        bars.push({ label: `${String(d).padStart(2, '0')}/${String(refMonth).padStart(2, '0')}`, revenue: dayOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: dayOrders.length });
-      }
-    } else if (chartMode === 'week') {
-      for (let w = 0; w < 5; w++) {
-        const start = w * 7 + 1; const end = Math.min((w + 1) * 7, lastDay);
-        if (start > lastDay) break;
-        const weekOrders = periodOrders.filter((r) => { const d = Number(String(r.values['mod_ruou_order_date'] ?? '').slice(8, 10)); return d >= start && d <= end; });
-        bars.push({ label: `${start}-${end}`, revenue: weekOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: weekOrders.length });
-      }
-    } else {
-      if (!data) return bars;
+    if (!dateFrom && datePreset === 'all') {
+      // Tất cả: hiện theo tháng của năm hiện tại
       for (let m = 1; m <= 12; m++) {
         const prefix = `${refYear}-${String(m).padStart(2, '0')}`;
-        const mOrders = data.records.filter((r) => r.moduleId === 'mod_ruou' && !r.isDeleted && String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
+        const mOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
         bars.push({ label: `T${m}`, revenue: mOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: mOrders.length });
+      }
+      return bars;
+    }
+
+    const start = new Date((dateFrom || `${refYear}-01-01`) + 'T00:00:00');
+    const end = new Date((dateTo || `${refYear}-12-31`) + 'T00:00:00');
+    const diffDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+
+    if (chartMode === 'day') {
+      // Theo ngày — nếu khoảng > 62 ngày thì tự động chuyển sang theo tháng
+      const maxDays = 62;
+      if (diffDays <= maxDays) {
+        for (let i = 0; i < diffDays; i++) {
+          const d = new Date(start); d.setDate(start.getDate() + i);
+          const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const dayOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '') === ds);
+          bars.push({ label: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`, revenue: dayOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: dayOrders.length });
+        }
+      } else {
+        // Khoảng quá dài → hiện theo tháng
+        const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+        const endM = new Date(end.getFullYear(), end.getMonth(), 1);
+        while (cur <= endM) {
+          const prefix = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+          const mOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
+          bars.push({ label: `T${cur.getMonth() + 1}/${cur.getFullYear().toString().slice(2)}`, revenue: mOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: mOrders.length });
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      }
+    } else if (chartMode === 'week') {
+      // Theo tuần — group theo ISO week
+      let weekStart = new Date(start);
+      let weekIdx = 1;
+      while (weekStart <= end) {
+        const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+        if (weekEnd > end) weekEnd.setTime(end.getTime());
+        const ws = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+        const we = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
+        const wOrders = periodOrders.filter((r) => { const d = String(r.values['mod_ruou_order_date'] ?? ''); return d >= ws && d <= we; });
+        bars.push({ label: `T${weekIdx}`, revenue: wOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: wOrders.length });
+        weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() + 1);
+        weekIdx++;
+      }
+    } else {
+      // Theo tháng — loop các tháng trong khoảng
+      const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+      const endM = new Date(end.getFullYear(), end.getMonth(), 1);
+      while (cur <= endM) {
+        const prefix = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+        const mOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
+        bars.push({ label: `T${cur.getMonth() + 1}/${cur.getFullYear().toString().slice(2)}`, revenue: mOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: mOrders.length });
+        cur.setMonth(cur.getMonth() + 1);
       }
     }
     return bars;
-  }, [data, periodOrders, chartMode, refMonth, refYear, lastDay]);
+  }, [data, periodOrders, chartMode, dateFrom, dateTo, datePreset, refYear]);
 
   const maxChartRevenue = Math.max(...chartData.map((b) => b.revenue), 1);
 
