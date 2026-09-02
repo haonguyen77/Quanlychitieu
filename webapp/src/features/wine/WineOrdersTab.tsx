@@ -136,8 +136,8 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
       {/* Table - expanded widens columns, compact fits window */}
       <div className="flex-1 overflow-auto">
         <table className={`${fontClass} ${expanded ? 'w-max min-w-full' : 'w-full'}`}>
-          <thead className="sticky top-0 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
-            <tr className="text-left text-[var(--color-text-secondary)] whitespace-nowrap">
+          <thead className="sticky top-0 text-white" style={{ backgroundColor: '#f05423' }}>
+            <tr className="text-left whitespace-nowrap">
               <ColumnHeader column="date" label="Ngày" className="px-2 py-2 w-[72px]" sort={sort} filterValue={filters['date']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="customer" label="Khách" className="px-2 py-2 w-[90px]" sort={sort} filterValue={filters['customer']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="phone" label="SĐT" className="px-2 py-2 w-[85px]" sort={sort} filterValue={filters['phone']} onSort={toggleSort} onFilter={setFilter} />

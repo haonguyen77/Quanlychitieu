@@ -156,8 +156,8 @@ export function WineInventoryTab() {
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className={`w-full ${fontClass}`}>
-          <thead className="sticky top-0 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
-            <tr className="text-left text-[var(--color-text-secondary)]">
+          <thead className="sticky top-0 text-white" style={{ backgroundColor: '#22c55e' }}>
+            <tr className="text-left">
               <ColumnHeader column="sku" label="SKU" className="px-2 py-2 w-[70px]" sort={sort} filterValue={colFilters['sku']} onSort={toggleSort} onFilter={setColFilter} />
               <ColumnHeader column="name" label="Tên sản phẩm" className="px-2 py-2 w-[200px]" sort={sort} filterValue={colFilters['name']} onSort={toggleSort} onFilter={setColFilter} />
               <ColumnHeader column="wineType" label="Loại rượu" className="px-2 py-2 w-[65px]" sort={sort} filterValue={colFilters['wineType']} onSort={toggleSort} onFilter={setColFilter} />

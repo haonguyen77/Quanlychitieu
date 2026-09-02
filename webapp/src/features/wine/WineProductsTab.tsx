@@ -107,8 +107,8 @@ export function WineProductsTab() {
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className={`w-full ${fontClass}`}>
-          <thead className="sticky top-0 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
-            <tr className="text-left text-[var(--color-text-secondary)]">
+          <thead className="sticky top-0 text-white" style={{ backgroundColor: '#a855f7' }}>
+            <tr className="text-left">
               <ColumnHeader column="sku" label="SKU" className="px-3 py-2 w-[75px]" sort={sort} filterValue={filters['sku']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="name" label="Tên đầy đủ" className="px-3 py-2 w-[220px]" sort={sort} filterValue={filters['name']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="shortName" label="Tên ngắn" className="px-3 py-2 w-[100px]" sort={sort} filterValue={filters['shortName']} onSort={toggleSort} onFilter={setFilter} />

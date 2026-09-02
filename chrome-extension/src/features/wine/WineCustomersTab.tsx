@@ -77,8 +77,8 @@ export function WineCustomersTab({ onCustomerClick }: Props) {
 
       <div className="flex-1 overflow-auto">
         <table className={`w-full ${fontClass}`}>
-          <thead className="sticky top-0 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
-            <tr className="text-left text-[var(--color-text-secondary)]">
+          <thead className="sticky top-0 text-white" style={{ backgroundColor: '#0ea5e9' }}>
+            <tr className="text-left">
               <ColumnHeader column="name" label="Họ tên" className="px-3 py-2 w-[120px]" sort={sort} filterValue={filters['name']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="phone" label="SĐT" className="px-3 py-2 w-[100px]" sort={sort} filterValue={filters['phone']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="address" label="Địa chỉ" className="px-3 py-2 w-[180px]" sort={sort} filterValue={filters['address']} onSort={toggleSort} onFilter={setFilter} />
