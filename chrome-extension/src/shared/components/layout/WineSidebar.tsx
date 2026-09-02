@@ -14,6 +14,17 @@ const WINE_ICON_COLORS: Record<string, string> = {
   'trash':            '#ef4444',   // đỏ thùng rác
 };
 
+// Màu active (background) cho từng tab — mỗi tab 1 màu riêng
+const WINE_ACTIVE_COLORS: Record<string, string> = {
+  'layout-dashboard': '#6366f1',
+  'file-text':        '#f05423',
+  'users':            '#0ea5e9',
+  'wine':             '#a855f7',
+  'building':         '#22c55e',
+  'settings':         '#64748b',
+  'trash':            '#ef4444',
+};
+
 const wineMenuItems: { id: WineView; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { id: 'orders', label: 'Đơn hàng', icon: 'file-text' },
@@ -48,15 +59,17 @@ export function WineSidebar() {
         {wineMenuItems.map((item) => {
           const isActive = activeWineView === item.id;
           const iconColor = isActive ? '#ffffff' : (WINE_ICON_COLORS[item.icon] ?? undefined);
+          const activeColor = WINE_ACTIVE_COLORS[item.icon];
           return (
           <button
             key={item.id}
             onClick={() => setActiveWineView(item.id)}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 ${
               isActive
-                ? 'bg-purple-600 text-white font-medium shadow-sm'
+                ? 'text-white font-medium shadow-sm'
                 : 'text-[var(--color-text-secondary)] hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-[var(--color-text)]'
             }`}
+            style={isActive ? { backgroundColor: activeColor } : undefined}
             title={item.label}
           >
             <Icon name={item.icon} size={18} color={iconColor} />
@@ -73,9 +86,10 @@ export function WineSidebar() {
           onClick={() => setActiveWineView('settings')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 ${
             activeWineView === 'settings'
-              ? 'bg-purple-600 text-white font-medium shadow-sm'
+              ? 'text-white font-medium shadow-sm'
               : 'text-[var(--color-text-secondary)] hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-[var(--color-text)]'
           }`}
+          style={activeWineView === 'settings' ? { backgroundColor: WINE_ACTIVE_COLORS['settings'] } : undefined}
           title="Cài đặt"
         >
           <Icon name="settings" size={18} color={activeWineView === 'settings' ? '#ffffff' : WINE_ICON_COLORS['settings']} />
@@ -87,9 +101,10 @@ export function WineSidebar() {
           onClick={() => setActiveWineView('trash')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 ${
             activeWineView === 'trash'
-              ? 'bg-purple-600 text-white font-medium shadow-sm'
+              ? 'text-white font-medium shadow-sm'
               : 'text-[var(--color-text-secondary)] hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-[var(--color-text)]'
           }`}
+          style={activeWineView === 'trash' ? { backgroundColor: WINE_ACTIVE_COLORS['trash'] } : undefined}
           title="Thùng rác"
         >
           <Icon name="trash" size={18} color={activeWineView === 'trash' ? '#ffffff' : WINE_ICON_COLORS['trash']} />
