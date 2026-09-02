@@ -358,7 +358,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
                   <td className="px-2 py-1.5 text-[var(--color-text)]">
                     {lines.map((l, i) => (<div key={i} className="truncate" title={l.name}>{l.name}</div>))}
                   </td>
-                  <td className="px-2 py-1.5 text-[var(--color-text-secondary)]">
+                  <td className="px-2 py-1.5 text-[var(--color-text-secondary)] whitespace-nowrap">
                     {lines.map((l, i) => (<div key={i}>{resolveColorLabel(l.color)}</div>))}
                   </td>
                   <td className="px-2 py-1.5 text-center text-[var(--color-text-secondary)]">
