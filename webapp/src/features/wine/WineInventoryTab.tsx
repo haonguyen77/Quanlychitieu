@@ -133,7 +133,7 @@ export function WineInventoryTab() {
 
       {/* Search + Filters - ALL ON 1 ROW, Màu first */}
       <div className="px-6 py-2 border-b border-[var(--color-border)] flex items-center gap-2">
-        <div className="relative flex-1 max-w-[180px]">
+        <div className="relative" style={{ minWidth: 0, width: 160, flexShrink: 0 }}>
           <Icon name="search" size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]" />
           <input type="text" placeholder="Tìm SP, SKU..." className="input-field pl-7 py-1 text-xs w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
