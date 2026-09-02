@@ -266,7 +266,6 @@ export function WineOrderImportDialog({ onClose }: Props) {
         if (!customerName) row.error = 'Thiếu tên khách hàng';
         else if (!productName) row.error = 'Thiếu tên sản phẩm';
         else if (qty <= 0) row.error = 'Số lượng phải > 0';
-        else if (price <= 0) row.error = 'Đơn giá phải > 0';
 
         parsed.push(row);
       }
@@ -278,34 +277,85 @@ export function WineOrderImportDialog({ onClose }: Props) {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  // ─── Import valid rows ────────────────────────────────────────────────────────
+  // ─── Import: gom rows cùng (orderDate + customerName + phone) thành 1 đơn ────
   const handleImport = () => {
     if (!data) return;
     setImporting(true);
     const validRows = rows.filter(r => !r.error);
-    let count = 0;
+
+    // Build ordered groups: key = orderDate|customerName|phone (or orderDate|customerName if no phone)
+    // Tách group nếu shipFee khác nhau (= 2 đơn riêng của cùng KH trong ngày)
+    const groupOrder: string[] = [];
+    const groupMap = new Map<string, ImportRow[]>();
+
     for (const row of validRows) {
-      const totalAmount = row.price * row.quantity + row.shipFee;
+      const phone = row.customerPhone.trim();
+      const baseKey = `${row.orderDate}|${row.customerName.trim()}|${phone}`;
+      // Check if current group's first row has same shipFee; if not, start a new group
+      const existing = groupMap.get(baseKey);
+      if (existing && existing[0].shipFee !== row.shipFee) {
+        // Different shipFee → new sub-group (append index to key)
+        let idx = 2;
+        let subKey = `${baseKey}|${idx}`;
+        while (groupMap.has(subKey) && groupMap.get(subKey)![0].shipFee !== row.shipFee) {
+          idx++;
+          subKey = `${baseKey}|${idx}`;
+        }
+        if (!groupMap.has(subKey)) {
+          groupMap.set(subKey, []);
+          groupOrder.push(subKey);
+        }
+        groupMap.get(subKey)!.push(row);
+      } else {
+        if (!groupMap.has(baseKey)) {
+          groupMap.set(baseKey, []);
+          groupOrder.push(baseKey);
+        }
+        groupMap.get(baseKey)!.push(row);
+      }
+    }
+
+    let count = 0;
+    for (const key of groupOrder) {
+      const group = groupMap.get(key)!;
+      const first = group[0];
+      const shipFee = first.shipFee;
+      const totalGoods = group.reduce((s, r) => s + r.price * r.quantity, 0);
+      const totalAmount = totalGoods + shipFee;
+
+      // product_lines JSON for multi-product orders
+      const productLines = group.length > 1
+        ? JSON.stringify(group.map(r => ({
+            productName: r.productName,
+            productSku: r.productSku,
+            quantity: String(r.quantity),
+            price: String(r.price),
+            color: r.color,
+            glasses: String(r.glasses),
+            boxes: String(r.boxes),
+          })))
+        : null;
+
       const values = {
-        mod_ruou_order_date: row.orderDate,
-        mod_ruou_customer_name: row.customerName,
-        mod_ruou_customer_phone: row.customerPhone,
-        mod_ruou_customer_address: row.customerAddress,
-        mod_ruou_customer_district: row.customerWard,
-        mod_ruou_customer_city: row.customerCity,
-        mod_ruou_product_name: row.productName,
-        mod_ruou_product_sku: row.productSku,
-        mod_ruou_color: row.color,
-        mod_ruou_quantity: row.quantity,
-        mod_ruou_price: row.price,
-        mod_ruou_glasses: row.glasses,
-        mod_ruou_boxes: row.boxes,
-        mod_ruou_ship_fee: row.shipFee,
+        mod_ruou_order_date: first.orderDate,
+        mod_ruou_customer_name: first.customerName,
+        mod_ruou_customer_phone: first.customerPhone,
+        mod_ruou_customer_address: first.customerAddress,
+        mod_ruou_customer_district: first.customerWard,
+        mod_ruou_customer_city: first.customerCity,
+        mod_ruou_product_name: first.productName,
+        mod_ruou_product_sku: first.productSku,
+        mod_ruou_color: first.color,
+        mod_ruou_quantity: first.quantity,
+        mod_ruou_price: first.price,
+        mod_ruou_glasses: first.glasses,
+        mod_ruou_boxes: first.boxes,
+        mod_ruou_ship_fee: shipFee,
         mod_ruou_total_amount: totalAmount,
-        mod_ruou_note1: row.note1,
-        mod_ruou_note2: row.note2,
-        mod_ruou_skip_inventory: 1, // import = không tự trừ kho
-        mod_ruou_product_lines: null,
+        mod_ruou_note1: first.note1,
+        mod_ruou_note2: first.note2,
+        mod_ruou_skip_inventory: 1,
+        mod_ruou_product_lines: productLines,
       };
       addRecord('mod_ruou', values);
       count++;
@@ -318,6 +368,45 @@ export function WineOrderImportDialog({ onClose }: Props) {
   const fmtMoney = (n: number) => n ? n.toLocaleString('vi-VN') + '₫' : '';
   const validCount = rows.filter(r => !r.error).length;
   const errorCount = rows.filter(r => r.error).length;
+
+  // Pre-compute group label per row for preview display
+  const rowGroupLabels = useMemo(() => {
+    const labels = new Map<number, string>();
+    const validRows = rows.filter(r => !r.error);
+    const groupOrder: string[] = [];
+    const groupMap = new Map<string, number[]>(); // key → rowNum[]
+    for (const row of validRows) {
+      const phone = row.customerPhone.trim();
+      const baseKey = `${row.orderDate}|${row.customerName.trim()}|${phone}`;
+      const existing = groupMap.get(baseKey);
+      if (existing) {
+        const firstRow = rows.find(r => r.rowNum === existing[0]);
+        if (firstRow && firstRow.shipFee !== row.shipFee) {
+          let idx = 2;
+          let subKey = `${baseKey}|${idx}`;
+          while (groupMap.has(subKey)) {
+            const sub = groupMap.get(subKey)!;
+            const subFirst = rows.find(r => r.rowNum === sub[0]);
+            if (subFirst && subFirst.shipFee === row.shipFee) break;
+            idx++;
+            subKey = `${baseKey}|${idx}`;
+          }
+          if (!groupMap.has(subKey)) { groupMap.set(subKey, []); groupOrder.push(subKey); }
+          groupMap.get(subKey)!.push(row.rowNum);
+        } else {
+          existing.push(row.rowNum);
+        }
+      } else {
+        groupMap.set(baseKey, [row.rowNum]);
+        groupOrder.push(baseKey);
+      }
+    }
+    groupOrder.forEach((key, i) => {
+      const rowNums = groupMap.get(key)!;
+      rowNums.forEach(rn => labels.set(rn, `Đơn ${i + 1} (${rowNums.length} SP)`));
+    });
+    return labels;
+  }, [rows]);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
@@ -362,6 +451,8 @@ export function WineOrderImportDialog({ onClose }: Props) {
             <span className="text-xs text-gray-500">
               {rows.length} dòng đọc được —{' '}
               <span className="text-green-600 font-medium">{validCount} hợp lệ</span>
+              {' → '}
+              <span className="text-blue-600 font-medium">{rowGroupLabels.size > 0 ? new Set(rowGroupLabels.values()).size : 0} đơn hàng</span>
               {errorCount > 0 && <span className="text-red-500 font-medium"> · {errorCount} lỗi</span>}
             </span>
           )}
@@ -373,7 +464,7 @@ export function WineOrderImportDialog({ onClose }: Props) {
               className="flex items-center gap-1.5 px-4 py-2 text-xs bg-[#f05423] text-white rounded-lg hover:bg-orange-600 font-medium disabled:opacity-50"
             >
               <Icon name="check" size={13} />
-              Import {validCount} đơn hàng
+              Import {new Set(rowGroupLabels.values()).size} đơn hàng
             </button>
           )}
         </div>
@@ -416,6 +507,7 @@ export function WineOrderImportDialog({ onClose }: Props) {
                   <th>Ship</th>
                   <th>GC1</th>
                   <th>GC2</th>
+                  <th>Nhóm đơn</th>
                   <th>Trạng thái</th>
                 </tr>
               </thead>
@@ -444,6 +536,12 @@ export function WineOrderImportDialog({ onClose }: Props) {
                     <td className="text-right tabular-nums">{fmtMoney(row.shipFee)}</td>
                     <td title={row.note1}>{row.note1}</td>
                     <td title={row.note2}>{row.note2}</td>
+                    <td>
+                      {row.error
+                        ? <span className="text-gray-400 italic text-[10px]">—</span>
+                        : <span className="text-blue-600 text-[10px] font-medium whitespace-nowrap">{rowGroupLabels.get(row.rowNum) ?? ''}</span>
+                      }
+                    </td>
                     <td>
                       {row.error
                         ? <span className="text-red-500 font-medium" title={row.error}>⚠ {row.error}</span>
