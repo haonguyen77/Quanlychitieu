@@ -209,7 +209,7 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
     if (isChiTieu) {
       const modColConfig = module.tableConfig?.columns?.find((c) => c.fieldId === '__module');
       const modSortOrder = modColConfig?.sortOrder ?? 901;
-      const modField = { id: '__module', moduleId: module.id, fieldName: '__module', fieldLabel: 'Sự kiện', fieldType: 'virtual' as const, sortOrder: modSortOrder, isRequired: false, isVisible: true, isTableVisible: true, createdAt: '', updatedAt: '' } as unknown as FieldDefinition;
+      const modField = { id: '__module', moduleId: module.id, fieldName: '__module', fieldLabel: 'Module', fieldType: 'virtual' as const, sortOrder: modSortOrder, isRequired: false, isVisible: true, isTableVisible: true, createdAt: '', updatedAt: '' } as unknown as FieldDefinition;
       cols.push(modField);
     }
     return cols.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -217,7 +217,7 @@ export function RecordTable({ module, records, onEdit, selectedIds, onSelectionC
 
   // Compact mode: only show key columns (Thu gọn)
   // Use tableConfig.columns[].isCompactVisible if available, otherwise fallback to hardcoded list
-  const compactFieldNames = ['date', 'title', 'order_name', 'amount', 'total_amount', 'type', 'account', '__category', '__module'];
+  const compactFieldNames = ['date', 'title', 'order_name', 'amount', 'total_amount', 'type', 'account', '__category', 'tags', '__module'];
   let displayColumns = compactMode
     ? (() => {
         // Check if any column has isCompactVisible configured
