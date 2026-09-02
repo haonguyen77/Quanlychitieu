@@ -122,7 +122,7 @@ export function ColumnFilter({ type, options, suggestions, value, onChange }: Co
 
               {/* Suggestion list */}
               {hasSuggestions && (
-                <div className="max-h-48 overflow-y-auto">
+                <div className="max-h-48 overflow-y-auto flex flex-col">
                   {filteredSuggestions.map((s, i) => (
                     <button
                       key={i}
