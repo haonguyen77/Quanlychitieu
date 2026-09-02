@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
+import { useRecordStore, type DatePreset } from '@/core/store/recordStore';
 import { Icon } from '@/shared/components/ui/Icon';
 
 interface Props {
@@ -9,28 +10,61 @@ interface Props {
 
 type ChartMode = 'day' | 'week' | 'month';
 
+const PRESET_LABELS: Record<DatePreset, string> = {
+  week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả', custom: 'Tùy chọn',
+};
+
+const MODULE_ID = 'mod_ruou';
+
 export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
   const { data } = useAppStore();
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const { datePreset, dateFrom, dateTo, setDatePresetForModule, setDateRange } = useRecordStore();
   const [chartMode, setChartMode] = useState<ChartMode>('day');
+
+  // Default to 'year' when first shown.
+  useEffect(() => {
+    setDatePresetForModule('year', MODULE_ID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Period navigation arrows — same logic as ChiTieuHeader.
+  const movePeriod = (direction: -1 | 1) => {
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (datePreset === 'week') {
+      const ref = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
+      ref.setDate(ref.getDate() + direction * 7);
+      const dow = ref.getDay(); const diffToMon = dow === 0 ? -6 : 1 - dow;
+      const mon = new Date(ref); mon.setDate(ref.getDate() + diffToMon);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      setDateRange(fmt(mon), fmt(sun));
+    } else if (datePreset === 'month') {
+      const ref = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
+      const first = new Date(ref.getFullYear(), ref.getMonth() + direction, 1);
+      const last = new Date(ref.getFullYear(), ref.getMonth() + direction + 1, 0);
+      setDateRange(fmt(first), fmt(last));
+    } else if (datePreset === 'year') {
+      const ref = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
+      const y = ref.getFullYear() + direction;
+      setDateRange(`${y}-01-01`, `${y}-12-31`);
+    } else if (datePreset === 'custom' && dateFrom && dateTo) {
+      const from = new Date(dateFrom + 'T00:00:00'); const to = new Date(dateTo + 'T00:00:00');
+      const days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+      from.setDate(from.getDate() + direction * days); to.setDate(to.getDate() + direction * days);
+      setDateRange(fmt(from), fmt(to));
+    }
+  };
 
   const lowThreshold = data?.settings?.wineSettings?.lowStockThreshold ?? 4;
 
-  // Date range for selected month
-  const dateFrom = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
-  const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
-  const dateTo = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  const dateRangeLabel = `${String(1).padStart(2, '0')}/${String(selectedMonth).padStart(2, '0')}/${selectedYear} - ${String(lastDay).padStart(2, '0')}/${String(selectedMonth).padStart(2, '0')}/${selectedYear}`;
-
-  // Orders for selected period
+  // Orders for selected period (uses store dateFrom/dateTo)
   const periodOrders = useMemo(() => {
     if (!data) return [];
     return data.records.filter((r) => {
       if (r.moduleId !== 'mod_ruou' || r.isDeleted) return false;
       const d = String(r.values['mod_ruou_order_date'] ?? '');
-      return d >= dateFrom && d <= dateTo;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
     });
   }, [data, dateFrom, dateTo]);
 
@@ -51,65 +85,107 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
     }
     const topProducts = Array.from(productMap.entries()).map(([name, { qty, sku }]) => ({ name, qty, sku })).sort((a, b) => b.qty - a.qty).slice(0, 8);
     const topCustomers = Array.from(customerMap.entries()).map(([name, revenue]) => ({ name, revenue })).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-    // Estimated profit (rough: 30% margin)
     const estimatedProfit = Math.round(totalRevenue * 0.3);
     return { totalOrders: periodOrders.length, totalRevenue, totalProducts, estimatedProfit, topProducts, topCustomers };
   }, [periodOrders]);
 
-  // Previous month for comparison
+  // Previous period for comparison (based on dateFrom of current range)
   const prevMonthRevenue = useMemo(() => {
-    if (!data) return 0;
-    const pm = selectedMonth === 1 ? 12 : selectedMonth - 1;
-    const py = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+    if (!data || !dateFrom) return 0;
+    const ref = new Date(dateFrom + 'T00:00:00');
+    const pm = ref.getMonth() === 0 ? 12 : ref.getMonth();
+    const py = ref.getMonth() === 0 ? ref.getFullYear() - 1 : ref.getFullYear();
     const prefix = `${py}-${String(pm).padStart(2, '0')}`;
     return data.records.filter((r) => r.moduleId === 'mod_ruou' && !r.isDeleted && String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix))
       .reduce((sum, r) => sum + Number(r.values['mod_ruou_total_amount'] ?? 0), 0);
-  }, [data, selectedMonth, selectedYear]);
+  }, [data, dateFrom]);
 
   const revenueGrowth = prevMonthRevenue ? Math.round(((stats.totalRevenue - prevMonthRevenue) / prevMonthRevenue) * 100) : 0;
 
-  // Previous month orders and products for comparison
+  // Previous period orders/products for comparison
   const prevMonthStats = useMemo(() => {
-    if (!data) return { orders: 0, products: 0 };
-    const pm = selectedMonth === 1 ? 12 : selectedMonth - 1;
-    const py = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+    if (!data || !dateFrom) return { orders: 0, products: 0 };
+    const ref = new Date(dateFrom + 'T00:00:00');
+    const pm = ref.getMonth() === 0 ? 12 : ref.getMonth();
+    const py = ref.getMonth() === 0 ? ref.getFullYear() - 1 : ref.getFullYear();
     const prefix = `${py}-${String(pm).padStart(2, '0')}`;
     const prevOrders = data.records.filter((r) => r.moduleId === 'mod_ruou' && !r.isDeleted && String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
-    const prevProducts = prevOrders.reduce((sum, r) => sum + Number(r.values['mod_ruou_quantity'] ?? 0), 0);
-    return { orders: prevOrders.length, products: prevProducts };
-  }, [data, selectedMonth, selectedYear]);
+    return { orders: prevOrders.length, products: prevOrders.reduce((sum, r) => sum + Number(r.values['mod_ruou_quantity'] ?? 0), 0) };
+  }, [data, dateFrom]);
+
+  // Derive year/month from dateFrom for labels
+  const refYear = dateFrom ? new Date(dateFrom + 'T00:00:00').getFullYear() : new Date().getFullYear();
+  const refMonth = dateFrom ? new Date(dateFrom + 'T00:00:00').getMonth() + 1 : new Date().getMonth() + 1;
+  const prevMonthLabel = refMonth === 1 ? `T12/${refYear - 1}` : `T${refMonth - 1}/${refYear}`;
 
   const ordersDiff = stats.totalOrders - prevMonthStats.orders;
   const productsDiff = stats.totalProducts - prevMonthStats.products;
 
-  // Chart data
+  // Chart data — tôn trọng toàn bộ khoảng dateFrom→dateTo từ filter
   const chartData = useMemo(() => {
     const bars: { label: string; revenue: number; orders: number }[] = [];
+    if (!dateFrom && datePreset === 'all') {
+      // Tất cả: hiện theo tháng của năm hiện tại
+      for (let m = 1; m <= 12; m++) {
+        const prefix = `${refYear}-${String(m).padStart(2, '0')}`;
+        const mOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
+        bars.push({ label: `T${m}`, revenue: mOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: mOrders.length });
+      }
+      return bars;
+    }
+
+    const start = new Date((dateFrom || `${refYear}-01-01`) + 'T00:00:00');
+    const end = new Date((dateTo || `${refYear}-12-31`) + 'T00:00:00');
+    const diffDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+
     if (chartMode === 'day') {
-      for (let d = 1; d <= lastDay; d++) {
-        const ds = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const dayOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '') === ds);
-        bars.push({ label: `${String(d).padStart(2, '0')}/${String(selectedMonth).padStart(2, '0')}`, revenue: dayOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: dayOrders.length });
+      // Theo ngày — nếu khoảng > 62 ngày thì tự động chuyển sang theo tháng
+      const maxDays = 62;
+      if (diffDays <= maxDays) {
+        for (let i = 0; i < diffDays; i++) {
+          const d = new Date(start); d.setDate(start.getDate() + i);
+          const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const dayOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '') === ds);
+          bars.push({ label: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`, revenue: dayOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: dayOrders.length });
+        }
+      } else {
+        // Khoảng quá dài → hiện theo tháng
+        const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+        const endM = new Date(end.getFullYear(), end.getMonth(), 1);
+        while (cur <= endM) {
+          const prefix = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+          const mOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
+          bars.push({ label: `T${cur.getMonth() + 1}/${cur.getFullYear().toString().slice(2)}`, revenue: mOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: mOrders.length });
+          cur.setMonth(cur.getMonth() + 1);
+        }
       }
     } else if (chartMode === 'week') {
-      // Group by week
-      for (let w = 0; w < 5; w++) {
-        const start = w * 7 + 1; const end = Math.min((w + 1) * 7, lastDay);
-        if (start > lastDay) break;
-        const weekOrders = periodOrders.filter((r) => { const d = Number(String(r.values['mod_ruou_order_date'] ?? '').slice(8, 10)); return d >= start && d <= end; });
-        bars.push({ label: `${start}-${end}`, revenue: weekOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: weekOrders.length });
+      // Theo tuần — group theo ISO week
+      let weekStart = new Date(start);
+      let weekIdx = 1;
+      while (weekStart <= end) {
+        const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+        if (weekEnd > end) weekEnd.setTime(end.getTime());
+        const ws = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+        const we = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
+        const wOrders = periodOrders.filter((r) => { const d = String(r.values['mod_ruou_order_date'] ?? ''); return d >= ws && d <= we; });
+        bars.push({ label: `T${weekIdx}`, revenue: wOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: wOrders.length });
+        weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() + 1);
+        weekIdx++;
       }
     } else {
-      // Monthly for the year
-      if (!data) return bars;
-      for (let m = 1; m <= 12; m++) {
-        const prefix = `${selectedYear}-${String(m).padStart(2, '0')}`;
-        const mOrders = data.records.filter((r) => r.moduleId === 'mod_ruou' && !r.isDeleted && String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
-        bars.push({ label: `T${m}`, revenue: mOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: mOrders.length });
+      // Theo tháng — loop các tháng trong khoảng
+      const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+      const endM = new Date(end.getFullYear(), end.getMonth(), 1);
+      while (cur <= endM) {
+        const prefix = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+        const mOrders = periodOrders.filter((r) => String(r.values['mod_ruou_order_date'] ?? '').startsWith(prefix));
+        bars.push({ label: `T${cur.getMonth() + 1}/${cur.getFullYear().toString().slice(2)}`, revenue: mOrders.reduce((s, r) => s + Number(r.values['mod_ruou_total_amount'] ?? 0), 0), orders: mOrders.length });
+        cur.setMonth(cur.getMonth() + 1);
       }
     }
     return bars;
-  }, [data, periodOrders, chartMode, selectedMonth, selectedYear, lastDay]);
+  }, [data, periodOrders, chartMode, dateFrom, dateTo, datePreset, refYear]);
 
   const maxChartRevenue = Math.max(...chartData.map((b) => b.revenue), 1);
 
@@ -134,19 +210,25 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
 
   return (
     <div className="flex-1 overflow-auto p-5 space-y-4 bg-gray-50 dark:bg-gray-900/50">
-      {/* Header: Month/Year picker */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg border border-[var(--color-border)] px-2 py-1">
-          <Icon name="calendar" size={13} className="text-[var(--color-text-secondary)]" />
-          <select className="bg-transparent text-xs font-medium text-[var(--color-text)] outline-none" value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
-            {Array.from({ length: 12 }, (_, i) => (<option key={i + 1} value={i + 1}>T{i + 1}</option>))}
-          </select>
+      {/* Filter row: Tuần/Tháng/Năm/Tất cả + date range (giống Chi tiêu) */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex rounded-md border border-[var(--color-border)] overflow-hidden">
+          {(['week', 'month', 'year', 'all'] as DatePreset[]).map((p) => (
+            <button key={p} onClick={() => setDatePresetForModule(p, MODULE_ID)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${datePreset === p ? 'bg-blue-600 text-white' : 'bg-white text-[var(--color-text-secondary)] hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700'}`}>
+              {PRESET_LABELS[p]}
+            </button>
+          ))}
         </div>
-        <select className="bg-white dark:bg-gray-800 rounded-lg border border-[var(--color-border)] px-2 py-1 text-xs font-medium text-[var(--color-text)]" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
-          {[2024, 2025, 2026, 2027].map((y) => (<option key={y} value={y}>{y}</option>))}
-        </select>
-        <button onClick={() => { setSelectedMonth(now.getMonth() + 1); setSelectedYear(now.getFullYear()); }} className="bg-white dark:bg-gray-800 rounded-lg border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-secondary)] hover:bg-gray-100">Hôm nay</button>
-        <span className="text-[10px] text-[var(--color-text-secondary)] ml-auto">{dateRangeLabel}</span>
+        {datePreset !== 'all' && (
+          <div className="flex items-center gap-1">
+            <button onClick={() => movePeriod(-1)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"><Icon name="chevron-left" size={14} /></button>
+            <input type="date" className="text-xs border border-[var(--color-border)] rounded px-2 py-1 w-[115px] bg-white dark:bg-gray-800 dark:text-[var(--color-text)]" value={dateFrom} onChange={(e) => setDateRange(e.target.value, dateTo)} />
+            <span className="text-xs text-gray-400">→</span>
+            <input type="date" className="text-xs border border-[var(--color-border)] rounded px-2 py-1 w-[115px] bg-white dark:bg-gray-800 dark:text-[var(--color-text)]" value={dateTo} onChange={(e) => setDateRange(dateFrom, e.target.value)} />
+            <button onClick={() => movePeriod(1)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"><Icon name="chevron-right" size={14} /></button>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -154,17 +236,17 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
         <div className="rounded-xl p-4 bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
           <div className="flex items-center gap-2 mb-2"><div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center"><Icon name="file-text" size={16} /></div></div>
           <div className="text-2xl font-bold">{stats.totalOrders} <span className="text-sm font-normal opacity-80">đơn hàng</span></div>
-          <div className="text-xs opacity-80">{ordersDiff >= 0 ? '+' : ''}{ordersDiff} đơn hàng so với T{selectedMonth === 1 ? 12 : selectedMonth - 1}</div>
+          <div className="text-xs opacity-80">{ordersDiff >= 0 ? '+' : ''}{ordersDiff} đơn hàng so với {prevMonthLabel}</div>
         </div>
         <div className="rounded-xl p-4 bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
           <div className="flex items-center gap-2 mb-2"><div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center"><Icon name="trending-up" size={16} /></div></div>
           <div className="text-xl font-bold">{revenueGrowth >= 0 ? '+' : ''}{fmtMoney(stats.totalRevenue - prevMonthRevenue)}</div>
-          <div className="text-xs opacity-80">{revenueGrowth >= 0 ? '+' : ''}{revenueGrowth}% so với T{selectedMonth === 1 ? 12 : selectedMonth - 1}</div>
+          <div className="text-xs opacity-80">{revenueGrowth >= 0 ? '+' : ''}{revenueGrowth}% so với {prevMonthLabel}</div>
         </div>
         <div className="rounded-xl p-4 bg-gradient-to-br from-blue-500 to-cyan-600 text-white">
           <div className="flex items-center gap-2 mb-2"><div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center"><Icon name="wine" size={16} /></div></div>
           <div className="text-2xl font-bold">{stats.totalProducts} <span className="text-sm font-normal opacity-80">chai</span></div>
-          <div className="text-xs opacity-80">{productsDiff >= 0 ? '+' : ''}{productsDiff} chai so với T{selectedMonth === 1 ? 12 : selectedMonth - 1}</div>
+          <div className="text-xs opacity-80">{productsDiff >= 0 ? '+' : ''}{productsDiff} chai so với {prevMonthLabel}</div>
         </div>
         <div className="rounded-xl p-4 bg-gradient-to-br from-orange-500 to-red-500 text-white">
           <div className="flex items-center gap-2 mb-2"><div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center"><Icon name="dollar-sign" size={16} /></div></div>
@@ -194,27 +276,23 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
           </div>
           {/* Chart area */}
           <div className="relative pt-5 pb-1" style={{ height: '220px' }}>
-            {/* Y-axis labels (left - revenue) */}
+            {/* Y-axis labels */}
             <div className="absolute left-0 top-5 bottom-1 w-14 flex flex-col justify-between text-[9px] text-purple-600 pointer-events-none pr-1 text-right">
               <span>{fmtShort(maxChartRevenue)}</span>
               <span>{fmtShort(Math.round(maxChartRevenue / 2))}</span>
               <span>0</span>
             </div>
-            {/* Y-axis label title (left) */}
             <div className="absolute left-0 top-0 text-[9px] text-purple-600 font-medium pointer-events-none">Doanh thu (đ)</div>
             {/* Chart content area */}
             <div className="ml-14 mr-2 h-full relative">
-              {/* Bars container */}
               <div className="flex items-end h-full relative">
                 {chartData.map((bar, i) => {
                   const hPct = maxChartRevenue > 0 ? (bar.revenue / maxChartRevenue) * 100 : 0;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-end h-full relative group" title={`${bar.label}\nDT: ${fmtMoney(bar.revenue)}\nĐơn: ${bar.orders}`}>
-                      {/* Revenue amount label on top of bar */}
                       {bar.revenue > 0 && (
                         <span className="text-[8px] text-purple-700 dark:text-purple-300 font-semibold whitespace-nowrap leading-none mb-1">{fmtMoney(bar.revenue)}</span>
                       )}
-                      {/* Revenue bar */}
                       <div className="w-[70%] max-w-[28px] bg-gradient-to-t from-purple-600 to-purple-300 dark:from-purple-700 dark:to-purple-400 rounded-t opacity-80 group-hover:opacity-100 transition-opacity" style={{ height: `${Math.max(hPct > 0 ? 3 : 0, hPct)}%` }} />
                     </div>
                   );
@@ -225,7 +303,9 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
           {/* X-axis labels */}
           <div className="flex ml-14 mr-2">
             {chartData.map((bar, i) => (
-              <span key={i} className="flex-1 text-[8px] text-[var(--color-text-secondary)] text-center truncate">{chartMode === 'day' ? (i % Math.ceil(chartData.length / 10) === 0 ? bar.label : '') : bar.label}</span>
+              <span key={i} className="flex-1 text-[8px] text-[var(--color-text-secondary)] text-center truncate">
+                {chartMode === 'day' ? (i % Math.ceil(chartData.length / 10) === 0 ? bar.label : '') : bar.label}
+              </span>
             ))}
           </div>
         </div>
@@ -233,7 +313,7 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
         {/* Product Sales - 2 cols */}
         <div className="col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-[var(--color-border)] p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-[var(--color-text)]">Sản phẩm bán chạy (T{selectedMonth}/{selectedYear})</h3>
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Sản phẩm bán chạy (T{refMonth}/{refYear})</h3>
           </div>
           <div className="space-y-2">
             {stats.topProducts.map((p, i) => {
@@ -325,7 +405,6 @@ export function WineReportsTab({ onCustomerClick, onProductClick }: Props) {
             <div className="text-lg font-bold text-[var(--color-text)]">{inventoryData.topBottleType}</div>
             <div className="text-[9px] text-[var(--color-text-secondary)]">Theo loại chai</div>
           </div>
-          {/* Mini donut representation */}
           <div>
             <div className="text-[10px] font-medium text-[var(--color-text)] mb-1">Theo loại rượu</div>
             {inventoryData.byWineType.slice(0, 4).map((w) => (

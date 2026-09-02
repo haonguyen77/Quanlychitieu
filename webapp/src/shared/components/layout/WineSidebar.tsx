@@ -3,6 +3,17 @@ import { Icon } from '@/shared/components/ui/Icon';
 
 type WineView = 'dashboard' | 'orders' | 'customers' | 'products' | 'inventory' | 'settings';
 
+// Màu riêng cho từng icon khi không active — giống style Sidebar chính
+const WINE_ICON_COLORS: Record<string, string> = {
+  'layout-dashboard': '#6366f1',   // tím indigo
+  'file-text':        '#f05423',   // cam đơn hàng
+  'users':            '#0ea5e9',   // xanh dương khách hàng
+  'wine':             '#a855f7',   // tím rượu
+  'building':         '#22c55e',   // xanh lá kho
+  'settings':         '#64748b',   // xám cài đặt
+  'trash':            '#ef4444',   // đỏ thùng rác
+};
+
 const wineMenuItems: { id: WineView; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { id: 'orders', label: 'Đơn hàng', icon: 'file-text' },
@@ -34,21 +45,25 @@ export function WineSidebar() {
 
       {/* Menu items */}
       <nav className="flex-1 overflow-y-auto py-2 px-2">
-        {wineMenuItems.map((item) => (
+        {wineMenuItems.map((item) => {
+          const isActive = activeWineView === item.id;
+          const iconColor = isActive ? '#ffffff' : (WINE_ICON_COLORS[item.icon] ?? undefined);
+          return (
           <button
             key={item.id}
             onClick={() => setActiveWineView(item.id)}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 ${
-              activeWineView === item.id
+              isActive
                 ? 'bg-purple-600 text-white font-medium shadow-sm'
                 : 'text-[var(--color-text-secondary)] hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-[var(--color-text)]'
             }`}
             title={item.label}
           >
-            <Icon name={item.icon} size={18} color={activeWineView === item.id ? '#ffffff' : undefined} />
+            <Icon name={item.icon} size={18} color={iconColor} />
             <span className="truncate text-sm">{item.label}</span>
           </button>
-        ))}
+          );
+        })}
 
         {/* Divider */}
         <div className="my-2 mx-2 border-t border-[var(--color-border)]" />
@@ -63,7 +78,7 @@ export function WineSidebar() {
           }`}
           title="Cài đặt"
         >
-          <Icon name="settings" size={18} color={activeWineView === 'settings' ? '#ffffff' : undefined} />
+          <Icon name="settings" size={18} color={activeWineView === 'settings' ? '#ffffff' : WINE_ICON_COLORS['settings']} />
           <span className="truncate text-sm">Cài đặt</span>
         </button>
 
@@ -77,7 +92,7 @@ export function WineSidebar() {
           }`}
           title="Thùng rác"
         >
-          <Icon name="trash" size={18} color={activeWineView === 'trash' ? '#ffffff' : undefined} />
+          <Icon name="trash" size={18} color={activeWineView === 'trash' ? '#ffffff' : WINE_ICON_COLORS['trash']} />
           <span className="truncate text-sm">Thùng rác</span>
         </button>
       </nav>
