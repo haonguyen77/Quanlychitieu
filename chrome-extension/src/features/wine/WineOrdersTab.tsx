@@ -5,6 +5,7 @@ import { Icon } from '@/shared/components/ui/Icon';
 import { useTableZoom, ZoomControls } from '@/shared/components/ui/TableZoom';
 import { useTableSortFilter, ColumnHeader } from '@/shared/components/ui/ColumnHeader';
 import { WineOrderForm } from './WineOrderForm';
+import { WineOrderImportDialog } from './WineOrderImportDialog';
 import { getWineColorPalette } from './wineColors';
 import type { DataRecord } from '@/types';
 
@@ -28,6 +29,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
     return found ? found.label : code;
   };
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DataRecord | null>(null);
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(true);
@@ -293,6 +295,10 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
           <Icon name={expanded ? 'minimize-2' : 'maximize-2'} size={13} />
           {expanded ? 'Thu gọn' : 'Mở rộng'}
         </button>
+        <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#f05423] text-[#f05423] hover:bg-orange-50 text-xs font-medium" title="Import đơn hàng từ Excel">
+          <Icon name="upload" size={13} />
+          Import
+        </button>
         <button onClick={() => { setEditingRecord(null); setShowForm(true); }} className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1" title="Tạo đơn mới (Alt+N)">
           <Icon name="plus" size={13} />
           Tạo đơn
@@ -394,6 +400,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
       </div>
 
       {showForm && <WineOrderForm record={editingRecord} onClose={() => { setShowForm(false); setEditingRecord(null); }} />}
+      {showImport && <WineOrderImportDialog onClose={() => setShowImport(false)} />}
     </div>
   );
 }
