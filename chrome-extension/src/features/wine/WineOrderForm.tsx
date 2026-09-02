@@ -286,7 +286,7 @@ export function WineOrderForm({ record, onClose }: Props) {
                   <th className="px-1.5 py-1.5 text-left">#</th>
                   <th className="px-1.5 py-1.5 text-left">Tên sản phẩm</th>
                   <th className="px-1.5 py-1.5 text-center">SL</th>
-                  <th className="px-1.5 py-1.5 text-right" style={{ backgroundColor: '#FFFF00', color: '#333' }}>Đơn giá</th>
+                  <th className="px-1.5 py-1.5 text-right" style={{ backgroundColor: '#FFF9C4', color: '#333' }}>Đơn giá</th>
                   <th className="px-1.5 py-1.5 text-left">Màu</th>
                   <th className="px-1.5 py-1.5 text-center">Ly</th>
                   <th className="px-1.5 py-1.5 text-center">Hộp</th>
@@ -311,9 +311,9 @@ export function WineOrderForm({ record, onClose }: Props) {
                     </td>
                     <td className="px-1"><input data-r={i} data-c="qty" type="number" min={0} className="w-full px-1 py-1 text-[13px] text-center bg-transparent outline-none border-0 focus:bg-purple-50 rounded text-gray-900" value={row.quantity||''} onChange={(e)=>updateRow(i,'quantity',Number(e.target.value)||0)} onKeyDown={(e)=>cellKey(e,i,'price')}/></td>
                     {/* Price with portal suggest */}
-                    <td className="px-1 relative" style={{ backgroundColor: '#FFFF00' }}>
+                    <td className="px-1 relative" style={{ backgroundColor: '#FFF9C4' }}>
                       <input ref={(el)=>{priceInputRefs.current[i]=el;}} data-r={i} data-c="price" type="text"
-                        className="w-full px-2 py-1 text-[13px] text-right bg-transparent outline-none border-0 focus:bg-yellow-200 rounded text-gray-900 tabular-nums" placeholder="0"
+                        className="w-full px-2 py-1 text-[13px] text-right bg-transparent outline-none border-0 focus:bg-yellow-100 rounded text-gray-900 tabular-nums" placeholder="0"
                         value={row.price?fmt(row.price):''} onChange={(e)=>{updateRow(i,'price',Number(e.target.value.replace(/[^0-9]/g,''))||0);setPriceRow(i);setPriceIdx(0);}}
                         onFocus={()=>{setPriceRow(i);setPriceIdx(0);}} onBlur={()=>setTimeout(()=>{if(priceRow===i)setPriceRow(-1);},200)}
                         onKeyDown={(e)=>handlePriceKey(e,i)}/>

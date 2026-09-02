@@ -7,8 +7,8 @@ import { SuggestInput } from './SuggestInput';
 import { getWineColorPalette } from './wineColors';
 import type { DataRecord, RecordValues } from '@/types';
 
-interface GridRow { productName: string; productSku: string; quantity: number; price: number; color: string; ly: boolean; box: boolean; }
-function emptyRow(): GridRow { return { productName: '', productSku: '', quantity: 0, price: 0, color: '', ly: false, box: false }; }
+interface GridRow { productName: string; productSku: string; quantity: number; price: number; color: string; ly: number; box: number; }
+function emptyRow(): GridRow { return { productName: '', productSku: '', quantity: 0, price: 0, color: '', ly: 0, box: 0 }; }
 function fmt(n: number): string { return n ? n.toLocaleString('vi-VN') : ''; }
 
 function priceSugg(raw: string): number[] {
@@ -59,8 +59,8 @@ export function WineOrderForm({ record, onClose }: Props) {
   const [rows, setRows] = useState<GridRow[]>(() => {
     if (record) {
       const lj = record.values['mod_ruou_product_lines'] as string;
-      if (lj) { try { const p = JSON.parse(lj); return [...p.map((l: any) => ({ productName: l.productName||'', productSku: l.productSku||'', quantity: Number(l.quantity)||1, price: Number(l.price)||0, color: l.color||'', ly: Number(l.glasses)>0, box: Number(l.boxes)>0 })), emptyRow()]; } catch {} }
-      return [{ productName: record.values['mod_ruou_product_name'] as string??'', productSku: record.values['mod_ruou_product_sku'] as string??'', quantity: Number(record.values['mod_ruou_quantity']??1), price: Number(record.values['mod_ruou_price']??0), color: record.values['mod_ruou_color'] as string??'', ly: Number(record.values['mod_ruou_glasses']??0)>0, box: Number(record.values['mod_ruou_boxes']??0)>0 }, emptyRow()];
+      if (lj) { try { const p = JSON.parse(lj); return [...p.map((l: any) => ({ productName: l.productName||'', productSku: l.productSku||'', quantity: Number(l.quantity)||1, price: Number(l.price)||0, color: l.color||'', ly: Number(l.glasses)||0, box: Number(l.boxes)||0 })), emptyRow()]; } catch {} }
+      return [{ productName: record.values['mod_ruou_product_name'] as string??'', productSku: record.values['mod_ruou_product_sku'] as string??'', quantity: Number(record.values['mod_ruou_quantity']??1), price: Number(record.values['mod_ruou_price']??0), color: record.values['mod_ruou_color'] as string??'', ly: Number(record.values['mod_ruou_glasses']??0), box: Number(record.values['mod_ruou_boxes']??0) }, emptyRow()];
     }
     return [emptyRow(), emptyRow()];
   });
@@ -131,7 +131,7 @@ export function WineOrderForm({ record, onClose }: Props) {
     const valid = rows.filter((r)=>r.productName&&r.quantity>0);
     if (!valid.length) return;
     const f = valid[0];
-    const values: RecordValues = { mod_ruou_order_date:orderDate, mod_ruou_customer_name:customerName.trim(), mod_ruou_customer_phone:customerPhone.trim(), mod_ruou_customer_address:customerAddress.trim(), mod_ruou_customer_district:customerWard.trim(), mod_ruou_customer_city:customerDistrict.trim(), mod_ruou_product_sku:f.productSku, mod_ruou_product_name:f.productName, mod_ruou_color:f.color, mod_ruou_quantity:f.quantity, mod_ruou_price:f.price, mod_ruou_glasses:f.ly?1:0, mod_ruou_boxes:f.box?1:0, mod_ruou_ship_fee:shipFee, mod_ruou_total_amount:totalPayment, mod_ruou_note1:note1.trim(), mod_ruou_note2:note2.trim(), mod_ruou_skip_inventory:skipInventory?1:0, mod_ruou_product_lines:valid.length>1?JSON.stringify(valid.map((r)=>({productName:r.productName,productSku:r.productSku,quantity:String(r.quantity),price:String(r.price),color:r.color,glasses:r.ly?'1':'0',boxes:r.box?'1':'0'}))):null };
+    const values: RecordValues = { mod_ruou_order_date:orderDate, mod_ruou_customer_name:customerName.trim(), mod_ruou_customer_phone:customerPhone.trim(), mod_ruou_customer_address:customerAddress.trim(), mod_ruou_customer_district:customerWard.trim(), mod_ruou_customer_city:customerDistrict.trim(), mod_ruou_product_sku:f.productSku, mod_ruou_product_name:f.productName, mod_ruou_color:f.color, mod_ruou_quantity:f.quantity, mod_ruou_price:f.price, mod_ruou_glasses:f.ly, mod_ruou_boxes:f.box, mod_ruou_ship_fee:shipFee, mod_ruou_total_amount:totalPayment, mod_ruou_note1:note1.trim(), mod_ruou_note2:note2.trim(), mod_ruou_skip_inventory:skipInventory?1:0, mod_ruou_product_lines:valid.length>1?JSON.stringify(valid.map((r)=>({productName:r.productName,productSku:r.productSku,quantity:String(r.quantity),price:String(r.price),color:r.color,glasses:String(r.ly),boxes:String(r.box)}))):null };
     if (record) updateRecord(record.id, values);
     else { addRecord('mod_ruou', values); if(!skipInventory) for(const r of valid) if(r.productSku) deductStock(r.productSku,r.color,r.quantity); ensureCustomer(); }
     onClose();
@@ -255,8 +255,8 @@ export function WineOrderForm({ record, onClose }: Props) {
                       </DropdownPortal>
                     </td>
                     <td className="px-1"><select data-r={i} data-c="color" className="w-full px-1 py-1 text-[13px] bg-transparent outline-none border-0 focus:bg-purple-50 rounded text-gray-900" value={row.color} onChange={(e)=>updateRow(i,'color',e.target.value)} onKeyDown={(e)=>cellKey(e,i,'ly')}><option value="">--</option>{COLOR_CODES.map((c)=>(<option key={c.code} value={c.code}>{c.label}</option>))}</select></td>
-                    <td className="text-center"><input data-r={i} data-c="ly" type="checkbox" className="w-[15px] h-[15px] rounded border-gray-300 text-purple-600" checked={row.ly} onChange={(e)=>updateRow(i,'ly',e.target.checked)} onKeyDown={(e)=>cellKey(e,i,'box')}/></td>
-                    <td className="text-center"><input data-r={i} data-c="box" type="checkbox" className="w-[15px] h-[15px] rounded border-gray-300 text-purple-600" checked={row.box} onChange={(e)=>updateRow(i,'box',e.target.checked)} onKeyDown={(e)=>cellKey(e,i,'nextrow')}/></td>
+                    <td className="px-1 text-center"><input data-r={i} data-c="ly" type="number" min={0} className="w-[36px] px-1 py-1 text-[13px] text-center bg-transparent outline-none border-0 focus:bg-purple-50 rounded text-gray-900" value={row.ly||''} placeholder="0" onChange={(e)=>updateRow(i,'ly',Math.max(0,Number(e.target.value)||0))} onKeyDown={(e)=>cellKey(e,i,'box')}/></td>
+                    <td className="px-1 text-center"><input data-r={i} data-c="box" type="number" min={0} className="w-[36px] px-1 py-1 text-[13px] text-center bg-transparent outline-none border-0 focus:bg-purple-50 rounded text-gray-900" value={row.box||''} placeholder="0" onChange={(e)=>updateRow(i,'box',Math.max(0,Number(e.target.value)||0))} onKeyDown={(e)=>cellKey(e,i,'nextrow')}/></td>
                     <td className="px-2 text-right text-[13px] text-gray-900 tabular-nums font-medium">{row.price&&row.quantity?fmt(row.price*row.quantity):''}</td>
                     <td className="text-center">{row.productName&&<button onClick={()=>deleteRow(i)} className="p-0.5 hover:bg-red-50 rounded text-red-400 hover:text-red-600"><Icon name="trash" size={12}/></button>}</td>
                   </tr>
