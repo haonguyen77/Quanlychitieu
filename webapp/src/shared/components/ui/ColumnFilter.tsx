@@ -10,15 +10,18 @@ export interface ColumnFilterValue {
 interface ColumnFilterProps {
   type: 'text' | 'select' | 'dateRange';
   options?: { value: string; label: string; color?: string }[];
+  /** Ordered list of distinct values already in the table (newest-first). Used for text-column suggestions. */
+  suggestions?: string[];
   value: ColumnFilterValue | null;
   onChange: (filter: ColumnFilterValue | null) => void;
 }
 
-export function ColumnFilter({ type, options, value, onChange }: ColumnFilterProps) {
+export function ColumnFilter({ type, options, suggestions, value, onChange }: ColumnFilterProps) {
   const [open, setOpen] = useState(false);
   const [localValue, setLocalValue] = useState(value?.value || '');
   const [localValueTo, setLocalValueTo] = useState(value?.valueTo || '');
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -66,9 +69,19 @@ export function ColumnFilter({ type, options, value, onChange }: ColumnFilterPro
   const updatePosition = useCallback(() => {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 180) });
+      setDropdownPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 220) });
     }
   }, []);
+
+  // Filtered suggestions: match localValue substring (case-insensitive), max 30
+  const filteredSuggestions =
+    type === 'text' && suggestions && suggestions.length > 0
+      ? suggestions
+          .filter((s) => s && (!localValue || s.toLowerCase().includes(localValue.toLowerCase())))
+          .slice(0, 30)
+      : [];
+
+  const hasSuggestions = filteredSuggestions.length > 0;
 
   return (
     <div className="relative inline-flex" ref={ref}>
@@ -82,22 +95,82 @@ export function ColumnFilter({ type, options, value, onChange }: ColumnFilterPro
       </button>
 
       {open && (
-        <div className="fixed bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-xl p-3 z-[200] min-w-[180px]"
+        <div
+          className="fixed bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-xl z-[200] min-w-[220px]"
           style={{ top: dropdownPos.top, left: dropdownPos.left }}
-          onClick={(e) => e.stopPropagation()}>
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* ── TEXT FILTER with suggestions ── */}
           {type === 'text' && (
-            <input
-              type="text"
-              className="input-field py-1.5 px-2 text-xs w-full"
-              placeholder="Nhập để lọc..."
-              value={localValue}
-              onChange={(e) => setLocalValue(e.target.value)}
-              autoFocus
-            />
+            <div>
+              {/* Input */}
+              <div className="p-2 border-b border-[var(--color-border)]">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="input-field py-1.5 px-2 text-xs w-full"
+                  placeholder="Nhập để lọc..."
+                  value={localValue}
+                  onChange={(e) => setLocalValue(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') { setOpen(false); }
+                    if (e.key === 'Enter' && localValue) { setOpen(false); }
+                  }}
+                />
+              </div>
+
+              {/* Suggestion list */}
+              {hasSuggestions && (
+                <div className="max-h-48 overflow-y-auto">
+                  {filteredSuggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onMouseDown={(e) => e.preventDefault()} // keep input focused
+                      onClick={() => {
+                        setLocalValue(s);
+                        onChange({ type: 'text', value: s });
+                        setOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                        localValue === s
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                          : 'hover:bg-[var(--color-surface)] text-[var(--color-text)]'
+                      }`}
+                    >
+                      {/* Highlight matching part */}
+                      {localValue
+                        ? (() => {
+                            const idx = s.toLowerCase().indexOf(localValue.toLowerCase());
+                            if (idx === -1) return s;
+                            return (
+                              <>
+                                {s.slice(0, idx)}
+                                <mark className="bg-yellow-200 dark:bg-yellow-700/60 text-inherit rounded-sm px-0">
+                                  {s.slice(idx, idx + localValue.length)}
+                                </mark>
+                                {s.slice(idx + localValue.length)}
+                              </>
+                            );
+                          })()
+                        : s}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty state when typing but no match */}
+              {type === 'text' && localValue && !hasSuggestions && suggestions && suggestions.length > 0 && (
+                <div className="px-3 py-2 text-[10px] text-[var(--color-text-secondary)] italic">
+                  Không có kết quả khớp
+                </div>
+              )}
+            </div>
           )}
 
+          {/* ── SELECT FILTER ── */}
           {type === 'select' && options && (
-            <div className="max-h-40 overflow-y-auto space-y-0.5">
+            <div className="p-2 max-h-48 overflow-y-auto space-y-0.5">
               {options.map((opt) => (
                 <button
                   key={opt.value}
@@ -120,8 +193,9 @@ export function ColumnFilter({ type, options, value, onChange }: ColumnFilterPro
             </div>
           )}
 
+          {/* ── DATE RANGE FILTER ── */}
           {type === 'dateRange' && (
-            <div className="space-y-2">
+            <div className="p-3 space-y-2">
               <div>
                 <label className="text-[10px] text-[var(--color-text-secondary)]">Từ</label>
                 <input type="date" className="input-field py-1.5 px-2 text-xs w-full" value={localValue} onChange={(e) => setLocalValue(e.target.value)} />
@@ -133,8 +207,9 @@ export function ColumnFilter({ type, options, value, onChange }: ColumnFilterPro
             </div>
           )}
 
+          {/* Clear button */}
           {hasFilter && (
-            <button onClick={handleClear} className="w-full mt-2 pt-2 border-t border-[var(--color-border)] text-xs text-red-500 hover:text-red-700 text-center">
+            <button onClick={handleClear} className="w-full px-3 py-2 border-t border-[var(--color-border)] text-xs text-red-500 hover:text-red-700 text-center">
               Xóa bộ lọc
             </button>
           )}
