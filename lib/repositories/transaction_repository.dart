@@ -57,9 +57,12 @@ class TransactionRepository {
   }) async {
     final db = await DatabaseHelper.instance.database;
     String where = 't.date >= ? AND t.date <= ?';
+    // So sánh date dạng YYYY-MM-DD (khớp với cách lưu trong DB).
+    // KHÔNG dùng toIso8601String() vì "2026-09-01" < "2026-09-01T..." lexicographically
+    // → ngày đầu tháng bị lọc mất.
     List<dynamic> whereArgs = [
-      startDate.toIso8601String(),
-      endDate.toIso8601String(),
+      startDate.toIso8601String().substring(0, 10),
+      endDate.toIso8601String().substring(0, 10),
     ];
 
     if (!includeDeleted) {
@@ -350,11 +353,11 @@ class TransactionRepository {
     }
     if (startDate != null) {
       where += ' AND t.date >= ?';
-      whereArgs.add(startDate.toIso8601String());
+      whereArgs.add(startDate.toIso8601String().substring(0, 10));
     }
     if (endDate != null) {
       where += ' AND t.date <= ?';
-      whereArgs.add(endDate.toIso8601String());
+      whereArgs.add(endDate.toIso8601String().substring(0, 10));
     }
     if (minAmount != null) {
       where += ' AND t.amount >= ?';
