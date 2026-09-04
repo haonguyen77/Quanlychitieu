@@ -313,12 +313,12 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
           <thead className="sticky top-0 text-white" style={{ backgroundColor: '#f05423' }}>
             <tr className="text-left whitespace-nowrap [&>th]:border-r [&>th]:border-white/30 [&>th:last-child]:border-r-0">
               <ColumnHeader column="date" label="Ngày" className="px-2 py-2 w-[72px]" sort={sort} filterValue={filters['date']} onSort={toggleSort} onFilter={setFilter} />
-              <ColumnHeader column="customer" label="Khách" className="px-2 py-2 w-[90px]" sort={sort} filterValue={filters['customer']} onSort={toggleSort} onFilter={setFilter} />
+              <ColumnHeader column="customer" label="Khách" className={`px-2 py-2 ${expanded ? 'w-[90px]' : 'w-[70px]'}`} sort={sort} filterValue={filters['customer']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="phone" label="SĐT" className="px-2 py-2 w-[85px]" sort={sort} filterValue={filters['phone']} onSort={toggleSort} onFilter={setFilter} />
-              <ColumnHeader column="address" label="Địa chỉ" className={`px-2 py-2 ${expanded ? 'w-[130px]' : 'w-[80px]'}`} sort={sort} filterValue={filters['address']} onSort={toggleSort} onFilter={setFilter} />
-              <ColumnHeader column="ward" label="Phường" className="px-2 py-2 w-[65px]" sort={sort} filterValue={filters['ward']} onSort={toggleSort} onFilter={setFilter} />
+              <ColumnHeader column="address" label="Địa chỉ" className={`px-2 py-2 ${expanded ? 'w-[130px]' : 'w-[60px]'}`} sort={sort} filterValue={filters['address']} onSort={toggleSort} onFilter={setFilter} />
+              <ColumnHeader column="ward" label="Phường" className={`px-2 py-2 ${expanded ? 'w-[65px]' : 'w-[40px]'}`} sort={sort} filterValue={filters['ward']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="city" label="TP" className="px-2 py-2 w-[45px]" sort={sort} filterValue={filters['city']} onSort={toggleSort} onFilter={setFilter} />
-              <ColumnHeader column="product" label="SP" className="px-2 py-2 w-[120px]" sort={sort} filterValue={filters['product']} onSort={toggleSort} onFilter={setFilter} />
+              <ColumnHeader column="product" label="SP" className={`px-2 py-2 ${expanded ? 'w-[120px]' : 'w-[80px]'}`} sort={sort} filterValue={filters['product']} onSort={toggleSort} onFilter={setFilter} />
               <ColumnHeader column="color" label="Màu" className="px-2 py-2 w-[45px]" sort={sort} filterValue={filters['color']} onSort={toggleSort} onFilter={setFilter} />
               <th className="px-2 py-2 w-[25px] text-center">Ly</th>
               <th className="px-2 py-2 w-[30px] text-center">Hộp</th>
