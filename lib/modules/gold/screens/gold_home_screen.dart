@@ -187,14 +187,23 @@ class _GoldHomeScreenState extends State<GoldHomeScreen> {
     return sorted.first;
   }
 
-  /// Average cost = total amount of currently held gold / total chi held
+  /// Average cost per chỉ = weighted average of (price_per_unit) across all buy transactions
+  /// Công thức: sum(price_per_unit_i * qty_i) / sum(qty_i)
+  /// Không dùng (totalBought - totalSold) / currentChi vì sẽ sai khi mua nhiều chỉ/giao dịch
   double get _averageCost {
     if (_currentChi <= 0) return 0;
-    final totalBoughtAmount = _buyTransactions.fold(0.0, (s, t) => s + t.amount);
-    final totalSoldAmount = _sellTransactions.fold(0.0, (s, t) => s + t.amount);
-    // Remaining value = bought - sold
-    final remainingValue = totalBoughtAmount - totalSoldAmount;
-    return remainingValue / _currentChi;
+    double totalWeighted = 0;
+    double totalQty = 0;
+    for (final t in _buyTransactions) {
+      if (t.quantity <= 0) continue; // bỏ qua record thiếu số chỉ
+      final qty = t.quantity.toDouble();
+      final unitPrice = t.amount / qty;
+      if (unitPrice <= 0) continue; // bỏ qua record thiếu giá
+      totalWeighted += unitPrice * qty;
+      totalQty += qty;
+    }
+    if (totalQty <= 0) return 0;
+    return totalWeighted / totalQty;
   }
 
   // ─── Search Suggestions ─────────────────────────────────────────────────

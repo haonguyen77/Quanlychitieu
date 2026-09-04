@@ -39,6 +39,7 @@ class AddTransactionScreen extends StatefulWidget {
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _titleFocusNode = FocusNode();
   final _amountController = TextEditingController();
   final _amountFocusNode = FocusNode();
   final _noteController = TextEditingController();
@@ -94,8 +95,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _showExpanded = true;
       }
     } else {
-      _selectedAccountId = widget.preSelectedAccountId ?? 'acc_cash';
-      _selectedCategoryId = 'cat_muasam';
+      _selectedAccountId = widget.preSelectedAccountId;
+      _selectedCategoryId = null;
       // Default amount is 0 so the user doesn't have to type it first.
       _amountController.text = '0';
     }
@@ -128,16 +129,44 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       benProvider.loadBeneficiaries(),
     ]);
 
+    if (!isEditing) {
+      // Pre-fill account: ưu tiên theo thứ tự: preSelected → lần dùng gần nhất → đầu tiên trong danh sách
+      if (widget.preSelectedAccountId != null) {
+        _selectedAccountId = widget.preSelectedAccountId;
+      } else {
+        final accounts = accProvider.accounts.where((a) => a.isActive).toList();
+        if (accounts.isNotEmpty) {
+          final sorted = await UsageFrequencyService.instance.sortByAccountFrequency(accounts, (a) => a.id);
+          _selectedAccountId = sorted.first.id;
+        }
+      }
+
+      // Pre-fill category: lần dùng gần nhất → đầu tiên trong danh sách
+      final categories = catProvider.allCategories.where((c) => c.isActive).toList();
+      if (categories.isNotEmpty) {
+        final sorted = await UsageFrequencyService.instance.sortByCategoryFrequency(categories, (c) => c.id);
+        _selectedCategoryId = sorted.first.id;
+      }
+
+      setState(() {});
+    }
+
     if (!isEditing && modProvider.modules.isNotEmpty) {
       setState(() {
         _selectedModuleId = widget.preSelectedModuleId ?? 'mod_chitieu';
       });
+    }
+
+    // Auto-focus vào ô Tên giao dịch sau khi dữ liệu đã sẵn sàng
+    if (!isEditing && mounted) {
+      FocusScope.of(context).requestFocus(_titleFocusNode);
     }
   }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _titleFocusNode.dispose();
     _amountController.dispose();
     _amountFocusNode.dispose();
     _noteController.dispose();
@@ -377,14 +406,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             children: [
               const SizedBox(height: 8),
               _buildDateAndTypeRow(),
+              const SizedBox(height: 12),
+              _buildPaymentMethodSection(),
               const SizedBox(height: 20),
               _buildTitleField(),
               if (_showTitleSuggestions) _buildTitleSuggestions(),
               const SizedBox(height: 16),
               _buildAmountAndQuantityRow(),
               _buildAmountSuggestions(),
-              const SizedBox(height: 20),
-              _buildPaymentMethodSection(),
               const SizedBox(height: 20),
               _buildCategorySection(),
               const SizedBox(height: 20),
@@ -501,6 +530,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         const SizedBox(height: 6),
         TextFormField(
           controller: _titleController,
+          focusNode: _titleFocusNode,
           onChanged: _onTitleChanged,
           maxLength: 100,
           decoration: InputDecoration(

@@ -12,80 +12,53 @@ import { FormFooter, TipsBar } from './FormFooter';
 
 // ─── Smart Default Helpers ───────────────────────────────────────────────────
 
-/** Get smart default for a field: last used value, then most frequent this/last month */
+/** Get smart default for a field: last-created record's value (regardless of transaction date) */
 function getSmartDefault(data: FinanceData | null, moduleId: string, fieldName: string): string | null {
   if (!data) return null;
 
-  const now = new Date();
-  const thisMonth = now.toISOString().slice(0, 7); // "2026-08"
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
-
-  // Get recent records for this module, sorted by date desc
   const records = data.records
     .filter((r) => r.moduleId === moduleId && !r.isDeleted)
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
+  console.log('[getSmartDefault] moduleId:', moduleId, 'fieldName:', fieldName, 'total records:', data.records.length, 'filtered:', records.length);
   if (records.length === 0) return null;
 
-  // 1. Last used value (most recent record)
+  console.log('[getSmartDefault] most recent record createdAt:', records[0].createdAt, 'values keys:', Object.keys(records[0].values));
   const fieldKey = Object.keys(records[0].values).find((k) => k.endsWith('_' + fieldName));
+  console.log('[getSmartDefault] fieldKey found:', fieldKey, 'value:', fieldKey ? records[0].values[fieldKey] : 'N/A');
   if (fieldKey) {
     const lastValue = records[0].values[fieldKey];
-    if (lastValue && String(lastValue)) return String(lastValue);
+    if (lastValue !== null && lastValue !== undefined && String(lastValue) !== '') {
+      return String(lastValue);
+    }
   }
 
-  // 2. Most frequent in this month + last month
+  // Fallback: most frequent value across all records (no month filter)
   const freq = new Map<string, number>();
   for (const r of records) {
-    const dateKey = Object.keys(r.values).find((k) => k.endsWith('_date'));
-    const dateVal = dateKey ? String(r.values[dateKey] ?? '') : (r.createdAt?.slice(0, 10) || '');
-    const recordMonth = dateVal.slice(0, 7);
-    if (recordMonth !== thisMonth && recordMonth !== lastMonth) continue;
-
     const key = Object.keys(r.values).find((k) => k.endsWith('_' + fieldName));
     if (key && r.values[key]) {
       const v = String(r.values[key]);
       freq.set(v, (freq.get(v) ?? 0) + 1);
     }
   }
-
   if (freq.size === 0) return null;
   return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
-/** Get smart default category: last used, then most frequent this/last month */
+/** Get smart default category: last-created record's category */
 function getSmartCategoryDefault(data: FinanceData | null, moduleId: string): string | undefined {
   if (!data) return undefined;
-
-  const now = new Date();
-  const thisMonth = now.toISOString().slice(0, 7);
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
 
   const records = data.records
     .filter((r) => r.moduleId === moduleId && !r.isDeleted && r.categoryId && !r.categoryId.startsWith('mod_'))
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
+  console.log('[getSmartCategoryDefault] moduleId:', moduleId, 'filtered records with category:', records.length);
   if (records.length === 0) return undefined;
 
-  // 1. Last used category
-  const lastCat = records[0].categoryId;
-  if (lastCat) return lastCat;
-
-  // 2. Most frequent this/last month
-  const freq = new Map<string, number>();
-  for (const r of records) {
-    const dateKey = Object.keys(r.values).find((k) => k.endsWith('_date'));
-    const dateVal = dateKey ? String(r.values[dateKey] ?? '') : (r.createdAt?.slice(0, 10) || '');
-    const recordMonth = dateVal.slice(0, 7);
-    if (recordMonth !== thisMonth && recordMonth !== lastMonth) continue;
-
-    if (r.categoryId) {
-      freq.set(r.categoryId, (freq.get(r.categoryId) ?? 0) + 1);
-    }
-  }
-
-  if (freq.size === 0) return undefined;
-  return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  console.log('[getSmartCategoryDefault] most recent:', records[0].createdAt, 'categoryId:', records[0].categoryId);
+  return records[0].categoryId ?? undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,9 +113,8 @@ export function RecordFormDialog({ module, record, onClose, defaultAccount }: Re
           } else if (field.fieldName === 'type') {
             defaults[field.id] = '0'; // Default: Chi
           } else if (field.fieldName === 'account') {
-            // Use defaultAccount prop if provided (from credit card module)
-            // Otherwise smart default: last used account, then most frequent this/last month
-            defaults[field.id] = defaultAccount || getSmartDefault(data, formModule.id, 'account') || 'cash';
+            // Use defaultAccount prop if provided; smart default applied via useEffect after data loads
+            defaults[field.id] = defaultAccount ?? null;
           } else if (field.fieldName === 'quantity') {
             defaults[field.id] = 1; // Default quantity to 1
           } else {
@@ -156,8 +128,8 @@ export function RecordFormDialog({ module, record, onClose, defaultAccount }: Re
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(() => {
     if (!record) {
-      // Smart default: last used category, then most frequent this/last month
-      return getSmartCategoryDefault(data, formModule.id);
+      // Smart default applied via useEffect after data loads
+      return undefined;
     }
     if (record.categoryId && !record.categoryId.startsWith('mod_')) return record.categoryId;
     return undefined;
@@ -179,6 +151,39 @@ export function RecordFormDialog({ module, record, onClose, defaultAccount }: Re
     setValues((prev) => ({ ...prev, [fieldId]: value }));
     setErrors((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
   }, []);
+
+  // ─── Apply smart defaults once data is available (runs after render, avoids stale lazy-init) ───
+  // This runs only for new records (not editing). It sets account and category to the
+  // values from the most recently *created* record, so it always reflects the user's
+  // last input regardless of the transaction date on that record.
+  const smartDefaultApplied = useRef(false);
+  useEffect(() => {
+    console.log('[SmartDefault] effect fired', { isEditing, applied: smartDefaultApplied.current, hasData: !!data, moduleId: formModule.id });
+    if (isEditing || smartDefaultApplied.current || !data) return;
+    smartDefaultApplied.current = true;
+
+    // Smart default: account
+    if (!defaultAccount) {
+      const accountField = formModule.fields.find((f) => f.fieldName === 'account');
+      console.log('[SmartDefault] accountField:', accountField?.id, 'options:', accountField?.options?.map(o => o.value));
+      if (accountField) {
+        const smartAcc = getSmartDefault(data, formModule.id, 'account');
+        const fallbackAcc = accountField.options?.find((o) => o.isActive)?.value ?? null;
+        const accValue = smartAcc || fallbackAcc;
+        console.log('[SmartDefault] smartAcc:', smartAcc, 'fallback:', fallbackAcc, 'accValue:', accValue);
+        if (accValue) {
+          setValues((prev) => ({ ...prev, [accountField.id]: accValue }));
+        }
+      }
+    }
+
+    // Smart default: category
+    const smartCat = getSmartCategoryDefault(data, formModule.id);
+    console.log('[SmartDefault] smartCat:', smartCat);
+    if (smartCat) {
+      setSelectedCategoryId(smartCat);
+    }
+  }, [data, formModule, isEditing, defaultAccount]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};

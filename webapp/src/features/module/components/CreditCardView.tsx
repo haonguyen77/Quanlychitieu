@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { Icon } from '@/shared/components/ui/Icon';
@@ -43,6 +43,7 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   const [showPayment, setShowPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [ccPreset, setCcPreset] = useState<DatePreset>('custom');
+  const [isBillingMode, setIsBillingMode] = useState(true); // mặc định kỳ sao kê
   const [ccBillingOffset, setCcBillingOffset] = useState(0);
 
   // Helper: tính kỳ sao kê theo offset
@@ -64,18 +65,15 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
     return { from: fmtD(start), to: fmtD(end) };
   };
 
-  // Khởi tạo dateFrom/To theo kỳ sao kê hiện tại (mặc định)
-  const defaultCycle = (() => {
-    const stmtDay = 20; // fallback — sẽ update khi cards load
-    return getBillingCycle(stmtDay, 0);
-  })();
+  // Khởi tạo dateFrom/To với stmtDay=20 fallback (sẽ update khi cards load)
+  const defaultCycle = getBillingCycle(20, 0);
   const [ccDateFrom, setCcDateFrom] = useState(defaultCycle.from);
   const [ccDateTo, setCcDateTo] = useState(defaultCycle.to);
 
   const handleBillingPreset = (offset: number) => {
     setCcBillingOffset(offset);
     setCcPreset('custom');
-    // Dùng statementDay của card active, fallback 20
+    setIsBillingMode(true);
     const stmtDay = (cards.find(c => c.id === selectedCardId) ?? cards[0])?.statementDay || 20;
     const cycle = getBillingCycle(stmtDay, offset);
     setCcDateFrom(cycle.from);
@@ -83,6 +81,7 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   };
 
   const handlePresetChange = (preset: DatePreset) => {
+    setIsBillingMode(false);
     setCcPreset(preset);
     if (preset === 'week') { setCcDateFrom(getWeekStart()); setCcDateTo(getToday()); }
     else if (preset === 'month') { setCcDateFrom(getMonthStart()); setCcDateTo(getToday()); }
@@ -91,6 +90,7 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   };
 
   const handleDateRangeChange = (from: string, to: string) => {
+    setIsBillingMode(false);
     setCcDateFrom(from); setCcDateTo(to); setCcPreset('custom');
   };
 
@@ -119,6 +119,17 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
         };
       });
   }, [data]);
+
+  // Khi thẻ load hoặc selectedCard thay đổi và đang ở billing mode → cập nhật kỳ đúng stmtDay
+  useEffect(() => {
+    if (!isBillingMode) return;
+    const card = selectedCardId ? cards.find(c => c.id === selectedCardId) : cards[0];
+    if (!card) return;
+    const cycle = getBillingCycle(card.statementDay || 20, ccBillingOffset);
+    setCcDateFrom(cycle.from);
+    setCcDateTo(cycle.to);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, selectedCardId, isBillingMode, ccBillingOffset]);
 
   // Total spent per card (debt = expenses - payments)
   // - Khi có ccDateFrom/ccDateTo: tính theo range đó (kỳ đang xem)
@@ -546,12 +557,7 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
               <button
                 onClick={() => handleBillingPreset(ccBillingOffset)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                  ccPreset === 'custom' && (() => {
-                    const card = cards.find(c => c.id === selectedCardId) ?? cards[0];
-                    if (!card) return false;
-                    const cycle = getBillingCycle(card.statementDay || 20, ccBillingOffset);
-                    return ccDateFrom === cycle.from && ccDateTo === cycle.to;
-                  })()
+                  isBillingMode
                     ? 'bg-purple-600 text-white border-purple-600'
                     : 'text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-surface)]'
                 }`}

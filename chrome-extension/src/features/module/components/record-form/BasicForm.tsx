@@ -493,7 +493,22 @@ export function BasicForm({
         Thong tin co ban
       </h3>
 
-      {/* Row 1: Title + Amount */}
+      {/* Row 1: Date + Type + Account */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <FormField label="Ngay" required error={dateFieldId ? errors[dateFieldId] : undefined}>
+          <DatePicker value={dateValue} onChange={onDateChange} />
+        </FormField>
+
+        <FormField label="Loai" required error={typeFieldId ? errors[typeFieldId] : undefined}>
+          <TypeSegmented value={typeValue} onChange={onTypeChange} options={typeOptions} />
+        </FormField>
+
+        <FormField label="Tai khoan" required error={accountFieldId ? errors[accountFieldId] : undefined}>
+          <AccountSelect value={accountValue} onChange={onAccountChange} options={accountOptions} />
+        </FormField>
+      </div>
+
+      {/* Row 2: Title + Amount */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-3 mb-3">
         <FormField label="Ten giao dich" required error={titleFieldId ? errors[titleFieldId] : undefined}>
           <TitleInput
@@ -508,21 +523,6 @@ export function BasicForm({
 
         <FormField label="So tien" required error={amountFieldId ? errors[amountFieldId] : undefined}>
           <MoneyInput value={amountValue} onChange={onAmountChange} />
-        </FormField>
-      </div>
-
-      {/* Row 2: Date + Type + Account */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-        <FormField label="Ngay" required error={dateFieldId ? errors[dateFieldId] : undefined}>
-          <DatePicker value={dateValue} onChange={onDateChange} />
-        </FormField>
-
-        <FormField label="Loai" required error={typeFieldId ? errors[typeFieldId] : undefined}>
-          <TypeSegmented value={typeValue} onChange={onTypeChange} options={typeOptions} />
-        </FormField>
-
-        <FormField label="Tai khoan" required error={accountFieldId ? errors[accountFieldId] : undefined}>
-          <AccountSelect value={accountValue} onChange={onAccountChange} options={accountOptions} />
         </FormField>
       </div>
 

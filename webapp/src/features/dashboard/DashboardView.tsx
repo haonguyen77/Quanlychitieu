@@ -25,6 +25,15 @@ export function DashboardView() {
   const [yearlyYear, setYearlyYear] = useState(() => new Date().getFullYear());
   const [yearlyChartType, setYearlyChartType] = useState<'bar' | 'pie'>('bar');
   const [alertsExpanded, _setAlertsExpanded] = useState(false);
+  const [hiddenCategoryIds, setHiddenCategoryIds] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (id: string) => {
+    setHiddenCategoryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const { dateFrom, dateTo } = useMemo(() => {
     if (dashPreset === 'custom') return { dateFrom: customFrom, dateTo: customTo };
@@ -116,8 +125,17 @@ export function DashboardView() {
     const total = Array.from(accMap.values()).reduce((s, v) => s + v, 0) || 1;
     return Array.from(accMap.entries()).map(([value, amt]) => {
       let name = value, color = '#607D8B';
-      if (value.startsWith('credit_card_')) { const cid = value.replace('credit_card_', ''); const cr = data.records.find((r2) => r2.id === cid && r2.moduleId === 'mod_creditcard'); name = cr ? String(Object.values(cr.values).find((v2) => typeof v2 === 'string' && v2.length < 30 && v2.length > 0) || 'The TD') : 'The tin dung'; color = '#1A237E'; }
-      else { const opt = accField?.options?.find((o) => o.value === value); if (opt) { name = opt.label; color = opt.color || '#607D8B'; } }
+      if (value.startsWith('credit_card_')) {
+        const cid = value.replace('credit_card_', '');
+        const cr = data.records.find((r2) => r2.id === cid && r2.moduleId === 'mod_creditcard');
+        if (cr) {
+          const cardNameKey = Object.keys(cr.values).find((k) => k.endsWith('_card_name'));
+          name = cardNameKey ? String(cr.values[cardNameKey] ?? 'Thẻ TD') : 'Thẻ TD';
+        } else {
+          name = 'Thẻ tín dụng';
+        }
+        color = '#1A237E';
+      } else { const opt = accField?.options?.find((o) => o.value === value); if (opt) { name = opt.label; color = opt.color || '#607D8B'; } }
       return { value, name, color, amount: amt, percent: (amt / total) * 100 };
     }).sort((a, b) => b.amount - a.amount).slice(0, 6);
   }, [data, dateFrom, dateTo]);
@@ -286,10 +304,18 @@ export function DashboardView() {
 
   // ─── PIE CHART SVG HELPER ─────────────────────────────────────────────────
   const PIE_COLORS = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#6366F1', '#14B8A6'];
-  const renderPie = (items: { name: string; color: string; amount: number; percent: number; id?: string }[], totalLabel: string, onClickItem?: (id: string) => void) => {
-    const total = items.reduce((s, c) => s + c.amount, 0);
+  const renderPie = (
+    items: { name: string; color: string; amount: number; percent: number; id?: string }[],
+    totalLabel: string,
+    onClickItem?: (id: string) => void,
+    hiddenIds?: Set<string>,
+    onToggleHide?: (id: string) => void,
+  ) => {
+    const visibleItems = hiddenIds ? items.filter(i => !hiddenIds.has(i.id ?? i.name)) : items;
+    const total = visibleItems.reduce((s, c) => s + c.amount, 0);
+    const grandTotal = items.reduce((s, c) => s + c.amount, 0);
     let cum = 0;
-    const slices = items.map((item, idx) => {
+    const slices = visibleItems.map((item, idx) => {
       const angle = (item.amount / (total || 1)) * 360;
       const start = cum; cum += angle; const end = cum;
       const large = angle > 180 ? 1 : 0;
@@ -298,7 +324,6 @@ export function DashboardView() {
       const y1 = cy + r * Math.sin((start - 90) * Math.PI / 180);
       const x2 = cx + r * Math.cos((end - 90) * Math.PI / 180);
       const y2 = cy + r * Math.sin((end - 90) * Math.PI / 180);
-      // Ensure unique color per slice (fallback to palette if color is generic)
       const color = item.color && item.color !== '#607D8B' ? item.color : PIE_COLORS[idx % PIE_COLORS.length];
       const path = angle >= 359.9
         ? `M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy}`
@@ -311,24 +336,48 @@ export function DashboardView() {
           {slices.map((s) => (
             <path key={s.idx} d={s.path} fill={s.color} stroke="white" strokeWidth="1.5"
               className="hover:opacity-70 cursor-pointer transition-opacity"
-              onClick={() => onClickItem?.(items[s.idx]?.id || items[s.idx]?.name || '')}>
+              onClick={() => onClickItem?.(visibleItems[s.idx]?.id || visibleItems[s.idx]?.name || '')}>
               <title>{s.name}: {fmtShort(s.amount)} ({s.percent.toFixed(1)}%)</title>
             </path>
           ))}
           <circle cx="80" cy="80" r="35" fill="var(--color-bg, white)" />
           <text x="80" y="76" textAnchor="middle" className="text-[9px]" fill="var(--color-text-secondary, #666)">{totalLabel}</text>
-          <text x="80" y="92" textAnchor="middle" className="text-xs font-bold" fill="var(--color-text, #333)">{fmtShort(total)}</text>
+          <text x="80" y="92" textAnchor="middle" className="text-xs font-bold" fill="var(--color-text, #333)">{fmtShort(grandTotal)}</text>
         </svg>
         <div className="flex-1 space-y-1">
-          {slices.map((item) => (
-            <div key={item.name} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-[var(--color-surface)] rounded px-1 -mx-1 py-0.5"
-              onClick={() => onClickItem?.(items[item.idx]?.id || items[item.idx]?.name || '')}>
-              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-              <span className="flex-1 truncate text-[var(--color-text)]">{item.name}</span>
-              <span className="text-[var(--color-text-secondary)] tabular-nums">{fmtShort(item.amount)}</span>
-              <span className="text-[var(--color-text-secondary)] w-12 text-right">({item.percent.toFixed(1)}%)</span>
-            </div>
-          ))}
+          {items.map((item) => {
+            const isHidden = hiddenIds?.has(item.id ?? item.name);
+            const originalIdx = items.indexOf(item);
+            const color = item.color && item.color !== '#607D8B' ? item.color : PIE_COLORS[originalIdx % PIE_COLORS.length];
+            return (
+              <div key={item.name} className={`flex items-center gap-2 text-xs rounded px-1 -mx-1 py-0.5 transition-opacity ${isHidden ? 'opacity-40' : ''}`}>
+                <button
+                  className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer hover:bg-[var(--color-surface)] rounded"
+                  onClick={() => onClickItem?.(item.id || item.name || '')}
+                  title="Xem giao dịch"
+                >
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: isHidden ? '#ccc' : color }} />
+                  <span className="flex-1 truncate text-[var(--color-text)]">{item.name}</span>
+                  <span className="text-[var(--color-text-secondary)] tabular-nums">{fmtShort(item.amount)}</span>
+                  <span className="text-[var(--color-text-secondary)] w-12 text-right">({grandTotal > 0 ? ((item.amount / grandTotal) * 100).toFixed(1) : '0.0'}%)</span>
+                </button>
+                {onToggleHide && (
+                  <button
+                    onClick={() => onToggleHide(item.id ?? item.name)}
+                    className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--color-border)] transition-colors"
+                    title={isHidden ? 'Hiện danh mục này' : 'Ẩn danh mục này khỏi chart'}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isHidden ? 'text-gray-400' : 'text-gray-500'}>
+                      {isHidden
+                        ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
+                        : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                      }
+                    </svg>
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -380,7 +429,7 @@ export function DashboardView() {
           {/* Category Pie */}
           <div className="card p-4">
             <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">Chi tieu theo danh muc</h3>
-            {categoryBreakdown.length > 0 ? renderPie(categoryBreakdown, 'Tong chi', (id) => navigateToCategory(id)) : <p className="text-xs text-center py-8 text-[var(--color-text-secondary)]">Chua co du lieu</p>}
+            {categoryBreakdown.length > 0 ? renderPie(categoryBreakdown, 'Tong chi', (id) => navigateToCategory(id), hiddenCategoryIds, toggleCategory) : <p className="text-xs text-center py-8 text-[var(--color-text-secondary)]">Chua co du lieu</p>}
           </div>
           {/* Payment Pie */}
           <div className="card p-4">

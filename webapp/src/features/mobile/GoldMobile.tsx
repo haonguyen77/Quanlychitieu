@@ -87,9 +87,23 @@ export function GoldMobile() {
   const lastPurchase = buys.length ? [...buys].sort((a, b) => b.date.localeCompare(a.date))[0] : null;
   const avgCost = (() => {
     if (currentChi <= 0) return 0;
-    const boughtAmt = buys.reduce((s, t) => s + t.amount, 0);
-    const soldAmt = sells.reduce((s, t) => s + t.amount, 0);
-    return (boughtAmt - soldAmt) / currentChi;
+    const get = (r: DataRecord, s: string) => {
+      const k = Object.keys(r.values).find(k => k.endsWith(`_${s}`));
+      return k ? Number(r.values[k] ?? 0) : 0;
+    };
+    let totalWeighted = 0;
+    let totalQty = 0;
+    for (const t of buys) {
+      const qty = t.qty; // không fallback về 1 — qty=0 nghĩa là record thiếu data
+      if (qty <= 0) continue; // bỏ qua record không có số chỉ
+      const pricePerUnit = get(t.record, 'price_per_unit');
+      const totalAmt = get(t.record, 'total_amount') || get(t.record, 'amount');
+      const unitPrice = pricePerUnit > 0 ? pricePerUnit : (totalAmt > 0 ? totalAmt / qty : 0);
+      if (unitPrice <= 0) continue; // bỏ qua record không có giá
+      totalWeighted += unitPrice * qty;
+      totalQty += qty;
+    }
+    return totalQty > 0 ? Math.round(totalWeighted / totalQty) : 0;
   })();
 
   const nf = (n: number) => Math.round(n).toLocaleString('vi-VN');

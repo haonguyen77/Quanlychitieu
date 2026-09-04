@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '@/core/store/appStore';
 import { useRecordStore } from '@/core/store/recordStore';
 import { Icon } from '@/shared/components/ui/Icon';
@@ -42,9 +42,8 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   const [showManageCards, setShowManageCards] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [ccPreset, setCcPreset] = useState<DatePreset>('month');
-  const [ccDateFrom, setCcDateFrom] = useState(getMonthStart());
-  const [ccDateTo, setCcDateTo] = useState(getToday());
+  const [ccPreset, setCcPreset] = useState<DatePreset>('custom');
+  const [isBillingMode, setIsBillingMode] = useState(true); // mặc định chọn kỳ sao kê
   const [ccBillingOffset, setCcBillingOffset] = useState(0); // 0=kỳ hiện tại, -1=kỳ trước...
 
   // Helper: tính kỳ sao kê theo offset cho 1 card
@@ -71,19 +70,20 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   };
 
   const handlePresetChange = (preset: DatePreset) => {
+    setIsBillingMode(false);
     setCcPreset(preset);
     if (preset === 'week') { setCcDateFrom(getWeekStart()); setCcDateTo(getToday()); }
     else if (preset === 'month') { setCcDateFrom(getMonthStart()); setCcDateTo(getToday()); }
     else if (preset === 'year') { setCcDateFrom(getYearStart()); setCcDateTo(getToday()); }
     else if (preset === 'all') { setCcDateFrom(''); setCcDateTo(''); }
-    // 'billing' handled by handleBillingPreset below
   };
 
   // Activate billing-cycle preset (called when user clicks "Kỳ sao kê")
   const handleBillingPreset = (offset?: number) => {
     const off = offset ?? ccBillingOffset;
     setCcBillingOffset(off);
-    setCcPreset('custom'); // use custom so TimeFilter shows date inputs
+    setCcPreset('custom');
+    setIsBillingMode(true);
     const stmtDay = (activeCard ?? cards[0])?.statementDay || 20;
     const cycle = getBillingCycle(stmtDay, off);
     setCcDateFrom(cycle.from);
@@ -91,6 +91,7 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   };
 
   const handleDateRangeChange = (from: string, to: string) => {
+    setIsBillingMode(false);
     setCcDateFrom(from); setCcDateTo(to); setCcPreset('custom');
   };
 
@@ -119,6 +120,23 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
         };
       });
   }, [data]);
+
+  // ccDateFrom/To: tính từ kỳ sao kê của thẻ hiện tại, cập nhật khi cards hoặc selectedCard thay đổi
+  const activeStmtDay = (selectedCardId ? cards.find(c => c.id === selectedCardId) : cards[0])?.statementDay || 20;
+  const activeCycle = getBillingCycle(activeStmtDay, isBillingMode ? ccBillingOffset : 0);
+  const [ccDateFrom, setCcDateFrom] = useState(() => activeCycle.from);
+  const [ccDateTo, setCcDateTo] = useState(() => activeCycle.to);
+
+  // Khi thẻ đang chọn thay đổi và đang ở billing mode → cập nhật lại kỳ theo stmtDay thực
+  useEffect(() => {
+    if (!isBillingMode) return;
+    const card = selectedCardId ? cards.find(c => c.id === selectedCardId) : cards[0];
+    if (!card) return;
+    const cycle = getBillingCycle(card.statementDay || 20, ccBillingOffset);
+    setCcDateFrom(cycle.from);
+    setCcDateTo(cycle.to);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, selectedCardId, isBillingMode, ccBillingOffset]);
 
   // Total spent per card (debt = expenses - payments)
   // - Nếu user đang filter theo kỳ sao kê (có ccDateFrom/ccDateTo): dùng range đó
@@ -550,12 +568,7 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
               <button
                 onClick={() => handleBillingPreset(ccBillingOffset)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                  ccPreset === 'custom' && (() => {
-                    const card = cards.find(c => c.id === activeCardId);
-                    if (!card) return false;
-                    const cycle = getBillingCycle(card.statementDay || 20, ccBillingOffset);
-                    return ccDateFrom === cycle.from && ccDateTo === cycle.to;
-                  })()
+                  isBillingMode
                     ? 'bg-purple-600 text-white border-purple-600'
                     : 'text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-surface)]'
                 }`}
