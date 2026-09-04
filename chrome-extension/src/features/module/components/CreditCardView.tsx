@@ -84,11 +84,34 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       });
   }, [data]);
 
-  // Total spent per card (debt = expenses - payments)
-  // App logic: type=0 adds to debt, type=2 reduces debt (payment), type=1 is income (ignored)
+  // Total spent per card (debt = expenses - payments) — giới hạn theo kỳ sao kê hiện tại
+  // Kỳ sao kê: từ (statementDay+1) tháng trước → statementDay tháng hiện tại
+  // Giống Flutter CreditCardProvider.loadCards() SQL query
   const cardSpent = useMemo(() => {
     if (!data) return new Map<string, number>();
     const map = new Map<string, number>();
+
+    // Build billing-cycle date range per card (keyed by cardId)
+    const cycleMap = new Map<string, { from: string; to: string }>();
+    for (const card of cards) {
+      const stmtDay = card.statementDay || 20;
+      const now = new Date();
+      const thisMonthStmt = new Date(now.getFullYear(), now.getMonth(), stmtDay);
+      let periodStart: Date;
+      let periodEnd: Date;
+      if (now > thisMonthStmt) {
+        // Đã qua ngày sao kê → kỳ mới bắt đầu từ stmtDay+1 tháng này
+        periodStart = new Date(now.getFullYear(), now.getMonth(), stmtDay + 1);
+        periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, stmtDay, 23, 59, 59);
+      } else {
+        // Chưa qua ngày sao kê → kỳ cũ
+        periodStart = new Date(now.getFullYear(), now.getMonth() - 1, stmtDay + 1);
+        periodEnd = new Date(now.getFullYear(), now.getMonth(), stmtDay, 23, 59, 59);
+      }
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+      cycleMap.set(card.id, { from: fmt(periodStart), to: fmt(periodEnd) });
+    }
+
     for (const r of data.records) {
       if (r.isDeleted || r.moduleId !== 'mod_chitieu') continue;
       const accKey = Object.keys(r.values).find((k) => k.endsWith('_account'));
@@ -96,6 +119,15 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       const accVal = String(r.values[accKey] ?? '');
       if (!accVal.startsWith('credit_card_')) continue;
       const cardId = accVal.replace('credit_card_', '');
+
+      // Lọc theo kỳ sao kê của card này
+      const cycle = cycleMap.get(cardId);
+      if (cycle) {
+        const dateKey = Object.keys(r.values).find((k) => k.endsWith('_date'));
+        const txDate = dateKey ? String(r.values[dateKey] ?? '') : '';
+        if (txDate && (txDate < cycle.from || txDate > cycle.to)) continue;
+      }
+
       const amtKey = Object.keys(r.values).find((k) => k.endsWith('_amount'));
       const amount = amtKey ? Number(r.values[amtKey] ?? 0) : 0;
       const typeKey = Object.keys(r.values).find((k) => k.endsWith('_type'));
@@ -106,10 +138,9 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       } else if (typeVal === '0') {
         map.set(cardId, (map.get(cardId) ?? 0) + amount);
       }
-      // type='1' (income) is NOT related to card debt
     }
     return map;
-  }, [data]);
+  }, [data, cards]);
 
   // Aggregate stats FOR SELECTED CARD
   const activeCard = selectedCardId ? cards.find((c) => c.id === selectedCardId) : null;
