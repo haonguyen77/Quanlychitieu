@@ -42,9 +42,45 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   const [showManageCards, setShowManageCards] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [ccPreset, setCcPreset] = useState<DatePreset>('month');
-  const [ccDateFrom, setCcDateFrom] = useState(getMonthStart());
-  const [ccDateTo, setCcDateTo] = useState(getToday());
+  const [ccPreset, setCcPreset] = useState<DatePreset>('custom');
+  const [ccBillingOffset, setCcBillingOffset] = useState(0);
+
+  // Helper: tính kỳ sao kê theo offset
+  const getBillingCycle = (stmtDay: number, offset: number): { from: string; to: string } => {
+    const fmtD = (d: Date) => d.toISOString().slice(0, 10);
+    const now = new Date();
+    const thisMonthStmt = new Date(now.getFullYear(), now.getMonth(), stmtDay);
+    let baseStart: Date;
+    let baseEnd: Date;
+    if (now > thisMonthStmt) {
+      baseStart = new Date(now.getFullYear(), now.getMonth(), stmtDay + 1);
+      baseEnd   = new Date(now.getFullYear(), now.getMonth() + 1, stmtDay, 23, 59, 59);
+    } else {
+      baseStart = new Date(now.getFullYear(), now.getMonth() - 1, stmtDay + 1);
+      baseEnd   = new Date(now.getFullYear(), now.getMonth(), stmtDay, 23, 59, 59);
+    }
+    const start = new Date(baseStart.getFullYear(), baseStart.getMonth() + offset, baseStart.getDate());
+    const end   = new Date(baseEnd.getFullYear(),   baseEnd.getMonth()   + offset, baseEnd.getDate(), 23, 59, 59);
+    return { from: fmtD(start), to: fmtD(end) };
+  };
+
+  // Khởi tạo dateFrom/To theo kỳ sao kê hiện tại (mặc định)
+  const defaultCycle = (() => {
+    const stmtDay = 20; // fallback — sẽ update khi cards load
+    return getBillingCycle(stmtDay, 0);
+  })();
+  const [ccDateFrom, setCcDateFrom] = useState(defaultCycle.from);
+  const [ccDateTo, setCcDateTo] = useState(defaultCycle.to);
+
+  const handleBillingPreset = (offset: number) => {
+    setCcBillingOffset(offset);
+    setCcPreset('custom');
+    // Dùng statementDay của card active, fallback 20
+    const stmtDay = (cards.find(c => c.id === selectedCardId) ?? cards[0])?.statementDay || 20;
+    const cycle = getBillingCycle(stmtDay, offset);
+    setCcDateFrom(cycle.from);
+    setCcDateTo(cycle.to);
+  };
 
   const handlePresetChange = (preset: DatePreset) => {
     setCcPreset(preset);
@@ -85,10 +121,35 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   }, [data]);
 
   // Total spent per card (debt = expenses - payments)
-  // App logic: type=0 adds to debt, type=2 reduces debt (payment), type=1 is income (ignored)
+  // - Khi có ccDateFrom/ccDateTo: tính theo range đó (kỳ đang xem)
+  // - Ngược lại: tính kỳ sao kê hiện tại per card (giống Flutter)
   const cardSpent = useMemo(() => {
     if (!data) return new Map<string, number>();
     const map = new Map<string, number>();
+
+    // Build per-card cycle range
+    const cycleMap = new Map<string, { from: string; to: string }>();
+    for (const card of cards) {
+      if (ccDateFrom && ccDateTo) {
+        cycleMap.set(card.id, { from: ccDateFrom, to: ccDateTo });
+      } else {
+        const stmtDay = card.statementDay || 20;
+        const now = new Date();
+        const thisMonthStmt = new Date(now.getFullYear(), now.getMonth(), stmtDay);
+        let periodStart: Date;
+        let periodEnd: Date;
+        if (now > thisMonthStmt) {
+          periodStart = new Date(now.getFullYear(), now.getMonth(), stmtDay + 1);
+          periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, stmtDay, 23, 59, 59);
+        } else {
+          periodStart = new Date(now.getFullYear(), now.getMonth() - 1, stmtDay + 1);
+          periodEnd = new Date(now.getFullYear(), now.getMonth(), stmtDay, 23, 59, 59);
+        }
+        const fmtD = (d: Date) => d.toISOString().slice(0, 10);
+        cycleMap.set(card.id, { from: fmtD(periodStart), to: fmtD(periodEnd) });
+      }
+    }
+
     for (const r of data.records) {
       if (r.isDeleted || r.moduleId !== 'mod_chitieu') continue;
       const accKey = Object.keys(r.values).find((k) => k.endsWith('_account'));
@@ -96,20 +157,27 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       const accVal = String(r.values[accKey] ?? '');
       if (!accVal.startsWith('credit_card_')) continue;
       const cardId = accVal.replace('credit_card_', '');
+
+      // Lọc theo kỳ
+      const cycle = cycleMap.get(cardId);
+      if (cycle) {
+        const dateKey = Object.keys(r.values).find((k) => k.endsWith('_date'));
+        const txDate = dateKey ? String(r.values[dateKey] ?? '') : '';
+        if (txDate && (txDate < cycle.from || txDate > cycle.to)) continue;
+      }
+
       const amtKey = Object.keys(r.values).find((k) => k.endsWith('_amount'));
       const amount = amtKey ? Number(r.values[amtKey] ?? 0) : 0;
       const typeKey = Object.keys(r.values).find((k) => k.endsWith('_type'));
       const typeVal = typeKey ? String(r.values[typeKey] ?? '0') : '0';
-      // type='0' = expense (adds to debt), type='2' = card payment (reduces debt)
       if (typeVal === '2') {
         map.set(cardId, (map.get(cardId) ?? 0) - amount);
       } else if (typeVal === '0') {
         map.set(cardId, (map.get(cardId) ?? 0) + amount);
       }
-      // type='1' (income) is NOT related to card debt
     }
     return map;
-  }, [data]);
+  }, [data, cards, ccDateFrom, ccDateTo]);
 
   // Aggregate stats FOR SELECTED CARD
   const activeCard = selectedCardId ? cards.find((c) => c.id === selectedCardId) : null;
@@ -472,14 +540,40 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       <div className="px-6 pb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-[var(--color-text)]">Giao dich ({transactions.length})</h3>
-          <TimeFilter
-            datePreset={ccPreset}
-            dateFrom={ccDateFrom}
-            dateTo={ccDateTo}
-            onPresetChange={handlePresetChange}
-            onDateRangeChange={handleDateRangeChange}
-            presets={['week', 'month', 'year', 'all']}
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Nút Kỳ sao kê + mũi tên */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleBillingPreset(ccBillingOffset)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                  ccPreset === 'custom' && (() => {
+                    const card = cards.find(c => c.id === selectedCardId) ?? cards[0];
+                    if (!card) return false;
+                    const cycle = getBillingCycle(card.statementDay || 20, ccBillingOffset);
+                    return ccDateFrom === cycle.from && ccDateTo === cycle.to;
+                  })()
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : 'text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+                }`}
+              >
+                Kỳ sao kê
+              </button>
+              <button onClick={() => handleBillingPreset(ccBillingOffset - 1)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500" title="Kỳ trước">
+                <Icon name="chevron-left" size={14} />
+              </button>
+              <button onClick={() => handleBillingPreset(ccBillingOffset + 1)} disabled={ccBillingOffset >= 0} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 disabled:opacity-30" title="Kỳ sau">
+                <Icon name="chevron-right" size={14} />
+              </button>
+            </div>
+            <TimeFilter
+              datePreset={ccPreset}
+              dateFrom={ccDateFrom}
+              dateTo={ccDateTo}
+              onPresetChange={handlePresetChange}
+              onDateRangeChange={handleDateRangeChange}
+              presets={['week', 'month', 'year', 'all']}
+            />
+          </div>
         </div>
 
         {transactions.length === 0 ? (
