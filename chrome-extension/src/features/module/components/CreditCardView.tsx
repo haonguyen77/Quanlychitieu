@@ -45,6 +45,30 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
   const [ccPreset, setCcPreset] = useState<DatePreset>('month');
   const [ccDateFrom, setCcDateFrom] = useState(getMonthStart());
   const [ccDateTo, setCcDateTo] = useState(getToday());
+  const [ccBillingOffset, setCcBillingOffset] = useState(0); // 0=kỳ hiện tại, -1=kỳ trước...
+
+  // Helper: tính kỳ sao kê theo offset cho 1 card
+  const getBillingCycle = (stmtDay: number, offset: number): { from: string; to: string; label: string } => {
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const now = new Date();
+    const thisMonthStmt = new Date(now.getFullYear(), now.getMonth(), stmtDay);
+    // Base = kỳ hiện tại
+    let baseStart: Date;
+    let baseEnd: Date;
+    if (now > thisMonthStmt) {
+      baseStart = new Date(now.getFullYear(), now.getMonth(), stmtDay + 1);
+      baseEnd   = new Date(now.getFullYear(), now.getMonth() + 1, stmtDay, 23, 59, 59);
+    } else {
+      baseStart = new Date(now.getFullYear(), now.getMonth() - 1, stmtDay + 1);
+      baseEnd   = new Date(now.getFullYear(), now.getMonth(), stmtDay, 23, 59, 59);
+    }
+    // Shift by offset months
+    const start = new Date(baseStart.getFullYear(), baseStart.getMonth() + offset, baseStart.getDate());
+    const end   = new Date(baseEnd.getFullYear(),   baseEnd.getMonth()   + offset, baseEnd.getDate(), 23, 59, 59);
+    const label = offset === 0 ? 'Kỳ hiện tại'
+      : `${String(end.getDate()).padStart(2,'0')}/${String(end.getMonth()+1).padStart(2,'0')}/${end.getFullYear()}`;
+    return { from: fmt(start), to: fmt(end), label };
+  };
 
   const handlePresetChange = (preset: DatePreset) => {
     setCcPreset(preset);
@@ -52,6 +76,18 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
     else if (preset === 'month') { setCcDateFrom(getMonthStart()); setCcDateTo(getToday()); }
     else if (preset === 'year') { setCcDateFrom(getYearStart()); setCcDateTo(getToday()); }
     else if (preset === 'all') { setCcDateFrom(''); setCcDateTo(''); }
+    // 'billing' handled by handleBillingPreset below
+  };
+
+  // Activate billing-cycle preset (called when user clicks "Kỳ sao kê")
+  const handleBillingPreset = (offset?: number) => {
+    const off = offset ?? ccBillingOffset;
+    setCcBillingOffset(off);
+    setCcPreset('custom'); // use custom so TimeFilter shows date inputs
+    const stmtDay = (activeCard ?? cards[0])?.statementDay || 20;
+    const cycle = getBillingCycle(stmtDay, off);
+    setCcDateFrom(cycle.from);
+    setCcDateTo(cycle.to);
   };
 
   const handleDateRangeChange = (from: string, to: string) => {
@@ -84,32 +120,36 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       });
   }, [data]);
 
-  // Total spent per card (debt = expenses - payments) — giới hạn theo kỳ sao kê hiện tại
-  // Kỳ sao kê: từ (statementDay+1) tháng trước → statementDay tháng hiện tại
-  // Giống Flutter CreditCardProvider.loadCards() SQL query
+  // Total spent per card (debt = expenses - payments)
+  // - Nếu user đang filter theo kỳ sao kê (có ccDateFrom/ccDateTo): dùng range đó
+  // - Ngược lại: tính kỳ sao kê hiện tại per card (giống Flutter)
   const cardSpent = useMemo(() => {
     if (!data) return new Map<string, number>();
     const map = new Map<string, number>();
 
-    // Build billing-cycle date range per card (keyed by cardId)
+    // Build per-card cycle range
     const cycleMap = new Map<string, { from: string; to: string }>();
     for (const card of cards) {
-      const stmtDay = card.statementDay || 20;
-      const now = new Date();
-      const thisMonthStmt = new Date(now.getFullYear(), now.getMonth(), stmtDay);
-      let periodStart: Date;
-      let periodEnd: Date;
-      if (now > thisMonthStmt) {
-        // Đã qua ngày sao kê → kỳ mới bắt đầu từ stmtDay+1 tháng này
-        periodStart = new Date(now.getFullYear(), now.getMonth(), stmtDay + 1);
-        periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, stmtDay, 23, 59, 59);
+      if (ccDateFrom && ccDateTo) {
+        // User đang chọn kỳ cụ thể — dùng chung cho tất cả cards
+        cycleMap.set(card.id, { from: ccDateFrom, to: ccDateTo });
       } else {
-        // Chưa qua ngày sao kê → kỳ cũ
-        periodStart = new Date(now.getFullYear(), now.getMonth() - 1, stmtDay + 1);
-        periodEnd = new Date(now.getFullYear(), now.getMonth(), stmtDay, 23, 59, 59);
+        // Tính kỳ hiện tại per card
+        const stmtDay = card.statementDay || 20;
+        const now = new Date();
+        const thisMonthStmt = new Date(now.getFullYear(), now.getMonth(), stmtDay);
+        let periodStart: Date;
+        let periodEnd: Date;
+        if (now > thisMonthStmt) {
+          periodStart = new Date(now.getFullYear(), now.getMonth(), stmtDay + 1);
+          periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, stmtDay, 23, 59, 59);
+        } else {
+          periodStart = new Date(now.getFullYear(), now.getMonth() - 1, stmtDay + 1);
+          periodEnd = new Date(now.getFullYear(), now.getMonth(), stmtDay, 23, 59, 59);
+        }
+        const fmtD = (d: Date) => d.toISOString().slice(0, 10);
+        cycleMap.set(card.id, { from: fmtD(periodStart), to: fmtD(periodEnd) });
       }
-      const fmt = (d: Date) => d.toISOString().slice(0, 10);
-      cycleMap.set(card.id, { from: fmt(periodStart), to: fmt(periodEnd) });
     }
 
     for (const r of data.records) {
@@ -140,7 +180,7 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       }
     }
     return map;
-  }, [data, cards]);
+  }, [data, cards, ccDateFrom, ccDateTo]);
 
   // Aggregate stats FOR SELECTED CARD
   const activeCard = selectedCardId ? cards.find((c) => c.id === selectedCardId) : null;
@@ -504,14 +544,51 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
       <div className="px-6 pb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-[var(--color-text)]">Giao dich ({transactions.length})</h3>
-          <TimeFilter
-            datePreset={ccPreset}
-            dateFrom={ccDateFrom}
-            dateTo={ccDateTo}
-            onPresetChange={handlePresetChange}
-            onDateRangeChange={handleDateRangeChange}
-            presets={['week', 'month', 'year', 'all']}
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Nút Kỳ sao kê */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleBillingPreset(ccBillingOffset)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                  ccPreset === 'custom' && (() => {
+                    const card = cards.find(c => c.id === activeCardId);
+                    if (!card) return false;
+                    const cycle = getBillingCycle(card.statementDay || 20, ccBillingOffset);
+                    return ccDateFrom === cycle.from && ccDateTo === cycle.to;
+                  })()
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : 'text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+                }`}
+              >
+                Kỳ sao kê
+              </button>
+              {/* Mũi tên lùi/tiến kỳ */}
+              <button
+                onClick={() => handleBillingPreset(ccBillingOffset - 1)}
+                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                title="Kỳ trước"
+              >
+                <Icon name="chevron-left" size={14} />
+              </button>
+              <button
+                onClick={() => handleBillingPreset(ccBillingOffset + 1)}
+                disabled={ccBillingOffset >= 0}
+                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 disabled:opacity-30"
+                title="Kỳ sau"
+              >
+                <Icon name="chevron-right" size={14} />
+              </button>
+            </div>
+            {/* TimeFilter chuẩn */}
+            <TimeFilter
+              datePreset={ccPreset}
+              dateFrom={ccDateFrom}
+              dateTo={ccDateTo}
+              onPresetChange={handlePresetChange}
+              onDateRangeChange={handleDateRangeChange}
+              presets={['week', 'month', 'year', 'all']}
+            />
+          </div>
         </div>
 
         {transactions.length === 0 ? (
