@@ -32,7 +32,9 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
   const [showImport, setShowImport] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DataRecord | null>(null);
   const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(() => {
+    try { return localStorage.getItem('wine_orders_expanded') !== '0'; } catch { return true; }
+  });
   const { fontSize, fontClass, zoomIn, zoomOut } = useTableZoom();
   const { sort, filters, toggleSort, setFilter, applySort } = useTableSortFilter();
 
@@ -288,7 +290,7 @@ export function WineOrdersTab({ customerFilter, productFilter, newOrderTrigger }
         </div>
         <ZoomControls fontSize={fontSize} onZoomIn={zoomIn} onZoomOut={zoomOut} />
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => { const next = !expanded; setExpanded(next); try { localStorage.setItem('wine_orders_expanded', next ? '1' : '0'); } catch { /* */ } }}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)] text-[var(--color-text-secondary)] text-xs font-medium"
           title={expanded ? 'Thu gọn bảng vừa màn hình' : 'Mở rộng để xem đầy đủ'}
         >
