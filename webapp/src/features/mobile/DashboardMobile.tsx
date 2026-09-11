@@ -20,6 +20,17 @@ export function DashboardMobile() {
   const [showFilter, setShowFilter] = useState(false);
   const [refDate, setRefDate] = useState(new Date());
   const [showAllComparison, setShowAllComparison] = useState(false);
+  // Mặc định loại module giá trị lớn (Vàng, Nhà trọ) khỏi dashboard chart
+  const [excludedModuleIds, setExcludedModuleIds] = useState<Set<string>>(new Set(['mod_vang', 'mod_nhatro']));
+
+  const toggleExcludedModule = (id: string) => {
+    setExcludedModuleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const isModuleExcluded = (linkedModuleId: string | undefined) => !!linkedModuleId && excludedModuleIds.has(linkedModuleId);
 
   const { startDate, endDate } = useMemo(() => {
     const ref = refDate;
@@ -38,11 +49,12 @@ export function DashboardMobile() {
     if (!data) return [];
     return data.records.filter(r => {
       if (r.isDeleted || r.moduleId !== 'mod_chitieu') return false;
+      if (isModuleExcluded(r.linkedModuleId)) return false;
       const dk = Object.keys(r.values).find(k => k.endsWith('_date'));
       const d = dk ? String(r.values[dk] ?? '') : '';
       return d >= startDate && d <= endDate;
     });
-  }, [data, startDate, endDate]);
+  }, [data, startDate, endDate, excludedModuleIds]);
 
   const stats = useMemo(() => {
     let income = 0, expense = 0;
@@ -84,6 +96,7 @@ export function DashboardMobile() {
     const month2 = new Map<string, number>();
     for (const r of data.records) {
       if (r.isDeleted || r.moduleId !== 'mod_chitieu') continue;
+      if (isModuleExcluded(r.linkedModuleId)) continue;
       const dk = Object.keys(r.values).find(k => k.endsWith('_date'));
       const d = dk ? String(r.values[dk] ?? '') : '';
       const tk = Object.keys(r.values).find(k => k.endsWith('_type'));
@@ -97,7 +110,7 @@ export function DashboardMobile() {
       if (d >= m2Start && d <= m2End) month2.set(catId, (month2.get(catId) ?? 0) + amt);
     }
     return { month1, month2, m1Label: `${String(m1.getMonth() + 1).padStart(2, '0')}/${m1.getFullYear()}`, m2Label: `${String(m2.getMonth() + 1).padStart(2, '0')}/${m2.getFullYear()}` };
-  }, [data]);
+  }, [data, excludedModuleIds]);
 
   // Top 5 expenses
   const top5 = useMemo(() => {
@@ -161,15 +174,42 @@ export function DashboardMobile() {
 
       {/* Period Filter */}
       {showFilter && (
-        <div className="px-4 pt-2 flex items-center gap-1.5">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={18} color={colors.navy} /></button>
-          {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
-            <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2.5 rounded-full text-xs font-semibold text-center" style={{ backgroundColor: period === p ? colors.darkPurple : '#fff', color: period === p ? '#fff' : colors.navy, border: period === p ? 'none' : '1px solid #E5E7EB' }}>
-              {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
-            </button>
-          ))}
-          <button onClick={() => navigate(1)} className="w-9 h-9 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronRight size={18} color={colors.navy} /></button>
-        </div>
+        <>
+          <div className="px-4 pt-2 flex items-center gap-1.5">
+            <button onClick={() => navigate(-1)} className="w-9 h-9 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronLeft size={18} color={colors.navy} /></button>
+            {(['week', 'month', 'year', 'all'] as FilterPeriod[]).map(p => (
+              <button key={p} onClick={() => setPeriod(p)} className="flex-1 py-2.5 rounded-full text-xs font-semibold text-center" style={{ backgroundColor: period === p ? colors.darkPurple : '#fff', color: period === p ? '#fff' : colors.navy, border: period === p ? 'none' : '1px solid #E5E7EB' }}>
+                {{ week: 'Tuần', month: 'Tháng', year: 'Năm', all: 'Tất cả' }[p]}
+              </button>
+            ))}
+            <button onClick={() => navigate(1)} className="w-9 h-9 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0"><ChevronRight size={18} color={colors.navy} /></button>
+          </div>
+          {/* Module filter chips — ẩn module khỏi biểu đồ dashboard */}
+          <div className="px-4 pt-2">
+            <p className="text-[10px] text-gray-400 uppercase font-medium mb-1.5">Ẩn module khỏi biểu đồ</p>
+            <div className="flex flex-wrap gap-1.5">
+              {data?.modules
+                .filter(m => m.isActive && ['mod_vang', 'mod_nhatro', 'mod_shopee'].includes(m.id))
+                .map(m => {
+                  const isExcluded = excludedModuleIds.has(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => toggleExcludedModule(m.id)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5"
+                      style={{
+                        backgroundColor: isExcluded ? '#F3F4F6' : colors.darkPurple,
+                        color: isExcluded ? '#9CA3AF' : '#fff',
+                        border: isExcluded ? '1px solid #E5E7EB' : 'none',
+                      }}
+                    >
+                      {isExcluded ? '🚫' : '✓'} {m.name}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </>
       )}
 
       <div className="px-4 pb-20 pt-4 space-y-4">
