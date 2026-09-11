@@ -616,8 +616,17 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
                   let status = 'Cho sao ke';
                   let statusColor = '#F59E0B';
                   if (recordDate) {
-                    const dayOfMonth = recordDate.getDate();
-                    if (dayOfMonth <= statementDay) {
+                    // Ngày chốt sao kê của kỳ chứa giao dịch này
+                    const rd = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate());
+                    let closeDate: Date;
+                    if (rd.getDate() <= statementDay) {
+                      closeDate = new Date(rd.getFullYear(), rd.getMonth(), statementDay);
+                    } else {
+                      closeDate = new Date(rd.getFullYear(), rd.getMonth() + 1, statementDay);
+                    }
+                    const today = new Date();
+                    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    if (closeDate < todayMidnight) {
                       status = 'Da sao ke';
                       statusColor = '#22C55E';
                     }

@@ -632,14 +632,27 @@ export function CreditCardView({ onEditRecord, onAddRecord, onAddCard, onEditCar
                   const catId = r.categoryId && !r.categoryId.startsWith('mod_') ? r.categoryId : undefined;
                   const cat = catId ? categoryMap.get(catId) : undefined;
 
-                  // Determine statement status based on statement day
+                  // Determine statement status based on billing cycle.
+                  // Một giao dịch "Đã sao kê" khi kỳ sao kê chứa nó đã đóng (đã qua
+                  // ngày chốt sao kê của kỳ đó). Còn trong kỳ chưa chốt → "Chờ sao kê".
                   const recordDate = date ? new Date(String(date)) : null;
                   const statementDay = activeCard?.statementDay ?? cards[0]?.statementDay ?? 20;
                   let status = 'Cho sao ke';
                   let statusColor = '#F59E0B';
                   if (recordDate) {
-                    const dayOfMonth = recordDate.getDate();
-                    if (dayOfMonth <= statementDay) {
+                    // Ngày chốt sao kê của kỳ chứa giao dịch này:
+                    // Nếu ngày giao dịch <= statementDay của tháng đó → chốt vào statementDay tháng đó.
+                    // Nếu > statementDay → chốt vào statementDay tháng kế tiếp.
+                    const rd = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate());
+                    let closeDate: Date;
+                    if (rd.getDate() <= statementDay) {
+                      closeDate = new Date(rd.getFullYear(), rd.getMonth(), statementDay);
+                    } else {
+                      closeDate = new Date(rd.getFullYear(), rd.getMonth() + 1, statementDay);
+                    }
+                    const today = new Date();
+                    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    if (closeDate < todayMidnight) {
                       status = 'Da sao ke';
                       statusColor = '#22C55E';
                     }
