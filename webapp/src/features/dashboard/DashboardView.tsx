@@ -26,6 +26,8 @@ export function DashboardView() {
   const [yearlyChartType, setYearlyChartType] = useState<'bar' | 'pie'>('bar');
   const [alertsExpanded, _setAlertsExpanded] = useState(false);
   const [hiddenCategoryIds, setHiddenCategoryIds] = useState<Set<string>>(new Set());
+  const [excludedModuleIds, setExcludedModuleIds] = useState<Set<string>>(new Set(['mod_vang', 'mod_nhatro']));
+  const [showModuleFilter, setShowModuleFilter] = useState(false);
 
   const toggleCategory = (id: string) => {
     setHiddenCategoryIds(prev => {
@@ -33,6 +35,18 @@ export function DashboardView() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const toggleExcludedModule = (id: string) => {
+    setExcludedModuleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const isModuleExcluded = (linkedModuleId: string | undefined) => {
+    return !!linkedModuleId && excludedModuleIds.has(linkedModuleId);
   };
 
   const { dateFrom, dateTo } = useMemo(() => {
@@ -68,7 +82,7 @@ export function DashboardView() {
   // ─── Main Stats ───────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     if (!data) return { totalExpense: 0, totalIncome: 0, totalRecords: 0, prevExpense: 0, prevIncome: 0, prevRecords: 0 };
-    const chiRecs = data.records.filter((r) => r.moduleId === 'mod_chitieu' && !r.isDeleted);
+    const chiRecs = data.records.filter((r) => r.moduleId === 'mod_chitieu' && !r.isDeleted && !isModuleExcluded(r.linkedModuleId));
     const inRange = (d: string) => { if (!dateFrom && !dateTo) return true; if (dateFrom && d < dateFrom) return false; if (dateTo && d > dateTo) return false; return true; };
     const getDate = (r: typeof chiRecs[0]) => { const k = Object.keys(r.values).find((x) => x.endsWith('_date')); return k ? String(r.values[k] ?? '') : ''; };
     const getAmt = (r: typeof chiRecs[0]) => { const k = Object.keys(r.values).find((x) => x.endsWith('_amount')); return k ? Number(r.values[k] ?? 0) : 0; };
@@ -93,6 +107,7 @@ export function DashboardView() {
     const catMap = new Map<string, number>();
     for (const r of data.records) {
       if (r.moduleId !== 'mod_chitieu' || r.isDeleted) continue;
+      if (isModuleExcluded(r.linkedModuleId)) continue;
       const dk = Object.keys(r.values).find((x) => x.endsWith('_date')); const d = dk ? String(r.values[dk] ?? '') : '';
       if (dateFrom && d < dateFrom) continue; if (dateTo && d > dateTo) continue;
       const tk = Object.keys(r.values).find((x) => x.endsWith('_type')); if (tk && (r.values[tk] === '1' || r.values[tk] === '2')) continue;
@@ -105,7 +120,7 @@ export function DashboardView() {
       const cat = chiTieu?.categories?.find((c) => c.id === id);
       return { id, name: cat?.name || 'Khac', color: cat?.color || '#607D8B', icon: cat?.icon, amount: amt, percent: (amt / total) * 100 };
     }).sort((a, b) => b.amount - a.amount).slice(0, 6);
-  }, [data, dateFrom, dateTo]);
+  }, [data, dateFrom, dateTo, excludedModuleIds]);
 
   // ─── Payment Method Breakdown (pie) ───────────────────────────────────────
   const paymentBreakdown = useMemo(() => {
@@ -115,6 +130,7 @@ export function DashboardView() {
     const accMap = new Map<string, number>();
     for (const r of data.records) {
       if (r.moduleId !== 'mod_chitieu' || r.isDeleted) continue;
+      if (isModuleExcluded(r.linkedModuleId)) continue;
       const dk = Object.keys(r.values).find((x) => x.endsWith('_date')); const d = dk ? String(r.values[dk] ?? '') : '';
       if (dateFrom && d < dateFrom) continue; if (dateTo && d > dateTo) continue;
       const tk = Object.keys(r.values).find((x) => x.endsWith('_type')); if (tk && (r.values[tk] === '1' || r.values[tk] === '2')) continue;
@@ -135,10 +151,25 @@ export function DashboardView() {
           name = 'Thẻ tín dụng';
         }
         color = '#1A237E';
-      } else { const opt = accField?.options?.find((o) => o.value === value); if (opt) { name = opt.label; color = opt.color || '#607D8B'; } }
+      } else {
+        const opt = accField?.options?.find((o) => o.value === value);
+        if (opt) {
+          name = opt.label; color = opt.color || '#607D8B';
+        } else {
+          // Value không match option (ID credit card thiếu prefix, hoặc account đã xóa)
+          const cr = data.records.find((r2) => r2.id === value && r2.moduleId === 'mod_creditcard');
+          if (cr) {
+            const cardNameKey = Object.keys(cr.values).find((k) => k.endsWith('_card_name'));
+            name = cardNameKey ? String(cr.values[cardNameKey] ?? 'Thẻ TD') : 'Thẻ TD';
+            color = '#1A237E';
+          } else {
+            name = 'Khác';
+          }
+        }
+      }
       return { value, name, color, amount: amt, percent: (amt / total) * 100 };
     }).sort((a, b) => b.amount - a.amount).slice(0, 6);
-  }, [data, dateFrom, dateTo]);
+  }, [data, dateFrom, dateTo, excludedModuleIds]);
 
   // ─── Alerts ───────────────────────────────────────────────────────────────
   const alerts = useMemo(() => {
@@ -205,6 +236,7 @@ export function DashboardView() {
     const days = Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, expense: 0, income: 0 }));
     for (const r of data.records) {
       if (r.moduleId !== 'mod_chitieu' || r.isDeleted) continue;
+      if (isModuleExcluded(r.linkedModuleId)) continue;
       const dk = Object.keys(r.values).find((x) => x.endsWith('_date')); if (!dk || !r.values[dk]) continue;
       const d = String(r.values[dk]); if (!d.startsWith(dailyMonth)) continue;
       const dayNum = parseInt(d.substring(8, 10), 10); if (dayNum < 1 || dayNum > daysInMonth) continue;
@@ -213,7 +245,7 @@ export function DashboardView() {
       if (tk && r.values[tk] === '1') days[dayNum - 1].income += amt; else days[dayNum - 1].expense += amt;
     }
     return days;
-  }, [data, dailyMonth]);
+  }, [data, dailyMonth, excludedModuleIds]);
 
   // ─── Yearly chart data ────────────────────────────────────────────────────
   const yearlyData = useMemo(() => {
@@ -221,6 +253,7 @@ export function DashboardView() {
     const months = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, label: `T${i + 1}`, expense: 0, income: 0 }));
     for (const r of data.records) {
       if (r.moduleId !== 'mod_chitieu' || r.isDeleted) continue;
+      if (isModuleExcluded(r.linkedModuleId)) continue;
       const dk = Object.keys(r.values).find((x) => x.endsWith('_date')); if (!dk || !r.values[dk]) continue;
       const d = String(r.values[dk]); if (!d.startsWith(String(yearlyYear))) continue;
       const mi = parseInt(d.substring(5, 7), 10) - 1; if (mi < 0 || mi > 11) continue;
@@ -229,13 +262,14 @@ export function DashboardView() {
       if (tk && r.values[tk] === '1') months[mi].income += amt; else months[mi].expense += amt;
     }
     return months;
-  }, [data, yearlyYear]);
+  }, [data, yearlyYear, excludedModuleIds]);
 
   // ─── Top 5 largest expenses ───────────────────────────────────────────────
   const top5Expenses = useMemo(() => {
     if (!data) return [];
     return data.records.filter((r) => {
       if (r.moduleId !== 'mod_chitieu' || r.isDeleted) return false;
+      if (isModuleExcluded(r.linkedModuleId)) return false;
       const dk = Object.keys(r.values).find((x) => x.endsWith('_date')); const d = dk ? String(r.values[dk] ?? '') : '';
       if (dateFrom && d < dateFrom) return false; if (dateTo && d > dateTo) return false;
       const tk = Object.keys(r.values).find((x) => x.endsWith('_type')); return !(tk && r.values[tk] === '1');
@@ -243,7 +277,7 @@ export function DashboardView() {
       const ak = Object.keys(r.values).find((x) => x.endsWith('_amount')); const tk = Object.keys(r.values).find((x) => x.endsWith('_title')); const dk = Object.keys(r.values).find((x) => x.endsWith('_date'));
       return { id: r.id, title: String(tk ? r.values[tk] : '—'), amount: ak ? Number(r.values[ak] ?? 0) : 0, date: dk ? String(r.values[dk] ?? '') : '' };
     }).sort((a, b) => b.amount - a.amount).slice(0, 5);
-  }, [data, dateFrom, dateTo]);
+  }, [data, dateFrom, dateTo, excludedModuleIds]);
 
   // ─── Top 5 categories ─────────────────────────────────────────────────────
   const top5Categories = useMemo(() => categoryBreakdown.slice(0, 5), [categoryBreakdown]);
@@ -279,13 +313,13 @@ export function DashboardView() {
   const comparison = useMemo(() => {
     if (!data) return { total1: 0, total2: 0, diff: 0, diffPct: 0, cats: [] as { id: string; name: string; color: string; amt1: number; amt2: number }[] };
     const chiTieu = data.modules.find((m) => m.id === 'mod_chitieu');
-    const getData = (mk: string) => { let t = 0; const cm = new Map<string, number>(); for (const r of data.records) { if (r.moduleId !== 'mod_chitieu' || r.isDeleted) continue; const dk = Object.keys(r.values).find((x) => x.endsWith('_date')); if (!dk || !r.values[dk]) continue; if (!String(r.values[dk]).startsWith(mk)) continue; const tk = Object.keys(r.values).find((x) => x.endsWith('_type')); if (tk && (r.values[tk] === '1' || r.values[tk] === '2')) continue; const ak = Object.keys(r.values).find((x) => x.endsWith('_amount')); const a = ak ? Number(r.values[ak] ?? 0) : 0; t += a; const cid = (r.categoryId && !r.categoryId.startsWith('mod_')) ? r.categoryId : '__other'; cm.set(cid, (cm.get(cid) ?? 0) + a); } return { t, cm }; };
+    const getData = (mk: string) => { let t = 0; const cm = new Map<string, number>(); for (const r of data.records) { if (r.moduleId !== 'mod_chitieu' || r.isDeleted) continue; if (isModuleExcluded(r.linkedModuleId)) continue; const dk = Object.keys(r.values).find((x) => x.endsWith('_date')); if (!dk || !r.values[dk]) continue; if (!String(r.values[dk]).startsWith(mk)) continue; const tk = Object.keys(r.values).find((x) => x.endsWith('_type')); if (tk && (r.values[tk] === '1' || r.values[tk] === '2')) continue; const ak = Object.keys(r.values).find((x) => x.endsWith('_amount')); const a = ak ? Number(r.values[ak] ?? 0) : 0; t += a; const cid = (r.categoryId && !r.categoryId.startsWith('mod_')) ? r.categoryId : '__other'; cm.set(cid, (cm.get(cid) ?? 0) + a); } return { t, cm }; };
     const d1 = getData(compareMonth1); const d2 = getData(compareMonth2);
     const allCats = new Set([...d1.cm.keys(), ...d2.cm.keys()]);
     const cats = Array.from(allCats).map((id) => { const c = chiTieu?.categories?.find((x) => x.id === id); return { id, name: c?.name || 'Khac', color: c?.color || '#607D8B', amt1: d1.cm.get(id) ?? 0, amt2: d2.cm.get(id) ?? 0 }; }).sort((a, b) => Math.max(b.amt1, b.amt2) - Math.max(a.amt1, a.amt2)).slice(0, 5);
     const diff = d2.t - d1.t; const diffPct = d1.t > 0 ? (diff / d1.t) * 100 : 0;
     return { total1: d1.t, total2: d2.t, diff, diffPct, cats };
-  }, [data, compareMonth1, compareMonth2]);
+  }, [data, compareMonth1, compareMonth2, excludedModuleIds]);
 
   if (!data) return null;
   const balance = stats.totalIncome - stats.totalExpense;
@@ -392,7 +426,44 @@ export function DashboardView() {
           <h1 className="text-lg font-semibold text-[var(--color-text)]">Dashboard</h1>
           <p className="text-xs text-[var(--color-text-secondary)]">Tong quan tai chinh ca nhan</p>
         </div>
-        <TimeFilter datePreset={dashPreset} dateFrom={customFrom} dateTo={customTo} onPresetChange={handlePresetChange} onDateRangeChange={handleDateRangeChange} presets={['week', 'month', 'year', 'all']} />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setShowModuleFilter(s => !s)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                excludedModuleIds.size > 0
+                  ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20'
+                  : 'text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+              }`}
+              title="Lọc module khỏi biểu đồ"
+            >
+              <Icon name="filter" size={13} />
+              Lọc module
+              {excludedModuleIds.size > 0 && <span className="ml-0.5 px-1.5 rounded-full bg-blue-500 text-white text-[9px]">{excludedModuleIds.size}</span>}
+            </button>
+            {showModuleFilter && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowModuleFilter(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-white dark:bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-lg p-2">
+                  <p className="text-[10px] text-[var(--color-text-secondary)] px-2 py-1 uppercase font-medium">Ẩn module khỏi biểu đồ</p>
+                  {data.modules
+                    .filter(m => m.isActive && ['mod_vang', 'mod_nhatro', 'mod_shopee'].includes(m.id))
+                    .map(m => {
+                      const isExcluded = excludedModuleIds.has(m.id);
+                      return (
+                        <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-surface)] cursor-pointer text-xs">
+                          <input type="checkbox" checked={isExcluded} onChange={() => toggleExcludedModule(m.id)} className="rounded" />
+                          <span className="text-[var(--color-text)]">{m.name}</span>
+                          {isExcluded && <span className="ml-auto text-[9px] text-blue-500">Đã ẩn</span>}
+                        </label>
+                      );
+                    })}
+                </div>
+              </>
+            )}
+          </div>
+          <TimeFilter datePreset={dashPreset} dateFrom={customFrom} dateTo={customTo} onPresetChange={handlePresetChange} onDateRangeChange={handleDateRangeChange} presets={['week', 'month', 'year', 'all']} />
+        </div>
       </div>
 
       <div className="p-5 space-y-4 bg-[var(--color-surface)]">
