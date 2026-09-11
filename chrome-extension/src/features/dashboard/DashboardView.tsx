@@ -160,16 +160,22 @@ export function DashboardView() {
         if (opt) {
           name = opt.label; color = opt.color || '#607D8B';
         } else {
-          // Value không match option nào. Có thể là ID credit card lưu thiếu prefix,
-          // hoặc account đã xóa. Thử tìm record credit card theo ID.
-          const cr = data.records.find((r2) => r2.id === value && r2.moduleId === 'mod_creditcard');
-          if (cr) {
-            const cardNameKey = Object.keys(cr.values).find((k) => k.endsWith('_card_name'));
-            name = cardNameKey ? String(cr.values[cardNameKey] ?? 'Thẻ TD') : 'Thẻ TD';
-            color = '#1A237E';
+          // Value không match option field. Thử resolve qua shared accounts list
+          // (tài khoản mới thêm có ID dạng UUID, chưa nằm trong field options).
+          const acc = data.accounts?.find((a) => a.id === value || a.name === value);
+          if (acc) {
+            name = acc.name; color = acc.color || '#607D8B';
           } else {
-            // Không xác định được → gộp vào "Khác" thay vì hiện UUID thô
-            name = 'Khác';
+            // Thử tìm record credit card theo ID (trường hợp thiếu prefix credit_card_)
+            const cr = data.records.find((r2) => r2.id === value && r2.moduleId === 'mod_creditcard');
+            if (cr) {
+              const cardNameKey = Object.keys(cr.values).find((k) => k.endsWith('_card_name'));
+              name = cardNameKey ? String(cr.values[cardNameKey] ?? 'Thẻ TD') : 'Thẻ TD';
+              color = '#1A237E';
+            } else {
+              // Thực sự không xác định được → gộp vào "Khác"
+              name = 'Khác';
+            }
           }
         }
       }

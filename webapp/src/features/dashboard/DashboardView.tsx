@@ -156,14 +156,20 @@ export function DashboardView() {
         if (opt) {
           name = opt.label; color = opt.color || '#607D8B';
         } else {
-          // Value không match option (ID credit card thiếu prefix, hoặc account đã xóa)
-          const cr = data.records.find((r2) => r2.id === value && r2.moduleId === 'mod_creditcard');
-          if (cr) {
-            const cardNameKey = Object.keys(cr.values).find((k) => k.endsWith('_card_name'));
-            name = cardNameKey ? String(cr.values[cardNameKey] ?? 'Thẻ TD') : 'Thẻ TD';
-            color = '#1A237E';
+          // Value không match option field. Thử resolve qua shared accounts list
+          // (tài khoản mới thêm có ID dạng UUID, chưa nằm trong field options).
+          const acc = data.accounts?.find((a) => a.id === value || a.name === value);
+          if (acc) {
+            name = acc.name; color = acc.color || '#607D8B';
           } else {
-            name = 'Khác';
+            const cr = data.records.find((r2) => r2.id === value && r2.moduleId === 'mod_creditcard');
+            if (cr) {
+              const cardNameKey = Object.keys(cr.values).find((k) => k.endsWith('_card_name'));
+              name = cardNameKey ? String(cr.values[cardNameKey] ?? 'Thẻ TD') : 'Thẻ TD';
+              color = '#1A237E';
+            } else {
+              name = 'Khác';
+            }
           }
         }
       }
