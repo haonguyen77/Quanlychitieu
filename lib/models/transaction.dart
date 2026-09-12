@@ -9,6 +9,7 @@ class Transaction {
   final String? categoryId;
   final String? accountId;
   final String? moduleId;
+  final String? linkedModuleId;
   final DateTime date;
   final String? tags; // comma-separated
   final String? images; // comma-separated file paths
@@ -40,6 +41,7 @@ class Transaction {
     this.categoryId,
     this.accountId,
     this.moduleId,
+    this.linkedModuleId,
     required this.date,
     this.tags,
     this.images,
@@ -83,6 +85,7 @@ class Transaction {
       'category_id': categoryId,
       'account_id': accountId,
       'module_id': moduleId,
+      'linked_module_id': linkedModuleId,
       'date': date.toIso8601String(),
       'tags': tags,
       'images': images,
@@ -109,6 +112,7 @@ class Transaction {
       categoryId: map['category_id'] as String?,
       accountId: map['account_id'] as String?,
       moduleId: map['module_id'] as String?,
+      linkedModuleId: map['linked_module_id'] as String?,
       date: DateTime.parse(map['date'] as String),
       tags: map['tags'] as String?,
       images: map['images'] as String?,
@@ -141,6 +145,7 @@ class Transaction {
     String? categoryId,
     String? accountId,
     String? moduleId,
+    String? linkedModuleId,
     DateTime? date,
     String? tags,
     String? images,
@@ -168,6 +173,7 @@ class Transaction {
       categoryId: categoryId ?? this.categoryId,
       accountId: accountId ?? this.accountId,
       moduleId: moduleId ?? this.moduleId,
+      linkedModuleId: linkedModuleId ?? this.linkedModuleId,
       date: date ?? this.date,
       tags: tags ?? this.tags,
       images: images ?? this.images,

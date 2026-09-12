@@ -43,6 +43,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _referenceDate = DateTime.now();
   bool _showFilter = false;
 
+  // Các module có thể ẩn khỏi dashboard (giá trị lớn làm lệch biểu đồ).
+  // Mặc định ẩn Vàng và Nhà trọ, đồng bộ với web/ext.
+  static const Map<String, String> _excludableModules = {
+    'mod_vang': 'Vàng',
+    'mod_nhatro': 'Nhà trọ',
+    'mod_shopee': 'Shopee',
+  };
+  Set<String> _hiddenModules = {'mod_vang', 'mod_nhatro'};
+
+  bool _isModuleHidden(Transaction t) {
+    return (t.moduleId != null && _hiddenModules.contains(t.moduleId)) ||
+        (t.linkedModuleId != null && _hiddenModules.contains(t.linkedModuleId));
+  }
+
   // Data
   List<Transaction> _transactions = [];
   double _totalIncome = 0;
@@ -154,7 +168,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final rentalProvider = context.read<RentalProvider>();
 
     // Load transactions in date range
-    final txns = await provider.search(startDate: _startDate, endDate: _endDate);
+    final allTxns = await provider.search(startDate: _startDate, endDate: _endDate);
+    // Loại các module bị ẩn (Vàng, Nhà trọ...) khỏi mọi thống kê
+    final txns = allTxns.where((t) => !_isModuleHidden(t)).toList();
     _transactions = txns;
 
     // Calculate totals
@@ -309,8 +325,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final start2 = _compareMonth2;
     final end2 = DateTime(_compareMonth2.year, _compareMonth2.month + 1, 1).subtract(const Duration(milliseconds: 1));
 
-    final txns1 = await provider.search(startDate: start1, endDate: end1);
-    final txns2 = await provider.search(startDate: start2, endDate: end2);
+    final txns1 = (await provider.search(startDate: start1, endDate: end1)).where((t) => !_isModuleHidden(t)).toList();
+    final txns2 = (await provider.search(startDate: start2, endDate: end2)).where((t) => !_isModuleHidden(t)).toList();
 
     _month1Categories = {};
     _month2Categories = {};
@@ -345,6 +361,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _buildPeriodFilter(),
                         const SizedBox(height: 8),
                         _buildDateRange(),
+                        const SizedBox(height: 8),
+                        _buildModuleFilter(),
                       ],
                       const SizedBox(height: 16),
                       _buildSummaryCards(),
@@ -487,6 +505,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── MODULE FILTER ───────────────────────────────────────────────────────
+
+  Widget _buildModuleFilter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Ẩn module khỏi biểu đồ', style: TextStyle(fontSize: 10, color: Colors.grey[500], fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _excludableModules.entries.map((e) {
+              final hidden = _hiddenModules.contains(e.key);
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (hidden) {
+                      _hiddenModules.remove(e.key);
+                    } else {
+                      _hiddenModules.add(e.key);
+                    }
+                  });
+                  _loadData();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: hidden ? Colors.grey[100] : _darkPurple,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: hidden ? _border : _darkPurple),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(hidden ? Icons.visibility_off : Icons.check, size: 13, color: hidden ? Colors.grey[400] : Colors.white),
+                      const SizedBox(width: 5),
+                      Text(e.value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: hidden ? Colors.grey[500] : Colors.white)),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
